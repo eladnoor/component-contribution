@@ -1,5 +1,8 @@
-function res = reaction2sparse(s)
-tmp = regexp(s, '\s*=\s*', 'split');
+function res = reaction2sparse(s, arrow)
+if nargin < 2
+    arrow = '=';
+end
+tmp = regexp(s, sprintf('\\s*%s\\s*', arrow), 'split');
 left = regexp(tmp{1}, '\s*\+\s*', 'split');
 right = regexp(tmp{2}, '\s*\+\s*', 'split');
 

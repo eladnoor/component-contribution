@@ -4,8 +4,14 @@
 % Input:
 %   formation_weight - the relative weight to give the formation energies (Alberty's data)
 %                      compared to the reaction measurements (TECRDB)
-function training_data = loadTrainingData(formation_weight)
+function training_data = loadTrainingData(use_cached_kegg_inchis, use_cached_kegg_pkas, formation_weight)
 if nargin < 1
+    use_cached_kegg_inchis = true;
+end
+if nargin < 2
+    use_cached_kegg_pkas = true;
+end
+if nargin < 3
     formation_weight = 1;
 end
 
@@ -48,7 +54,7 @@ inds = find(~isnan(res{10}) .* ~isnan(res{11}) .* ~isnan(res{13}));
 dG0_prime = -R * res{11}(inds) .* log(res{10}(inds)); % calculate dG'0
 thermo_params = [dG0_prime, res{11}(inds), res{12}(inds), res{13}(inds), ...
                  res{14}(inds), WEIGHT_TECRDB * ones(size(inds)), ...
-                 true(size(inds)), ones(size(inds))];
+                 true(size(inds))];
 
 % parse the reactions in each row
 for i = 1:length(inds)
@@ -69,7 +75,7 @@ inds = find(~isnan(res{3}));
 thermo_params = [thermo_params; [res{3}(inds), res{7}(inds), res{5}(inds), ...
                                  res{4}(inds), res{6}(inds), ...
                                  WEIGHT_FORMATION * ones(size(inds)), ...
-                                 false(size(inds)), 2*ones(size(inds))]];
+                                 false(size(inds))]];
 for i = 1:length(inds)
     sprs = sparse([]);
     sprs(res{1}(inds(i))) = 1;
@@ -94,7 +100,7 @@ dG0_prime = -F * res{8} .* delta_e;
 thermo_params = [thermo_params; [dG0_prime, res{12}, res{10}, res{9}, ...
                                  res{11}, ...
                                  WEIGHT_REDOX * ones(size(dG0_prime)), ...
-                                 false(size(dG0_prime)), 3*ones(size(dG0_prime))]];
+                                 false(size(dG0_prime))]];
 
 for i = 1:length(res{1})
     sprs = sparse([]);
@@ -126,4 +132,23 @@ training_data.pH = thermo_params(:, 4);
 training_data.pMg = thermo_params(:, 5);
 training_data.weights = thermo_params(:, 6);
 training_data.balance = thermo_params(:, 7);
-training_data.source = thermo_params(:, 8);
+
+% get the InChIs for all the compounds in the training data
+% (note that all of them have KEGG IDs)
+kegg_inchies = getInchies(training_data.cids, use_cached_kegg_inchis);
+[~, inds, ~] = intersect(kegg_inchies.cids, training_data.cids);
+assert(length(inds) == length(training_data.cids));
+training_data.std_inchi = kegg_inchies.std_inchi(inds);
+training_data.std_inchi_stereo = kegg_inchies.std_inchi_stereo(inds);
+training_data.std_inchi_stereo_charge = kegg_inchies.std_inchi_stereo_charge(inds);
+training_data.nstd_inchi = kegg_inchies.nstd_inchi(inds);
+
+% use the chemical formulas from the InChIs to verify that each and every
+% reaction is balanced.
+training_data = balanceReactionsInTrainingData(training_data);
+
+% get the pKas for the compounds in the training data (using ChemAxon)
+kegg_pKa = getTrainingDatapKas(training_data.cids, training_data.nstd_inchi, use_cached_kegg_pkas);
+[~, inds, ~] = intersect(cell2mat({kegg_pKa.cid}), training_data.cids);
+assert(length(inds) == length(training_data.cids));
+training_data.kegg_pKa = kegg_pKa(inds);

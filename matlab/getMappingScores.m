@@ -14,7 +14,7 @@ if ~isempty(missingStereo)
     end
 end
 
-fprintf('Mapping model metabolites to nist compounds\n');
+fprintf('Mapping model metabolites to NIST compounds\n');
 
 % Map model metabolites to NIST data
 fid = fopen(FIXED_MAPPING_TSV_FNAME, 'r');

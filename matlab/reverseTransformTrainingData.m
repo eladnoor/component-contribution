@@ -1,5 +1,9 @@
 function training_data = reverseTransformTrainingData(model, training_data, use_model_pKas_by_default)
 
+if nargin < 3
+    use_model_pKas_by_default = true;
+end
+
 R = 8.31e-3; % kJ/mol/K
 
 fprintf('Performing reverse transform\n');
@@ -26,19 +30,17 @@ for i = 1:size(training_data.S, 2) % for each reaction in S
             end
         end
         
+        % if this compound (whose index in the training_data is inds(j)) also appears in the model
+        % use the pKa from the model.
         model_id = find(training_data.Model2TrainingMap == inds(j), 1);
         if ~isempty(model_id)
             model_diss = model.pKa(model_id);
         else
             model_diss.success = false;
-            model_diss.pKas = [];
-            model_diss.majorMSpH7 = true;
-            model_diss.nHs = 0;
-            model_diss.zs = 0;
         end
         
         if use_model_pKas_by_default
-            if model_diss.success || isempty(training_diss)
+            if model_diss.success
                 diss = model_diss;
             else
                 diss = training_diss;

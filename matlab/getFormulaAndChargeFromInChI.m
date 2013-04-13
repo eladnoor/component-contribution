@@ -30,7 +30,7 @@ else
     charge = 0;
 end
 
-f1_nH = numAtomsOfElementInFormula(f1,'H'); % nH in fully protonated formula
+f1_nH = getNumAtomsOfElementInFormula(f1,'H'); % nH in fully protonated formula
 if ~isempty(p)
     nH = f1_nH + str2double(p(2:end)); % nH in pseudoisomer formula
 else
@@ -47,7 +47,7 @@ elseif nH < 0
 end
 
 % In case there is Hg in formula
-f1_nHg = numAtomsOfElementInFormula(f1,'Hg');
+f1_nHg = getNumAtomsOfElementInFormula(f1,'Hg');
 if f1_nHg == 1
     formula = [formula 'Hg'];
 elseif f1_nHg > 1

@@ -3,24 +3,32 @@ if nargin < 3
     n_pkas = 20;
 end
 
-if ismac
-    cxcalc_cmd = '/Applications/ChemAxon/JChem/bin/cxcalc';
-    babel_cmd = '/usr/local/bin/babel';
-else
-    cxcalc_cmd = 'cxcalc';
-    babel_cmd = 'babel';
-end
+cxcalc_cmd = 'cxcalc';
+babel_cmd = 'babel';
 
 [success, ~] = system(cxcalc_cmd);
 if success ~= 0
-    error('Please make sure the command line program "babel" is installed and in the path');
+    error('Please make sure the command line program "cxcalc" is installed and in PATH');
+end
+
+[success, ~] = system([babel_cmd ' -H']);
+if success ~= 0
+    error('Please make sure the command line program "babel" is installed and in PATH');
 end
 
 KeggSpeciespKa = [];
 
-for i = 1:length(target_cids)
-    cid = target_cids(i);    
-    inchi = target_inchi{i};
+for i_cid = 1:length(target_cids)
+    KeggSpeciespKa(i_cid).cid = target_cids(i_cid);
+
+    % by default have an empty pKa list for compounds that we know nothing else about
+    KeggSpeciespKa(i_cid).pKas = [];
+    KeggSpeciespKa(i_cid).majorMSpH7 = true;
+    KeggSpeciespKa(i_cid).zs = 0;
+    KeggSpeciespKa(i_cid).nHs = 0;
+    KeggSpeciespKa(i_cid).success = false;
+
+    inchi = target_inchi{i_cid};
     if isempty(inchi)
         continue
     end
@@ -32,13 +40,13 @@ for i = 1:length(target_cids)
     end
     
     if success == 0
-       smiles = strtok(smiles);
-       structure = smiles;
+        smiles = strtok(smiles);
+        structure = smiles;
     else
         structure = inchi;
     end
         
-    fprintf('Using cxcalc on C%05d: %s\n', cid, structure);
+    fprintf('Using cxcalc on C%05d: %s\n', KeggSpeciespKa(i_cid).cid, structure);
 
     if ispc
         cmd = [cxcalc_cmd ' "' structure '" pka -a ' num2str(n_pkas) ' -b ' num2str(n_pkas) ' majorms -M true --pH 7'];
@@ -47,12 +55,14 @@ for i = 1:length(target_cids)
     end
     [success, cxcalc_stdout] = system(cmd);
     
-    if ~isempty(strfind(cxcalc_stdout,'Inconsistent molecular structure'))
+    if ~isempty(strfind(cxcalc_stdout,'majorms:FAILED'))
+       success = -1; 
+    end
+    if ~isempty(strfind(cxcalc_stdout,'majorms: Inconsistent molecular structure'))
        success = -1; 
     end
     
     if success == 0
-        %fprintf(cxcalc_stdout);
         pkalist = regexp(cxcalc_stdout,'\n','split');
         titles = regexp(pkalist{1,1}, '\t', 'split');
         vals = regexp(pkalist{1,2}, '\t', 'split');
@@ -61,9 +71,9 @@ for i = 1:length(target_cids)
         end
 
         inds = zeros(2*n_pkas, 1);
-        for i = 1:n_pkas
-            inds(2*i-1, 1) = find(strcmp(titles, ['apKa' num2str(i)]));
-            inds(2*i, 1) = find(strcmp(titles, ['bpKa' num2str(i)]));
+        for i_pka = 1:n_pkas
+            inds(2*i_pka - 1, 1) = find(strcmp(titles, ['apKa' num2str(i_pka)]));
+            inds(2*i_pka,     1) = find(strcmp(titles, ['bpKa' num2str(i_pka)]));
         end
 
         pkalist = vals(1, inds);
@@ -93,12 +103,11 @@ for i = 1:length(target_cids)
             charge = 0;
         end
         
-        idx = length(KeggSpeciespKa) + 1;
+        KeggSpeciespKa(i_cid).success = true;
         if ~isempty(pkalist)
             pkas = zeros(length(pkalist)+1,length(pkalist)+1);
             pkas(2:end,1:end-1) = diag(pkalist);
             pkas = pkas + pkas';
-            KeggSpeciespKa(idx).pKas = pkas;
 
             mmsbool = false(size(pkas,1),1);
             if any(pkalist <= 7)
@@ -106,23 +115,20 @@ for i = 1:length(target_cids)
             else
                 mmsbool(end) = true;
             end
-            KeggSpeciespKa(idx).majorMSpH7 = mmsbool;                    
             zs = 1:size(pkas,1);
             zs = zs - find(mmsbool);
             zs = zs + charge;
-            KeggSpeciespKa(idx).zs = zs;
 
             nHs = 1:size(pkas,1);
             nHs = nHs - find(mmsbool);
             nHs = nHs + nH;
-            KeggSpeciespKa(idx).nHs = nHs;
-            KeggSpeciespKa(idx).cid = cid;
+            KeggSpeciespKa(i_cid).pKas = pkas;
+            KeggSpeciespKa(i_cid).majorMSpH7 = mmsbool;                    
+            KeggSpeciespKa(i_cid).zs = zs;
+            KeggSpeciespKa(i_cid).nHs = nHs;
         else
-            KeggSpeciespKa(idx).pKas = [];
-            KeggSpeciespKa(idx).majorMSpH7 = true;
-            KeggSpeciespKa(idx).zs = charge;
-            KeggSpeciespKa(idx).nHs = nH;
-            KeggSpeciespKa(idx).cid = cid;
+            KeggSpeciespKa(i_cid).zs = charge;
+            KeggSpeciespKa(i_cid).nHs = nH;
         end
     end
 end
