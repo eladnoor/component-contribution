@@ -19,4 +19,6 @@ end
 
 fprintf('Calculating the pKa values for the training data using ChemAxon')
 kegg_pKa = [kegg_pKa; getKeggpKas(target_cids, target_inchies)];
-save(CACHED_KEGG_PKA_MAT_FNAME, 'kegg_pKa', '-v7');
+if use_cache
+    save(CACHED_KEGG_PKA_MAT_FNAME, 'kegg_pKa', '-v7');
+end

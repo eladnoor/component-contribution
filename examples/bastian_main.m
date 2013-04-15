@@ -13,7 +13,8 @@ if exist(CACHED_MODEL_FNAME, 'file')
     fprintf('Loading model from cache: %s\n', CACHED_MODEL_FNAME);
     load(CACHED_MODEL_FNAME);
 else
-    model = loadKeggModel(REACTION_FNAME);
+    [S, cids] = loadKeggModel(REACTION_FNAME);
+    model = createModelFromS(S, cids);
     save(CACHED_MODEL_FNAME, 'model', '-v7');
 end
 

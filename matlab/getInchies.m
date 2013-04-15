@@ -57,5 +57,7 @@ if ~isempty(target_cids)
         inchies.std_inchi_stereo_charge{1,n+i} = std_inchi_stereo_charge;
         inchies.nstd_inchi{1,n+i} = nstd_inchi;
     end
-    save(CACHED_KEGG_INCHI_MAT_FNAME, 'inchies', '-v7');
+    if use_cache
+        save(CACHED_KEGG_INCHI_MAT_FNAME, 'inchies', '-v7');
+    end
 end
