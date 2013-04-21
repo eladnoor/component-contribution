@@ -1,6 +1,6 @@
 cd ../matlab
 
-REACTION_FNAME = '../examples/bastian_reactions.txt';
+REACTION_FNAME = '../examples/rienk_reactions.txt';
 CACHED_TRAINING_DATA_FNAME = '../cache/training.mat';
 CACHED_MODEL_FNAME = '../cache/bastian_model.mat';
 CACHED_RT_TRAINING_DATA_FNAME = '../cache/bastian_rt_training.mat';
@@ -13,7 +13,7 @@ if exist(CACHED_MODEL_FNAME, 'file')
     fprintf('Loading model from cache: %s\n', CACHED_MODEL_FNAME);
     load(CACHED_MODEL_FNAME);
 else
-    [S, cids] = loadKeggModel(REACTION_FNAME, '<=>', 0);
+    [S, cids] = loadKeggModel(REACTION_FNAME, '-->', 1);
     model = createModelFromS(S, cids);
     save(CACHED_MODEL_FNAME, 'model', '-v7');
 end

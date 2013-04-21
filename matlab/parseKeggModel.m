@@ -1,13 +1,25 @@
-function [S, cids] = parseKeggModel(reactionStrings, fmt)
+% [S, cids] = parseKeggModel(fname, fmt)
+%
+% parses cellarray of reactions in KEGG format
+%
+% Arguments:
+%   reactionStrings - a 1D cellarray containing strings of reactions
+%   arrow - the string used as the 'arrow' in each reaction (default: '<=>')
+%   has_reaction_ids - a boolean flag indicating if there is a column of
+%                      reaction IDs (separated from the reaction with
+%                      whitespaces)
+%
+% Return values:
+%   S     - a stoichiometric matrix
+%   cids  - the KEGG compound IDs in the same order as the rows of S
 
-if nargin < 2 || strcmp(fmt, 'bastian')
+function [S, cids] = parseKeggModel(reactionStrings, arrow, has_reaction_ids)
+
+if nargin < 2
     arrow = '<=>';
+end
+if nargin < 3
     has_reaction_ids = false;
-elseif strcmp(fmt, 'rienk')
-    arrow = '-->';
-    has_reaction_ids = true;
-else
-    error('Kegg Model format must be "bastian" or "rienk"');
 end
 
 cids = [];
