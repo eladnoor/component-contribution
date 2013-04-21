@@ -24,7 +24,7 @@ if nargin < 3
 end
 
 
-model = createModelFromS(S, cids);
+model = createKeggModelFromS(S, cids);
 training_data = loadTrainingData(false, false, 1);
 rt_training_data = createKeggGroupIncidenceMatrix(model, training_data);
 rt_training_data = reverseTransformTrainingData(model, rt_training_data);

@@ -1,8 +1,12 @@
-function model = createModelFromS(S, cids)
-%createModelFromS returns a model with the fields required for running CC
-%   Arguments:
-%        S    - a stoichiometric matrix (n by m)
-%        cids - the KEGG compound IDs in the same order as in S (1 by n)
+% model = createKeggModelFromS(S, cids)
+%
+% returns a model with the fields required for running CC
+%
+% Arguments:
+%   S    - a stoichiometric matrix (n by m)
+%   cids - the KEGG compound IDs in the same order as in S (1 by n)
+
+function model = createKeggModelFromS(S, cids)
 
 model.S = S;
 model.cids = cids;
