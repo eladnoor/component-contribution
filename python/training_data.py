@@ -47,12 +47,6 @@ class TrainingData(object):
         self.cids = cids;
         self.cids_that_dont_decompose = cids_that_dont_decompose
 
-        # get the InChIs and pKas for all the compounds in the training data
-        # (note that all of them have KEGG IDs)
-        self.cid2compound = {}
-        for cid in self.cids:
-            self.cid2compound[cid] = self.ccache.get_kegg_compound(cid)
-        
         self.dG0_prime = np.array([d['dG\'0'] for d in thermo_params])
         self.T = np.array([d['T'] for d in thermo_params])
         self.I = np.array([d['I'] for d in thermo_params])
@@ -63,6 +57,18 @@ class TrainingData(object):
                                if thermo_params[i]['balance']]
 
         self.balance_reactions(rxn_inds_to_balance)
+        
+        self.reverse_transform()
+
+    @staticmethod
+    def str2double(s):
+        """
+            casts a string to float, but if the string is empty return NaN
+        """
+        if s == '':
+            return np.nan
+        else:
+            return float(s)
 
     @staticmethod
     def read_tecrdb():       
@@ -86,14 +92,15 @@ class TrainingData(object):
             sparse = kegg_reaction.parse_kegg_reaction(row['REACTION IN KEGG IDS'], arrow='=')
 
             # calculate dG'0
-            dG0_prime = -R * float(row['T']) * np.log(float(row['K\''])) 
+            dG0_prime = -R * TrainingData.str2double(row['T']) * \
+                             np.log(TrainingData.str2double(row['K\''])) 
             try:
                 thermo_params.append({'reaction': sparse,
                                       'dG\'0' : dG0_prime,
-                                      'T': float(row['T']), 
-                                      'I': float(row['I'] or 0),
-                                      'pH': float(row['pH']),
-                                      'pMg': float(row['pMg'] or 0),
+                                      'T': TrainingData.str2double(row['T']), 
+                                      'I': TrainingData.str2double(row['I']),
+                                      'pH': TrainingData.str2double(row['pH']),
+                                      'pMg': TrainingData.str2double(row['pMg']),
                                       'weight': weight,
                                       'balance': True})
             except ValueError:
@@ -120,11 +127,11 @@ class TrainingData(object):
                 cids_that_dont_decompose.add(cid)
 
             thermo_params.append({'reaction': {cid : 1},
-                                  'dG\'0' : float(row['dG\'0']),
-                                  'T': float(row['T']), 
-                                  'I': float(row['I'] or 0),
-                                  'pH': float(row['pH']),
-                                  'pMg': float(row['pMg'] or 0),
+                                  'dG\'0' : TrainingData.str2double(row['dG\'0']),
+                                  'T': TrainingData.str2double(row['T']), 
+                                  'I': TrainingData.str2double(row['I']),
+                                  'pH': TrainingData.str2double(row['pH']),
+                                  'pMg': TrainingData.str2double(row['pMg']),
                                   'weight': weight,
                                   'balance': False})
 
@@ -144,17 +151,19 @@ class TrainingData(object):
         for row in csv.DictReader(open(fname, 'r'), delimiter='\t'):
             cid_ox = int(row['CID_ox'])
             cid_red = int(row['CID_red'])
-            delta_nH = float(row['nH_red']) - float(row['nH_ox'])
-            delta_charge = float(row['charge_red']) - float(row['charge_ox'])
+            delta_nH = TrainingData.str2double(row['nH_red']) - \
+                       TrainingData.str2double(row['nH_ox'])
+            delta_charge = TrainingData.str2double(row['charge_red']) - \
+                           TrainingData.str2double(row['charge_ox'])
             delta_e = delta_nH - delta_charge
-            dG0_prime = -F * float(row['E\'0']) * delta_e
+            dG0_prime = -F * TrainingData.str2double(row['E\'0']) * delta_e
             
             thermo_params.append({'reaction': {cid_ox : -1, cid_red : 1},
                                   'dG\'0' : dG0_prime,
-                                  'T': float(row['T']), 
-                                  'I': float(row['I'] or 0),
-                                  'pH': float(row['pH']),
-                                  'pMg': float(row['pMg'] or 0),
+                                  'T': TrainingData.str2double(row['T']), 
+                                  'I': TrainingData.str2double(row['I']),
+                                  'pH': TrainingData.str2double(row['pH']),
+                                  'pMg': TrainingData.str2double(row['pMg']),
                                   'weight': weight,
                                   'balance': False})        
 
@@ -169,7 +178,8 @@ class TrainingData(object):
         elements = set()
         atom_bag_list = []
         for cid in self.cids:
-            atom_bag = self.cid2compound[cid].get_atom_bag_with_electrons()
+            comp = self.ccache.get_kegg_compound(cid)
+            atom_bag = comp.get_atom_bag_with_electrons()
             if atom_bag is not None:
                 elements = elements.union(atom_bag.keys())
             atom_bag_list.append(atom_bag)
@@ -220,7 +230,23 @@ class TrainingData(object):
                      '%d compounds and %d reactions' %
                      (len(rxn_inds_to_remove), self.S.shape[0], self.S.shape[1]))
 
+    def reverse_transform(self):
+        """
+            Calculate the reverse transform for all reactions in training_data.
+        """
+        n_rxns = self.S.shape[1]
+        reverse_ddG0 = np.zeros(n_rxns)
+        self.I[np.isnan(self.I)] = 0.25 # default ionic strength is 0.25M
+        self.pMg[np.isnan(self.pMg)] = 14 # default pMg is 14
+        for i in xrange(n_rxns):
+            for j in np.nonzero(self.S[:, i])[0]:
+                cid = self.cids[j]
+                comp = self.ccache.get_kegg_compound(cid)
+                ddG0 = comp.transform(self.pH[i], self.I[i], self.T[i])
+                reverse_ddG0[i] = reverse_ddG0[i] + ddG0 * self.S[j, i]
 
+        self.dG0 = self.dG0_prime - reverse_ddG0
+        
 if __name__ == '__main__':
     logger = logging.getLogger('')
     logger.setLevel(logging.INFO)

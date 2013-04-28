@@ -1,8 +1,10 @@
 import numpy as np
-from inchi2gv import GroupsData, InChI2GroupVector, GROUP_CSV
+from inchi2gv import GroupsData, InChI2GroupVector, GROUP_CSV, GroupDecompositionError
 from training_data import TrainingData
 from kegg_model import KeggModel
-
+from compound_cacher import CompoundCacher
+from scipy.io import savemat
+    
 class ComponentContribution(object):
     
     def __init__(self, kegg_model, training_data):
@@ -10,6 +12,8 @@ class ComponentContribution(object):
             Initialize G matrix, and then use the python script "inchi2gv.py" to decompose each of the 
             compounds that has an InChI and save the decomposition as a row in the G matrix.
         """
+        self.ccache = CompoundCacher.getInstance()
+        
         self.groups_data = GroupsData.FromGroupsFile(GROUP_CSV, transformed=False)
         self.inchi2gv = InChI2GroupVector(self.groups_data)
         self.group_names = self.groups_data.GetGroupNames()
@@ -17,28 +21,13 @@ class ComponentContribution(object):
         self.kegg_model = kegg_model
         self.training_data = training_data
         ComponentContribution._standardize_models(self.kegg_model, self.training_data)
-        
-        # create the group incidence matrix
-        self.G = np.zeros((len(self.training_data.cids), len(self.group_names)))
-        self.has_gv = np.ones((len(self.training_data.cids), 1))
-        
-        # decompose the compounds in the training_data and add to G
-        for i, cid in enumerate(self.training_data.cids):
-            # for compounds that have no InChI, add a unique 1 in a new column
-            inchi = self.training_data.cid2compound[cid].inchi
-            group_def = self.inchi2gv.EstimateInChI(inchi)
-            #if length(group_def) == length(Groups) % decompoisition successful, place it in G
-            #    G(i, 1:length(group_def)) = group_def;
-            #    training_data.has_gv(i) = true;
-            #elseif isempty(group_def) % decomposition failed, add a unique 1 in a new column
-            #    G(:, end+1) = 0; 
-            #    G(i, end) = 1;
-            #    training_data.has_gv(i) = false;
-            #else
-            #    fprintf('InChI = %s\n', inchi);
-            #    fprintf('*************\n%s\n', getGroupVectorFromInchi(inchi, false));
-            #    error('ERROR: while trying to decompose compound C%05d', training_data.cids(i));
 
+        self.create_group_incidence_matrix()
+        
+        G_cc, cov_G, params = self.train()
+        
+        savemat('../examples/groups.mat', {'G' : self.G, 'dG0_cc' : G_cc})
+        
     @staticmethod 
     def _standardize_models(kegg_model, training_data):
         """
@@ -67,9 +56,117 @@ class ComponentContribution(object):
         for i, cid in enumerate(cids):
             full_S[all_cids.index(cid), :] = S[i, :]
         
-    #def create_group_incidence_matrix(self):
+        return full_S
         
+    def create_group_incidence_matrix(self):
+        """
+            create the group incidence matrix
+        """
+        self.G = np.zeros((len(self.training_data.cids), len(self.group_names)))
+        cpd_inds_without_gv = []
+        
+        # decompose the compounds in the training_data and add to G
+        for i, cid in enumerate(self.training_data.cids):
+            inchi = self.ccache.get_kegg_compound(cid).inchi
+            try:
+                group_def = self.inchi2gv.EstimateInChI(inchi)
+                for j in xrange(len(self.group_names)):
+                    self.G[i, j] = group_def[0, j]
+            except GroupDecompositionError as e:
+                # for compounds that have no InChI or are not decomposable
+                # add a unique 1 in a new column
+                cpd_inds_without_gv.append(i)
+
+        add_G = np.zeros((len(self.training_data.cids), len(cpd_inds_without_gv)))
+        self.G = np.hstack([self.G, add_G])
+        for j, i in enumerate(cpd_inds_without_gv):
+            self.G[i, len(self.group_names) + j] = 1
+    
+    @staticmethod
+    def _invert_project(A, eps=1e-10):
+        U, s, V = np.linalg.svd(A, full_matrices=True)
+        r = (s > eps).nonzero()[0].shape[0] # the rank of A
+        inv_S = np.matrix(np.diag([1.0/s[i] for i in xrange(r)]))
+        inv_A = (V[:r, :].T) * inv_S * (U[:, :r].T)
+        P_R = U[:,:r] * (U[:,:r].T) # a projection matrix onto the row-space of A
+        P_N = U[:,r:] * (U[:,r:].T) # a projection matrix onto the null-space of A
+        return inv_A, r, P_R, P_N
+        
+    def train(self):
+        """
+            Estimate standard Gibbs energies of formation
+        """
+        S = np.matrix(self.training_data.S)
+        G = np.matrix(self.G)
+        b = np.matrix(self.training_data.dG0).T
+        w = np.matrix(self.training_data.weight).T
+        
+        m, n = S.shape
+        assert G.shape[0] == m
+        assert b.shape == (n, 1)
+        assert w.shape == (n, 1)
+
+        # Apply weighing
+        W = np.diag(w.flat)
+        GS = G.T * S
+
+        # Linear regression for the reactant layer (aka RC)
+        inv_S, r_rc, P_R_rc, P_N_rc = ComponentContribution._invert_project(S * W)
+
+        # Linear regression for the group layer (aka GC)
+        inv_GS, r_gc, P_R_gc, P_N_gc = ComponentContribution._invert_project(GS * W)
+
+        # Calculate the contributions in the stoichiometric space
+        G_rc = inv_S.T * W * b
+        G_gc = G * inv_GS.T * W * b
+        G_cc = P_R_rc * G_rc + P_N_rc * G_gc
+
+        # Calculate the residual error (unweighted squared error divided by N - rank)
+        e_rc = (S.T * G_rc - b)
+        MSE_rc = float((e_rc.T * W * e_rc) / (n - r_rc))
+        # MSE_rc = (e_rc.T * e_rc) / (n - r_rc)
+
+        e_gc = (S.T * G_gc - b)
+        MSE_gc = float((e_gc.T * W * e_gc) / (n - r_gc))
+        # MSE_gc = (e_gc.T * e_gc) / (n - r_gc)
+
+        MSE_inf = 1e10
+
+        # Calculate the uncertainty covariance matrices
+        # [inv_S_orig, ~, ~, ~] = invertProjection(S);
+        # [inv_GS_orig, ~, ~, ~] = invertProjection(GS);
+        inv_SWS, _, _, _ = ComponentContribution._invert_project(S * W * S.T)
+        inv_GSWGS, _, _, _ = ComponentContribution._invert_project(GS * W * GS.T)
+
+
+        #V_rc  = P_R_rc * (inv_S_orig.T * W * inv_S_orig) * P_R_rc
+        #V_gc  = P_N_rc * G * (inv_GS_orig.T * W * inv_GS_orig) * G' * P_N_rc
+        V_rc = P_R_rc * inv_SWS * P_R_rc
+        V_gc  = P_N_rc * G * inv_GSWGS * G.T * P_N_rc
+        # V_rc  = P_R_rc * (inv_S_orig.T * inv_S_orig) * P_R_rc
+        # V_gc  = P_N_rc * G * (inv_GS_orig.T * inv_GS_orig) * G.T * P_N_rc
+        V_inf = P_N_rc * G * P_N_gc * G.T * P_N_rc
+
+        # Put all the calculated data in 'params' for the sake of debugging
+        params = {}
+        params['contributions'] = [G_rc, G_gc]
+        params['covariances']   = [V_rc, V_gc, V_inf]
+        params['MSEs']          = [MSE_rc, MSE_gc, MSE_inf]
+        params['projections']   = [P_R_rc,
+                                   P_R_gc * G.T * P_N_rc,
+                                   P_N_gc * G.T * P_N_rc,
+                                   P_R_gc,
+                                   P_N_rc,
+                                   P_N_gc]
+        params['inverses']      = [inv_S, inv_GS, inv_SWS, inv_GSWGS]
+
+        # Calculate the total of the contributions and covariances
+        cov_G = V_rc * MSE_rc + V_gc * MSE_gc + V_inf * MSE_inf
+        
+        return G_cc, cov_G, params
+
 if __name__ == '__main__':
     td = TrainingData()
     model = KeggModel.load_kegg_model('../examples/wolf_reactions.txt')
     cc = ComponentContribution(model, td)
+    

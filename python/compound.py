@@ -1,6 +1,9 @@
 import openbabel, urllib, re, string, json, logging
 from chemaxon import GetDissociationConstants, ChemAxonError
 import numpy as np
+from thermodynamic_constants import R, debye_huckel
+from scipy.misc import logsumexp
+
 MIN_PH = 0.0
 MAX_PH = 14.0
 
@@ -21,32 +24,28 @@ class Compound(object):
     def from_kegg(cid):
         inchi = Compound.get_inchi(cid)
         if inchi == '':
-            pKas = np.zeros((1, 1), dtype=float)
-            majorMSpH7 = np.ones((1, 1), dtype=int)
-            nHs = np.zeros((1, 1), dtype=int)
-            zs = np.zeros((1, 1), dtype=int)
+            pKas = []
+            majorMSpH7 = -1
+            nHs = []
+            zs = []
         else:
             pKas, majorMSpH7, nHs, zs = Compound.get_species_pka(inchi)
         return Compound('KEGG', 'C%05d' % cid, inchi,
-                            pKas, majorMSpH7, nHs, zs)
+                        pKas, majorMSpH7, nHs, zs)
 
     def to_json_dict(self):
         return {'database' : self.database,
                 'id' : self.compound_id,
                 'inchi' : self.inchi,
-                'pKas' : self.pKas.tolist(),
-                'majorMSpH7' : list(self.majorMSpH7.flat),
-                'nHs' : list(self.nHs.flat),
-                'zs' : list(self.zs.flat)}
+                'pKas' : self.pKas,
+                'majorMSpH7' : self.majorMSpH7,
+                'nHs' : self.nHs,
+                'zs' : self.zs}
     
     @staticmethod
     def from_json_dict(d):
-        pKas       = np.array(d['pKas'],       dtype=float)
-        majorMSpH7 = np.array(d['majorMSpH7'], dtype=int)
-        nHs        = np.array(d['nHs'],        dtype=int)
-        zs         = np.array(d['zs'],         dtype=int)
         return Compound(d['database'], d['id'], d['inchi'],
-                            pKas, majorMSpH7, nHs, zs)
+                        d['pKas'], d['majorMSpH7'], d['nHs'], d['zs'])
 
     @staticmethod
     def get_inchi(cid):
@@ -125,36 +124,29 @@ class Compound(object):
     @staticmethod
     def get_species_pka(inchi):
         try:
-            pka_list, major_ms = GetDissociationConstants(inchi)
-            pka_list = sorted([pka for pka in pka_list if pka > MIN_PH and pka < MAX_PH], reverse=True)
+            pKas, major_ms = GetDissociationConstants(inchi)
+            pKas = sorted([pka for pka in pKas if pka > MIN_PH and pka < MAX_PH], reverse=True)
             major_ms_inchi = Compound.smiles2inchi(major_ms)
         except ChemAxonError:
             logging.warning('chemaxon failed to find pKas for this inchi: ' + inchi)
-            pka_list = []
+            pKas = []
             major_ms_inchi = inchi
 
         atom_bag, major_ms_charge = Compound.get_atom_bag_and_charge_from_inchi(major_ms_inchi)
         major_ms_nH = atom_bag.get('H', 0)
 
-        n_species = len(pka_list) + 1
-        if pka_list == []:
-            major_ms_index = 0
+        n_species = len(pKas) + 1
+        if pKas == []:
+            majorMSpH7 = 0
         else:
-            major_ms_index = len([1 for pka in pka_list if pka > 7])
+            majorMSpH7 = len([1 for pka in pKas if pka > 7])
             
-        pKas = np.zeros((n_species, n_species), dtype=float)
-        for i, pka in enumerate(pka_list):
-            pKas[i+1, i] = pka
-            pKas[i, i+1] = pka
+        nHs = []
+        zs = []
 
-        majorMSpH7 = np.zeros((n_species, 1), dtype=int)
-        nHs = np.zeros((n_species, 1), dtype=int)
-        zs = np.zeros((n_species, 1), dtype=int)
-
-        majorMSpH7[major_ms_index, 0] = 1
         for i in xrange(n_species):
-            zs[i, 0] = (i - major_ms_index) + major_ms_charge
-            nHs[i, 0] = (i - major_ms_index) + major_ms_nH
+            zs.append((i - majorMSpH7) + major_ms_charge)
+            nHs.append((i - majorMSpH7) + major_ms_nH)
         
         return pKas, majorMSpH7, nHs, zs
     
@@ -175,6 +167,23 @@ class Compound(object):
                          for (elem, count) in atom_bag.iteritems()])
         atom_bag['e-'] = n_protons - charge
         return atom_bag
+        
+    def transform(self, pH, I, T):
+        if self.pKas == []:
+            return 0
+        dG0s = np.cumsum([0] + self.pKas) * R * T * np.log(10)
+        dG0s = dG0s - dG0s[self.majorMSpH7]
+        DH = debye_huckel((I, T))
+        
+        # dG0' = dG0 + nH * (R T ln(10) pH + DH) - charge^2 * DH
+        
+        dG0_prime_vector = np.zeros(len(self.nHs), dtype=float)
+        for i in xrange(len(self.nHs)):
+            dG0_prime_vector[i] = dG0s[i] + \
+                                  self.nHs[i] * (R * T * np.log(10) + DH) - \
+                                  self.zs[i]**2 * DH
+        
+        return -R * T * logsumexp(dG0_prime_vector / (-R * T))
 
 if __name__ == '__main__':
     print get_inchi(10)

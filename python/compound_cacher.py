@@ -34,7 +34,7 @@ class CompoundCacher(Singleton):
             cid = int(row['cid'])
             compound_id = 'C%05d' % cid
             if compound_id not in self.compound_dict:
-                logging.info('Downloading structure and calculating pKa for: ' + compound_id)
+                logging.info('Calculating pKa for additional compound: ' + compound_id)
                 inchi = row['inchi']
                 pKas, majorMSpH7, nHs, zs = Compound.get_species_pka(inchi)
                 comp = Compound('KEGG', compound_id, inchi,
@@ -45,8 +45,7 @@ class CompoundCacher(Singleton):
     def dump(self):
         if self.need_to_update_cache_file:
             fp = open(CACHE_FNAME, 'w')
-            json.dump(self.compound_dict.values(), fp, cls=CompoundEncoder,
-                      sort_keys=True, indent=4)
+            json.dump(self.compound_dict.values(), fp, cls=CompoundEncoder)
             fp.close()
             self.need_to_update_cache_file = False
         
@@ -62,6 +61,9 @@ class CompoundCacher(Singleton):
         return comp
         
 if __name__ == '__main__':
+    logger = logging.getLogger('')
+    logger.setLevel(logging.INFO)
     ccache = CompoundCacher.getInstance()
     comp = ccache.get_kegg_compound(25)
+    print comp.pKas
     ccache.dump()

@@ -629,7 +629,7 @@ class GroupsData(object):
 
 class GroupDecompositionError(Exception):
     
-    def __init__(self, msg, decomposition):
+    def __init__(self, msg, decomposition=None):
         Exception.__init__(self, msg)
         self.decomposition = decomposition
         
@@ -637,7 +637,10 @@ class GroupDecompositionError(Exception):
         return Exception.__str__(self)
     
     def GetDebugTable(self):
-        return self.decomposition.ToTableString()
+        if self.decomposition is not None:
+            return self.decomposition.ToTableString()
+        else:
+            return ''
 
 class GroupDecomposition(object):
     """Class representing the group decomposition of a molecule."""
@@ -1479,7 +1482,11 @@ class InChI2GroupVector(object):
         self.group_decomposer = GroupDecomposer(groups_data)
         
     def EstimateInChI(self, inchi):
-        mol = Molecule.FromInChI(inchi)
+        try:
+            mol = Molecule.FromInChI(str(inchi))
+        except OpenBabelError as e:
+            raise GroupDecompositionError('cannot convert InChI to Molecule')
+        
         #mol.RemoveHydrogens()
         decomposition = self.group_decomposer.Decompose(mol, 
                             ignore_protonations=False, strict=True)

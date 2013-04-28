@@ -27,8 +27,12 @@ symbol_df_G0 = "&Delta;<sub>f</sub>G&deg;"
 symbol_df_G_prime = "&Delta;<sub>f</sub>G'"
 symbol_df_G0_prime = "&Delta;<sub>f</sub>G'&deg;"
 
-def debye_huckel(I):
-    return (2.91482 * np.sqrt(I)) / (1 + 1.6 * np.sqrt(I))
+# Approximation of the temperature dependency of ionic strength effects
+DH_alpha = lambda T : 1e-3*(9.20483*T) - 1e-5*(1.284668 * T**2) + 1e-8*(4.95199 * T**3)
+DH_beta = 1.6
+
+# Debye-Huckel
+debye_huckel = lambda (I, T) : DH_alpha(T) * I**(0.5) / (1.0 + DH_beta * I**(0.5))
 
 def correction_function(nH, z, nMg, pH, pMg, I, T):
     """
