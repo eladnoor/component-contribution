@@ -3,7 +3,7 @@ if nargin < 2
     use_cache = true;
 end
 
-mkdir([getBasePath() 'cache']);
+[s, mess, messid] = mkdir([getBasePath() 'cache'], 'newFolder');
 KEGG_ADDITIONS_TSV_FNAME = [getBasePath() 'data/kegg_additions.tsv'];
 CACHED_KEGG_INCHI_MAT_FNAME = [getBasePath() 'cache/kegg_inchies.mat'];
 

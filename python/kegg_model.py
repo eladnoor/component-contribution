@@ -1,15 +1,14 @@
 import re
 import numpy as np
 from kegg_reaction import parse_kegg_reaction
-from kegg_compound import KeggCompound
+from compound_cacher import CompoundCacher
 
 class KeggModel(object):
     
     def __init__(self, S, cids):
         self.S = S
         self.cids = cids
-        self.create_kegg_compounds()
-
+    
     @staticmethod
     def load_kegg_model(fname, arrow='<=>', has_reaction_ids=False):
         """
@@ -56,6 +55,9 @@ class KeggModel(object):
             cids = cids.union(reaction.keys())
             reactions.append(reaction)
         
+        # convert the list of reactions in sparse notation into a full
+        # stoichiometric matrix, where the rows (compounds) are according to the
+        # CID list 'cids'.
         cids = sorted(cids)
         S = np.zeros((len(cids), len(reactions)))
         for i, reaction in enumerate(reactions):
@@ -64,11 +66,3 @@ class KeggModel(object):
                 
         return KeggModel(S, cids)
         
-    def create_kegg_compounds(self):
-        self.cid2compound = {}
-        for cid in self.cids:
-            self.cid2compound[cid] = KeggCompound(cid)
-            print self.cid2compound[cid], '\n' + ('-'*30)
-
-
-    

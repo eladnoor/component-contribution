@@ -34,9 +34,9 @@ for i_cid = 1:length(target_cids)
     end
     
     if ispc
-        [success, smiles] = system(['echo ' inchi ' | ' babel_cmd ' -iinchi -osmi']);
+        [success, smiles] = system(['echo ' inchi ' | ' babel_cmd ' -iinchi -osmi -w']);
     else
-        [success, smiles] = system(['echo "' inchi '" | ' babel_cmd ' -iinchi -osmi']);
+        [success, smiles] = system(['echo "' inchi '" | ' babel_cmd ' -iinchi -osmi -w']);
     end
     
     if success == 0

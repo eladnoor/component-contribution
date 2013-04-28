@@ -25,18 +25,18 @@ if nargin < 2
     end
     
     if ispc
-        cmd = ['echo ' mol ' | ' babel_cmd ' -imol -oinchi ---errorlevel 0'];
+        cmd = ['echo ' mol ' | ' babel_cmd ' -imol -oinchi ---errorlevel 0 -w'];
     else
-        cmd = ['echo "' mol '" | ' babel_cmd ' -imol -oinchi ---errorlevel 0'];
+        cmd = ['echo "' mol '" | ' babel_cmd ' -imol -oinchi ---errorlevel 0 -w'];
     end
 else
     if isempty(inchi) % happens when a compound was added to KEGG but doesn't have an inchi
         return
     end
     if ispc
-        cmd = ['echo ' inchi ' | ' babel_cmd ' -iinchi -oinchi ---errorlevel 0'];
+        cmd = ['echo ' inchi ' | ' babel_cmd ' -iinchi -oinchi ---errorlevel 0 -w'];
     else
-        cmd = ['echo "' inchi '" | ' babel_cmd ' -iinchi -oinchi ---errorlevel 0'];
+        cmd = ['echo "' inchi '" | ' babel_cmd ' -iinchi -oinchi ---errorlevel 0 -w'];
     end
 end
 
