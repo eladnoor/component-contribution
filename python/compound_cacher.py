@@ -64,6 +64,5 @@ if __name__ == '__main__':
     logger = logging.getLogger('')
     logger.setLevel(logging.INFO)
     ccache = CompoundCacher.getInstance()
-    comp = ccache.get_kegg_compound(25)
-    print comp.pKas
+    ccache.get_kegg_compound(125)
     ccache.dump()

@@ -250,5 +250,4 @@ class TrainingData(object):
 if __name__ == '__main__':
     logger = logging.getLogger('')
     logger.setLevel(logging.INFO)
-
     td = TrainingData()

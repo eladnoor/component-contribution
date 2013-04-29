@@ -23,7 +23,7 @@ class Compound(object):
     @staticmethod
     def from_kegg(cid):
         inchi = Compound.get_inchi(cid)
-        if inchi == '':
+        if inchi is None:
             pKas = []
             majorMSpH7 = -1
             nHs = []
@@ -49,20 +49,31 @@ class Compound(object):
 
     @staticmethod
     def get_inchi(cid):
+        s_mol = urllib.urlopen('http://rest.kegg.jp/get/cpd:C%05d/mol' % cid).read()
+        return Compound.mol2inchi(s_mol)
+
+    @staticmethod
+    def mol2inchi(s):
+        openbabel.obErrorLog.SetOutputLevel(-1)
+
         conv = openbabel.OBConversion()
         conv.SetInAndOutFormats('mol', 'inchi')
-        #conv.AddOption("X", conv.OUTOPTIONS, "noiso")
-        #conv.AddOption("X", conv.OUTOPTIONS, "nochg")
-        #conv.AddOption("X", conv.OUTOPTIONS, "nostereo")
+        conv.AddOption("X", conv.OUTOPTIONS, "FixedH")
+        conv.AddOption("X", conv.OUTOPTIONS, "RecMet")
         conv.AddOption("w", conv.OUTOPTIONS)
         obmol = openbabel.OBMol()
-        s = urllib.urlopen('http://rest.kegg.jp/get/cpd:C%05d/mol' % cid).read()
-        conv.ReadString(obmol, s)
-        inchi = conv.WriteString(obmol).strip()
-        return inchi
+        if not conv.ReadString(obmol, s):
+            return None
+        inchi = conv.WriteString(obmol, True) # second argument is trimWhitespace
+        if inchi == '':
+            return None
+        else:
+            return inchi
         
     @staticmethod
     def smiles2inchi(smiles):
+        openbabel.obErrorLog.SetOutputLevel(-1)
+        
         conv = openbabel.OBConversion()
         conv.SetInAndOutFormats('smiles', 'inchi')
         conv.AddOption("X", conv.OUTOPTIONS, "FixedH")
@@ -70,8 +81,11 @@ class Compound(object):
         conv.AddOption("w", conv.OUTOPTIONS)
         obmol = openbabel.OBMol()
         conv.ReadString(obmol, smiles)
-        inchi = conv.WriteString(obmol).strip()
-        return inchi
+        inchi = conv.WriteString(obmol, True) # second argument is trimWhitespace
+        if inchi == '':
+            return None
+        else:
+            return inchi
 
     @staticmethod
     def get_formula_from_inchi(inchi):
@@ -88,6 +102,9 @@ class Compound(object):
                 
     @staticmethod
     def get_atom_bag_and_charge_from_inchi(inchi):
+        if inchi is None:
+            return {}, 0
+        
         fixed_charge = 0
         for q in re.findall('/q([0-9\+\-\;]+)', inchi):
             for s in q.split(';'): 
@@ -123,6 +140,9 @@ class Compound(object):
     
     @staticmethod
     def get_species_pka(inchi):
+        if inchi is None:
+            return [], -1, [], []
+
         try:
             pKas, major_ms = GetDissociationConstants(inchi)
             pKas = sorted([pka for pka in pKas if pka > MIN_PH and pka < MAX_PH], reverse=True)
@@ -186,4 +206,4 @@ class Compound(object):
         return -R * T * logsumexp(dG0_prime_vector / (-R * T))
 
 if __name__ == '__main__':
-    print get_inchi(10)
+    print Compound.get_inchi(125)

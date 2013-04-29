@@ -111,22 +111,13 @@ def GetDissociationConstants(molstring, n_acidic=N_PKAS, n_basic=N_PKAS,
 
 if __name__ == "__main__":
     
-    diss_table_example = [4.0, 4.0, 4.0]
-    new_diss_table = _TransformMultiples(diss_table_example)
-    
-    print diss_table_example
-    print new_diss_table
-    
-    from toolbox.molecule import Molecule
+    from molecule import Molecule
     compound_list = [('glycine', 'C(=O)(O)CN'),
                      ('CO2', 'O=C=O'),
                      ('ATP', 'Nc1ncnc2n(cnc12)C1OC(COP([O-])(=O)OP([O-])(=O)OP(O)([O-])=O)C(O)C1O'),
                      ('3-Ketoarabinitol', 'OCC(O)C(C(O)CO)=O')]
     
     for name, smiles in compound_list:
-        diss_table1, major_ms = GetDissociationConstants(smiles, transform_multiples=False)
-        diss_table2, major_ms = GetDissociationConstants(smiles, transform_multiples=True)
+        diss_table, major_ms = GetDissociationConstants(smiles)
         m = Molecule.FromSmiles(major_ms)
-        print name, m.ToInChI()
-        for i in xrange(len(diss_table1)):
-            print "%.2f %.2f" % (diss_table1[i][0], diss_table2[i][0])
+        print name, m.ToInChI(), str(diss_table)

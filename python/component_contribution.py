@@ -3,7 +3,6 @@ from inchi2gv import GroupsData, InChI2GroupVector, GROUP_CSV, GroupDecompositio
 from training_data import TrainingData
 from kegg_model import KeggModel
 from compound_cacher import CompoundCacher
-from scipy.io import savemat
     
 class ComponentContribution(object):
     
@@ -24,9 +23,7 @@ class ComponentContribution(object):
 
         self.create_group_incidence_matrix()
         
-        G_cc, cov_G, params = self.train()
-        
-        savemat('../examples/groups.mat', {'G' : self.G, 'dG0_cc' : G_cc})
+        self.dG0, self.cov_dG0, params = self.train()
         
     @staticmethod 
     def _standardize_models(kegg_model, training_data):
@@ -117,16 +114,16 @@ class ComponentContribution(object):
         inv_GS, r_gc, P_R_gc, P_N_gc = ComponentContribution._invert_project(GS * W)
 
         # Calculate the contributions in the stoichiometric space
-        G_rc = inv_S.T * W * b
-        G_gc = G * inv_GS.T * W * b
-        G_cc = P_R_rc * G_rc + P_N_rc * G_gc
+        dG0_rc = inv_S.T * W * b
+        dG0_gc = G * inv_GS.T * W * b
+        dG0_cc = P_R_rc * dG0_rc + P_N_rc * dG0_gc
 
         # Calculate the residual error (unweighted squared error divided by N - rank)
-        e_rc = (S.T * G_rc - b)
+        e_rc = (S.T * dG0_rc - b)
         MSE_rc = float((e_rc.T * W * e_rc) / (n - r_rc))
         # MSE_rc = (e_rc.T * e_rc) / (n - r_rc)
 
-        e_gc = (S.T * G_gc - b)
+        e_gc = (S.T * dG0_gc - b)
         MSE_gc = float((e_gc.T * W * e_gc) / (n - r_gc))
         # MSE_gc = (e_gc.T * e_gc) / (n - r_gc)
 
@@ -149,7 +146,7 @@ class ComponentContribution(object):
 
         # Put all the calculated data in 'params' for the sake of debugging
         params = {}
-        params['contributions'] = [G_rc, G_gc]
+        params['contributions'] = [dG0_rc, dG0_gc]
         params['covariances']   = [V_rc, V_gc, V_inf]
         params['MSEs']          = [MSE_rc, MSE_gc, MSE_inf]
         params['projections']   = [P_R_rc,
@@ -161,12 +158,7 @@ class ComponentContribution(object):
         params['inverses']      = [inv_S, inv_GS, inv_SWS, inv_GSWGS]
 
         # Calculate the total of the contributions and covariances
-        cov_G = V_rc * MSE_rc + V_gc * MSE_gc + V_inf * MSE_inf
+        cov_dG0 = V_rc * MSE_rc + V_gc * MSE_gc + V_inf * MSE_inf
         
-        return G_cc, cov_G, params
+        return dG0_cc, cov_dG0, params
 
-if __name__ == '__main__':
-    td = TrainingData()
-    model = KeggModel.load_kegg_model('../examples/wolf_reactions.txt')
-    cc = ComponentContribution(model, td)
-    
