@@ -180,7 +180,7 @@ class Compound(object):
             Returns:
                 a dictionary of all element counts and also electron count ('e-')
         """
-        if self.inchi == '':
+        if self.inchi is None:
             return None
         atom_bag, charge = Compound.get_atom_bag_and_charge_from_inchi(self.inchi)
         n_protons = sum([count * Compound._obElements.GetAtomicNum(str(elem))

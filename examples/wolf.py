@@ -6,9 +6,9 @@ from component_contribution import ComponentContribution
 from scipy.io import savemat
 
 logger = logging.getLogger('')
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.DEBUG)
 td = TrainingData()
 model = KeggModel.load_kegg_model('../examples/wolf_reactions.txt')
 cc = ComponentContribution(model, td)
 
-savemat('../examples/groups.mat', {'G' : cc.G, 'dG0_cc' : cc.dG0}, oned_as='row')
+#savemat('../examples/groups.mat', {'G' : cc.G, 'dG0_cc' : cc.dG0}, oned_as='row')

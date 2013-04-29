@@ -62,3 +62,21 @@ def parse_kegg_reaction(formula, arrow='<=>'):
         sparse_reaction[cid] = sparse_reaction.get(cid, 0) + count 
 
     return sparse_reaction
+
+def write_compound_and_coeff(cid, coeff):
+    comp = "C%05d" % cid
+    if coeff == 1:
+        return comp
+    else:
+        return "%g %s" % (coeff, comp)
+
+def write_full_reaction(sparse, arrow='<=>'):
+    """String representation."""
+    left = []
+    right = []
+    for cid, coeff in sorted(sparse.iteritems()):
+        if coeff < 0:
+            left.append(write_compound_and_coeff(cid, -coeff))
+        elif coeff > 0:
+            right.append(write_compound_and_coeff(cid, coeff))
+    return "%s %s %s" % (' + '.join(left), arrow, ' + '.join(right))

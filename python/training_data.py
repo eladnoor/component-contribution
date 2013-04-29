@@ -212,6 +212,14 @@ class TrainingData(object):
         
         rxn_inds_to_remove = [k for k in rxn_inds_to_balance 
                               if not np.all(conserved[:, k] == 0)]
+        
+        for k in rxn_inds_to_remove:
+            sprs = {}
+            for i in np.nonzero(self.S[:, k])[0]:
+                sprs[self.cids[i]] = self.S[i, k]
+            logging.debug('Unbalanced reaction #%d: %s' %
+                          (k, kegg_reaction.write_full_reaction(sprs)))
+        
         rxn_inds_to_keep = \
             set(range(self.S.shape[1])).difference(rxn_inds_to_remove)
         
