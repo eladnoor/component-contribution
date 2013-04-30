@@ -120,20 +120,18 @@ class TrainingData(object):
         # fields are: cid, name, dG'0, pH, I, pMg, T, decompose?,
         #             compound_ref, remark
         for row in csv.DictReader(open(fname, 'r'), delimiter='\t'):
-            if row['dG\'0'] == '':
-                continue
             cid = int(row['cid'])
             if int(row['decompose']) == 0:
                 cids_that_dont_decompose.add(cid)
-
-            thermo_params.append({'reaction': {cid : 1},
-                                  'dG\'0' : TrainingData.str2double(row['dG\'0']),
-                                  'T': TrainingData.str2double(row['T']), 
-                                  'I': TrainingData.str2double(row['I']),
-                                  'pH': TrainingData.str2double(row['pH']),
-                                  'pMg': TrainingData.str2double(row['pMg']),
-                                  'weight': weight,
-                                  'balance': False})
+            if row['dG\'0'] != '':
+                thermo_params.append({'reaction': {cid : 1},
+                                      'dG\'0' : TrainingData.str2double(row['dG\'0']),
+                                      'T': TrainingData.str2double(row['T']), 
+                                      'I': TrainingData.str2double(row['I']),
+                                      'pH': TrainingData.str2double(row['pH']),
+                                      'pMg': TrainingData.str2double(row['pMg']),
+                                      'weight': weight,
+                                      'balance': False})
 
         logging.info('Successfully added %d formation energies' % len(thermo_params))
         return thermo_params, cids_that_dont_decompose

@@ -3,10 +3,12 @@ from inchi2gv import GroupsData, InChI2GroupVector, GROUP_CSV, GroupDecompositio
 from training_data import TrainingData
 from kegg_model import KeggModel
 from compound_cacher import CompoundCacher
+
+from scipy.io import savemat
     
 class ComponentContribution(object):
     
-    def __init__(self, kegg_model, training_data):
+    def __init__(self, training_data):
         """
             Initialize G matrix, and then use the python script "inchi2gv.py" to decompose each of the 
             compounds that has an InChI and save the decomposition as a row in the G matrix.
@@ -16,30 +18,37 @@ class ComponentContribution(object):
         self.groups_data = GroupsData.FromGroupsFile(GROUP_CSV, transformed=False)
         self.inchi2gv = InChI2GroupVector(self.groups_data)
         self.group_names = self.groups_data.GetGroupNames()
-
-        self.kegg_model = kegg_model
+        
         self.training_data = training_data
-        ComponentContribution._standardize_models(self.kegg_model, self.training_data)
 
-        self.create_group_incidence_matrix()
+    
+    def estimate_kegg_model(self, kegg_model):
+        # standardize the CID list of the training data and the model
+        # and create new (larger) matrices for each one
+        cids = sorted(set(kegg_model.cids + self.training_data.cids))
+        model_S = ComponentContribution._zero_pad_S(
+            kegg_model.S, kegg_model.cids, cids)
+        train_S = ComponentContribution._zero_pad_S(
+            self.training_data.S, self.training_data.cids, cids)
+
+        G = self.create_group_incidence_matrix(cids)
         
-        self.dG0, self.cov_dG0, params = self.train()
+        dG0_f, cov_dG0, params = self.train(train_S, G)
         
-    @staticmethod 
-    def _standardize_models(kegg_model, training_data):
-        """
-            map between the model and the training data compounds
-            and zero-pad the S matrices so that their rows (compounds) will be
-            consistent
-        """
-        all_cids = sorted(set(kegg_model.cids + training_data.cids))
-        kegg_model.S = ComponentContribution._zero_pad_S(
-                                kegg_model.S, kegg_model.cids, all_cids)
-        kegg_model.cids = all_cids
-        
-        training_data.S = ComponentContribution._zero_pad_S(
-                                training_data.S, training_data.cids, all_cids)
-        training_data.cids = all_cids
+        model_dG0 = model_S.T * dG0_f
+        model_cov_dG0 = model_S.T * cov_dG0 * model_S 
+
+        savemat('../examples/groups.mat',
+                {'train_S' : self.training_data.S,
+                 'train_cids' : self.training_data.cids,
+                 'train_dG0_prime' : self.training_data.dG0_prime,
+                 'train_dG0' : self.training_data.dG0,
+                 'dG0_f' : dG0_f,
+                 'cov_dG0' : cov_dG0,
+                 'model_dG0' : model_dG0,
+                 'model_cov_dG0' : model_cov_dG0}, oned_as='row')
+
+        return model_dG0, model_cov_dG0
     
     @staticmethod
     def _zero_pad_S(S, cids, all_cids):
@@ -53,31 +62,33 @@ class ComponentContribution(object):
         for i, cid in enumerate(cids):
             full_S[all_cids.index(cid), :] = S[i, :]
         
-        return full_S
+        return np.matrix(full_S)
         
-    def create_group_incidence_matrix(self):
+    def create_group_incidence_matrix(self, cids):
         """
             create the group incidence matrix
         """
-        self.G = np.zeros((len(self.training_data.cids), len(self.group_names)))
+        Nc = len(cids)
+        Ng = len(self.group_names)
+        G = np.zeros((Nc, Ng))
         cpd_inds_without_gv = []
         
         # decompose the compounds in the training_data and add to G
-        for i, cid in enumerate(self.training_data.cids):
+        for i, cid in enumerate(cids):
             inchi = self.ccache.get_kegg_compound(cid).inchi
             try:
                 group_def = self.inchi2gv.EstimateInChI(inchi)
                 for j in xrange(len(self.group_names)):
-                    self.G[i, j] = group_def[0, j]
+                    G[i, j] = group_def[0, j]
             except GroupDecompositionError as e:
                 # for compounds that have no InChI or are not decomposable
                 # add a unique 1 in a new column
                 cpd_inds_without_gv.append(i)
 
-        add_G = np.zeros((len(self.training_data.cids), len(cpd_inds_without_gv)))
-        self.G = np.hstack([self.G, add_G])
+        add_G = np.zeros((Nc, len(cpd_inds_without_gv)))
         for j, i in enumerate(cpd_inds_without_gv):
-            self.G[i, len(self.group_names) + j] = 1
+            add_G[i, j] = 1
+        return np.matrix(np.hstack([G, add_G]))
     
     @staticmethod
     def _invert_project(A, eps=1e-10):
@@ -89,12 +100,10 @@ class ComponentContribution(object):
         P_N = U[:,r:] * (U[:,r:].T) # a projection matrix onto the null-space of A
         return inv_A, r, P_R, P_N
         
-    def train(self):
+    def train(self, S, G):
         """
             Estimate standard Gibbs energies of formation
         """
-        S = np.matrix(self.training_data.S)
-        G = np.matrix(self.G)
         b = np.matrix(self.training_data.dG0).T
         w = np.matrix(self.training_data.weight).T
         
@@ -161,4 +170,3 @@ class ComponentContribution(object):
         cov_dG0 = V_rc * MSE_rc + V_gc * MSE_gc + V_inf * MSE_inf
         
         return dG0_cc, cov_dG0, params
-
