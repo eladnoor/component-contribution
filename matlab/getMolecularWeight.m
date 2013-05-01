@@ -1,4 +1,4 @@
-function [MW, Ematrix] = getMolecularWeight(inchis, warnings)
+function [MW, Ematrix, elements] = getMolecularWeight(inchis, warnings)
 %computeMW Compute molecular weight and elemental matrix of compounds
 %
 % [MW, Ematrix] = computeMW(model, metList, warnings)
@@ -26,11 +26,11 @@ if nargin < 2
     warnings = true;
 end
 
-letters = {'H', 'C', 'N', 'O', 'P', 'S', 'Na', 'Mg', 'Cl', 'K', 'Ca', 'Mn', 'Fe', 'Ni', 'Co', 'Cu', 'Zn', 'As', 'Se', 'Ag', 'Cd', 'W', 'Hg'};
+elements = {'H', 'C', 'N', 'O', 'P', 'S', 'Na', 'Mg', 'Cl', 'K', 'Ca', 'Mn', 'Fe', 'Ni', 'Co', 'Cu', 'Zn', 'As', 'Se', 'Ag', 'Cd', 'W', 'Hg'};
 weights = [  1,  12,  14,  16,  31,  32,   23,   24,   35,  39,   40,   55,   56,   58,   59,   63,   65,   75,   80,  107,  114, 184, 202];
-protons = [  1,   6,   7,   8,  15,  16];
+protons = [  1,   6,   7,   8,  15,  16, 11, 12, 17, 19, 20, 25, 26, 28, 27, 29, 30, 33, 34, 47, 48, 74, 80];
 
-Ematrix = zeros(length(inchis), length(letters));
+Ematrix = zeros(length(inchis), length(elements));
 charges = zeros(length(inchis), 1);
 for n = 1:length(inchis)
 	if isempty(inchis{n})
@@ -50,7 +50,7 @@ for n = 1:length(inchis)
         if isempty(q)
             q = 1;
         end
-        k = find(strcmp(letters, comp));
+        k = find(strcmp(elements, comp));
         if isempty(k)
             if warnings
                 fprintf('Warning: %s, %s', formula, comp);
@@ -63,3 +63,4 @@ end
 MW = Ematrix * weights';
 electrons = Ematrix(:, 1:length(protons)) * protons' - charges;
 Ematrix = [Ematrix(:, [1:length(protons)]), electrons];
+elements = {elements{:}, 'e-'};

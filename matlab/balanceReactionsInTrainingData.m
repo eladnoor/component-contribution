@@ -1,8 +1,9 @@
 function training_data = balanceReactionsInTrainingData(training_data)
 
 if ~isfield(training_data, 'Ematrix') || isempty(training_data.Ematrix)
-    [MW, Ematrix] = getMolecularWeight(training_data.nstd_inchi, 0);
+    [MW, Ematrix, elements] = getMolecularWeight(training_data.nstd_inchi, 0);
     training_data.Ematrix = Ematrix(:, 2:end); % remove H, columns are [C, N, O, P, S, e-]
+    elements = elements(:, 2:end);
     conserved = training_data.Ematrix' * training_data.S;
     
     % need to check that all elements are balanced (except H, but including e-)
