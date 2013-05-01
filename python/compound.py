@@ -58,8 +58,9 @@ class Compound(object):
 
         conv = openbabel.OBConversion()
         conv.SetInAndOutFormats('mol', 'inchi')
-        conv.AddOption("X", conv.OUTOPTIONS, "FixedH")
-        conv.AddOption("X", conv.OUTOPTIONS, "RecMet")
+        conv.AddOption("F", conv.OUTOPTIONS)
+        conv.AddOption("T", conv.OUTOPTIONS)
+        conv.AddOption("x", conv.OUTOPTIONS, "noiso")
         conv.AddOption("w", conv.OUTOPTIONS)
         obmol = openbabel.OBMol()
         if not conv.ReadString(obmol, s):
@@ -76,8 +77,9 @@ class Compound(object):
         
         conv = openbabel.OBConversion()
         conv.SetInAndOutFormats('smiles', 'inchi')
-        conv.AddOption("X", conv.OUTOPTIONS, "FixedH")
-        conv.AddOption("X", conv.OUTOPTIONS, "RecMet")
+        conv.AddOption("F", conv.OUTOPTIONS)
+        conv.AddOption("T", conv.OUTOPTIONS)
+        conv.AddOption("x", conv.OUTOPTIONS, "noiso")
         conv.AddOption("w", conv.OUTOPTIONS)
         obmol = openbabel.OBMol()
         conv.ReadString(obmol, smiles)
@@ -87,19 +89,6 @@ class Compound(object):
         else:
             return inchi
 
-    @staticmethod
-    def get_formula_from_inchi(inchi):
-        tokens = re.findall('/f([0-9A-Za-z\.]+/)', inchi)
-        if len(tokens) == 0:
-            tokens = re.findall('InChI=1S?/([0-9A-Za-z\.]+)', inchi)
-
-        if len(tokens) == 1:
-            return tokens[0]
-        elif len(tokens) > 1:
-            raise ValueError('Bad InChI: ' + inchi)
-        else:
-            return ''
-                
     @staticmethod
     def get_atom_bag_and_charge_from_inchi(inchi):
         if inchi is None:
@@ -111,15 +100,26 @@ class Compound(object):
                 if s:
                     fixed_charge += int(s)
 
-        fixed_protons = 0
-        for p in re.findall('/p([0-9\+\-\;]+)', inchi):
-            for s in p.split(';'):
-                if s:
-                    fixed_protons += int(s)
-        
-        formula = Compound.get_formula_from_inchi(inchi)
-
         atom_bag = {}
+        # the /f field gives the fixed-H structure
+        tokens = re.findall('/f([0-9A-Za-z\.]+/)', inchi)
+
+        # if /f is not given, use the main formula and 
+        # adjust the number of protons according to the /p field
+        if len(tokens) == 0:
+            tokens = re.findall('InChI=1S?/([0-9A-Za-z\.]+)', inchi)
+            for p in re.findall('/p([0-9\+\-\;]+)', inchi):
+                for s in p.split(';'):
+                    if s:
+                        atom_bag['H'] = atom_bag.get('H', 0) + int(s)
+
+        if len(tokens) == 1:
+            formula = tokens[0]
+        elif len(tokens) > 1:
+            raise ValueError('Bad InChI: ' + inchi)
+        else:
+            formula = ''
+
         for mol_formula_times in formula.split('.'):
             for times, mol_formula in re.findall('^(\d+)?(\w+)', mol_formula_times):
                 if not times:
@@ -133,9 +133,6 @@ class Compound(object):
                         count = int(count)
                     atom_bag[atom] = atom_bag.get(atom, 0) + count * times
         
-        if fixed_protons:
-            atom_bag['H'] = atom_bag.get('H', 0) + fixed_protons
-            fixed_charge += fixed_protons
         return atom_bag, fixed_charge
     
     @staticmethod
@@ -171,8 +168,9 @@ class Compound(object):
         return pKas, majorMSpH7, nHs, zs
     
     def __str__(self):
-        return "CID: C%05d\nInChI: %s\npKas:%s\nmajor MS:%s\nnHs: %s\nzs: %s" % \
-            (self.cid, self.inchi, str(self.pKas), str(self.majorMSpH7.T), str(self.nHs.T), str(self.zs.T))
+        return "%s\nInChI: %s\npKas: %s\nmajor MS: nH = %d, charge = %d" % \
+            (self.compound_id, self.inchi, ', '.join(['%.2f' % p for p in self.pKas]),
+             self.nHs[self.majorMSpH7], self.zs[self.majorMSpH7])
     
     def get_atom_bag_with_electrons(self):
         """
@@ -189,20 +187,21 @@ class Compound(object):
         return atom_bag
         
     def transform(self, pH, I, T):
-        if self.pKas == []:
+        if self.inchi is None:
             return 0
-        dG0s = np.cumsum([0] + self.pKas) * R * T * np.log(10)
-        dG0s = dG0s - dG0s[self.majorMSpH7]
+        elif self.pKas == []:
+            dG0s = np.zeros((1, 1))
+        else:
+            dG0s = -np.cumsum([0] + self.pKas) * R * T * np.log(10)
+            dG0s = dG0s - dG0s[self.majorMSpH7]
         DH = debye_huckel((I, T))
         
         # dG0' = dG0 + nH * (R T ln(10) pH + DH) - charge^2 * DH
-        
-        dG0_prime_vector = np.zeros(len(self.nHs), dtype=float)
-        for i in xrange(len(self.nHs)):
-            dG0_prime_vector[i] = dG0s[i] + \
-                                  self.nHs[i] * (R * T * np.log(10) + DH) - \
-                                  self.zs[i]**2 * DH
-        
+        pseudoisomers = np.vstack([dG0s, np.array(self.nHs), np.array(self.zs)]).T
+        dG0_prime_vector = pseudoisomers[:, 0] + \
+                           pseudoisomers[:, 1] * (R * T * np.log(10) * pH + DH) - \
+                           pseudoisomers[:, 2]**2 * DH
+
         return -R * T * logsumexp(dG0_prime_vector / (-R * T))
 
 if __name__ == '__main__':

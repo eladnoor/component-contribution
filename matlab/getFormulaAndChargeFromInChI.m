@@ -25,7 +25,7 @@ if ~isempty(strmatch('q',layers))
 end
 
 if ~isempty(q)
-   charge = str2double(q(2:end));
+    charge = str2double(q(2:end));
 else
     charge = 0;
 end

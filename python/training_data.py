@@ -3,6 +3,7 @@ import numpy as np
 from thermodynamic_constants import R, F
 from compound_cacher import CompoundCacher
 import kegg_reaction
+from scipy.io import savemat
 
 class TrainingData(object):
     
@@ -184,7 +185,7 @@ class TrainingData(object):
         elements.discard('H') # no need to balance H atoms (balancing electrons is sufficient)
         elements = sorted(elements)
         
-        Ematrix = np.zeros((len(atom_bag_list), len(elements)))
+        Ematrix = np.matrix(np.zeros((len(atom_bag_list), len(elements))))
         cpd_inds_without_formula = [] # we will have to skip reactions that contain them
         for i, atom_bag in enumerate(atom_bag_list):
             if atom_bag is None:
@@ -193,7 +194,8 @@ class TrainingData(object):
             for j, elem in enumerate(elements):
                 Ematrix[i, j] = atom_bag.get(elem, 0)
 
-        rxn_inds_without_formula = np.nonzero(np.sum(np.abs(self.S[cpd_inds_without_formula, :]), 0))[0]
+        S_without_formula = self.S[cpd_inds_without_formula, :]
+        rxn_inds_without_formula = np.nonzero(np.any(S_without_formula != 0, 0))[0]
         rxn_inds_to_balance = set(rxn_inds_to_balance).difference(rxn_inds_without_formula)
 
         # need to check that all elements are balanced (except H, but including e-)
@@ -206,10 +208,10 @@ class TrainingData(object):
                 self.S[i_H2O, k] = self.S[i_H2O, k] - conserved[j_O, k]
 
         # recalculate conservation matrix
-        conserved = np.dot(Ematrix.T, self.S)
+        conserved = Ematrix.T * self.S
         
         rxn_inds_to_remove = [k for k in rxn_inds_to_balance 
-                              if not np.all(conserved[:, k] == 0)]
+                              if not np.all(conserved[:, k] == 0, 0)]
         
         for k in rxn_inds_to_remove:
             sprs = {}
@@ -217,6 +219,9 @@ class TrainingData(object):
                 sprs[self.cids[i]] = self.S[i, k]
             logging.debug('Unbalanced reaction #%d: %s' %
                           (k, kegg_reaction.write_full_reaction(sprs)))
+            for j in np.where(conserved[:, k])[0]:
+                logging.debug('There are %d more %s atoms on the right-hand side' %
+                              (conserved[j, k], elements[j]))
         
         rxn_inds_to_keep = \
             set(range(self.S.shape[1])).difference(rxn_inds_to_remove)
@@ -252,6 +257,10 @@ class TrainingData(object):
                 reverse_ddG0[i] = reverse_ddG0[i] + ddG0 * self.S[j, i]
 
         self.dG0 = self.dG0_prime - reverse_ddG0
+        savemat('../examples/rt.mat',
+                {'dG0_prime': self.dG0_prime,
+                 'dG0' : self.dG0,
+                 'reverse_ddG0' : reverse_ddG0}, oned_as='row')
         
 if __name__ == '__main__':
     logger = logging.getLogger('')

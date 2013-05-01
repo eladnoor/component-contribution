@@ -15,6 +15,7 @@ def RunCxcalc(molstring, args):
         p1 = Popen(["echo", molstring], stdout=PIPE)
         p2 = Popen([CXCALC_BIN] + args, stdin=p1.stdout,
                    executable=CXCALC_BIN, stdout=PIPE, stderr=devnull)
+        logging.debug("INPUT: echo %s | %s" % (molstring, ' '.join([CXCALC_BIN] + args)))
         #p.wait()
         #os.remove(temp_fname)
         res = p2.communicate()[0]

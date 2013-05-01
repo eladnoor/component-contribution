@@ -12,7 +12,7 @@ fprintf('Performing reverse transform\n');
 % Note that many of the compounds in the training data are missing from the iAF1260
 % model and therefore do not have a BiGG abbreviation or a pKa struct. This
 % needs to be fixed somehow.
-reverse_ddG0 = zeros(size(training_data.S, 2), 1);
+training_data.reverse_ddG0 = zeros(size(training_data.S, 2), 1);
 training_data.I(isnan(training_data.I)) = 0.25; % default ionic strength is 0.25M
 training_data.pMg(isnan(training_data.pMg)) = 14; % default pMg is 14
 for i = 1:size(training_data.S, 2) % for each reaction in S
@@ -62,7 +62,7 @@ for i = 1:size(training_data.S, 2) % for each reaction in S
         pseudoisomers = [dG0s(:), diss.nHs(:), diss.zs(:)];
         reaction_ddG0s(j) = Transform(pseudoisomers, training_data.pH(i), training_data.I(i), training_data.T(i));
     end
-    reverse_ddG0(i) = training_data.S(inds, i)' * reaction_ddG0s;
+    training_data.reverse_ddG0(i) = training_data.S(inds, i)' * reaction_ddG0s;
 end
 
-training_data.dG0 = training_data.dG0_prime - reverse_ddG0;
+training_data.dG0 = training_data.dG0_prime - training_data.reverse_ddG0;

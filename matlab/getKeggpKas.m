@@ -32,20 +32,32 @@ for i_cid = 1:length(target_cids)
     if isempty(inchi)
         continue
     end
+
+    % openbabel and cxcalc fail on certain special compounds, therefore
+    % we have exceptions for dealing with them
     
-    if ispc
-        [success, smiles] = system(['echo ' inchi ' | ' babel_cmd ' -iinchi -osmi -w']);
-    else
-        [success, smiles] = system(['echo "' inchi '" | ' babel_cmd ' -iinchi -osmi -w']);
+    if target_cids(i_cid) == 282 % C00282 is hydrogen (H2)
+        [~, nH, charge] = getFormulaAndChargeFromInChI(inchi);
+        KeggSpeciespKa(i_cid).zs = charge;
+        KeggSpeciespKa(i_cid).nHs = nH;
+        KeggSpeciespKa(i_cid).success = true;
+        continue;
+    elseif target_cids(i_cid) == 237 % C00237 is carbon monoxide (CO)
+        structure = '[C-]#[O+]';
+    else % for all other compounds, use babel to convert them to SMILES
+        if ispc
+            [success, smiles] = system(['echo ' inchi ' | ' babel_cmd ' -iinchi -osmi -w']);
+        else
+            [success, smiles] = system(['echo "' inchi '" | ' babel_cmd ' -iinchi -osmi -w']);
+        end
+        if success == 0
+            smiles = strtok(smiles);
+            structure = smiles;
+        else
+            structure = inchi;
+        end
     end
     
-    if success == 0
-        smiles = strtok(smiles);
-        structure = smiles;
-    else
-        structure = inchi;
-    end
-        
     fprintf('Using cxcalc on C%05d: %s\n', KeggSpeciespKa(i_cid).cid, structure);
 
     if ispc
