@@ -20,13 +20,8 @@ class CompoundCacher(Singleton):
             for d in json.load(open(CACHE_FNAME, 'r')):
                 self.compound_dict[d['id']] = Compound.from_json_dict(d)
         else:
-            path = os.path.dirname(CACHE_FNAME)
-            try:
-                os.makedirs(path)
-            except OSError:
-                if not os.path.isdir(path):
-                    raise Exception('Cannot create cache directory: ' + path)
-        self.get_kegg_additions()
+            self.get_kegg_additions()
+            self.dump()
     
     def get_kegg_additions(self):
         # fields are: name, cid, inchi
