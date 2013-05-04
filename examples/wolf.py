@@ -6,7 +6,7 @@ from component_contribution import ComponentContribution
 from compound import Compound
 
 logger = logging.getLogger('')
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 
 td = TrainingData()
 cc = ComponentContribution(td)

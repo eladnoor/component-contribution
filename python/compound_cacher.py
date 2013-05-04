@@ -12,48 +12,66 @@ class CompoundEncoder(json.JSONEncoder):
         return json.JSONEncoder.default(self, obj)
 
 class CompoundCacher(Singleton):
+    """
+        CompoundCacher is a singleton that handles caching of Compound objects
+        for the component-contribution package. The Compounds are retrieved by
+        their ID (which is the KEGG ID in most cases).
+        The first time a Compound is requested, it is obtained from the relevant
+        database and a Compound object is created (this takes a while because
+        it usually involves internet communication and then invoking the ChemAxon
+        plugin for calculating the pKa values for that structure).
+        Any further request for the same Compound ID will draw the object from
+        the cache. When the method dump() is called, all cached data is written
+        to a file that will be loaded in future python sessions.
+    """
     def __init__(self):
         self.compound_dict = {}
         self.need_to_update_cache_file = False
-
+        self.load()
+        self.get_kegg_additions()
+        self.dump()
+    
+    def load(self):
         if os.path.exists(CACHE_FNAME):
             for d in json.load(open(CACHE_FNAME, 'r')):
                 self.compound_dict[d['id']] = Compound.from_json_dict(d)
-        else:
-            self.get_kegg_additions()
-            self.dump()
-    
+
+    def dump(self):
+        if self.need_to_update_cache_file:
+            fp = open(CACHE_FNAME, 'w')
+            data = sorted(self.compound_dict.values(), key=lambda d:d.compound_id)
+            json.dump(data, fp, cls=CompoundEncoder, 
+                      sort_keys=True, indent=4,  separators=(',', ': '))
+            fp.close()
+            self.need_to_update_cache_file = False
+        
     def get_kegg_additions(self):
         # fields are: name, cid, inchi
         for row in csv.DictReader(open(KEGG_ADDITIONS_TSV_FNAME, 'r'), delimiter='\t'):
             cid = int(row['cid'])
             compound_id = 'C%05d' % cid
-            if compound_id not in self.compound_dict:
+            inchi = row['inchi']
+            # if the compound_id is not in the cache, or its InChI has changed,
+            # recalculate the Compound() and add/replace in cache
+            if (compound_id not in self.compound_dict) or \
+               (inchi != self.compound_dict[compound_id].inchi):
                 logging.info('Calculating pKa for additional compound: ' + compound_id)
-                inchi = row['inchi']
                 pKas, majorMSpH7, nHs, zs = Compound.get_species_pka(inchi)
                 comp = Compound('KEGG', compound_id, inchi,
                                 pKas, majorMSpH7, nHs, zs)
                 self.compound_dict[comp.compound_id] = comp
-                self.need_to_update_cache_file = True            
+                self.need_to_update_cache_file = True
 
-    def dump(self):
-        if self.need_to_update_cache_file:
-            fp = open(CACHE_FNAME, 'w')
-            json.dump(self.compound_dict.values(), fp, cls=CompoundEncoder)
-            fp.close()
-            self.need_to_update_cache_file = False
-        
     def get_kegg_compound(self, cid):
         compound_id = 'C%05d' % cid
         if compound_id in self.compound_dict:
             return self.compound_dict[compound_id]
-        
-        logging.info('Downloading structure and calculating pKa for: ' + compound_id)
-        comp = Compound.from_kegg(cid)
-        self.compound_dict[comp.compound_id] = comp
-        self.need_to_update_cache_file = True
-        return comp
+        else:
+            logging.info('Downloading structure and calculating pKa for: ' + compound_id)
+            comp = Compound.from_kegg(cid)
+            self.compound_dict[comp.compound_id] = comp
+            self.need_to_update_cache_file = True
+            return comp
         
 if __name__ == '__main__':
     logger = logging.getLogger('')
