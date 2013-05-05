@@ -29,7 +29,7 @@ class KeggModel(object):
         return KeggModel.parse_kegg_model(reaction_strings, arrow, has_reaction_ids)
 
     @staticmethod
-    def parse_kegg_model(reaction_strings, arrow, has_reaction_ids):
+    def parse_kegg_model(reaction_strings, arrow='<=>', has_reaction_ids=False):
         """
         parses a list of reactions in KEGG format
         

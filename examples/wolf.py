@@ -1,16 +1,13 @@
-import sys, logging
-sys.path.append('../python')
-from kegg_model import KeggModel
-from training_data import TrainingData
-from component_contribution import ComponentContribution
-from compound import Compound
+from subprocess import Popen, PIPE
+import numpy as np
 
-logger = logging.getLogger('')
-logger.setLevel(logging.INFO)
+REACTION_FNAME = 'wolf_reactions.txt'
+PYTHON_BIN = 'python'
+PYTHON_SCRIPT_FNAME = '../python/component_contribution.py'
 
-td = TrainingData()
-cc = ComponentContribution(td)
-
-model = KeggModel.load_kegg_model('../examples/wolf_reactions.txt')
-model_dG0, model_cov_dG0 = cc.estimate_kegg_model(model)
-
+p1 = Popen(['cat', REACTION_FNAME], stdout=PIPE)
+p2 = Popen([PYTHON_BIN, PYTHON_SCRIPT_FNAME], stdin=p1.stdout,
+           executable=PYTHON_BIN, stdout=PIPE)
+res = p2.communicate()[0]
+model_dG0 = np.matrix(res)
+print str(model_dG0)

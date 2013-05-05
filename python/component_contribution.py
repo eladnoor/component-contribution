@@ -1,11 +1,10 @@
+import sys
 import numpy as np
 from inchi2gv import GroupsData, InChI2GroupVector, GROUP_CSV, GroupDecompositionError
 from training_data import TrainingData
 from kegg_model import KeggModel
 from compound_cacher import CompoundCacher
 
-from scipy.io import savemat
-    
 class ComponentContribution(object):
     
     def __init__(self, training_data):
@@ -37,16 +36,6 @@ class ComponentContribution(object):
         
         model_dG0 = model_S.T * dG0_f
         model_cov_dG0 = model_S.T * cov_dG0 * model_S 
-
-        savemat('../examples/groups.mat',
-                {'train_S' : self.training_data.S,
-                 'train_cids' : self.training_data.cids,
-                 'train_dG0_prime' : self.training_data.dG0_prime,
-                 'train_dG0' : self.training_data.dG0,
-                 'dG0_f' : dG0_f,
-                 'cov_dG0' : cov_dG0,
-                 'model_dG0' : model_dG0,
-                 'model_cov_dG0' : model_cov_dG0}, oned_as='row')
 
         return model_dG0, model_cov_dG0
     
@@ -170,3 +159,13 @@ class ComponentContribution(object):
         cov_dG0 = V_rc * MSE_rc + V_gc * MSE_gc + V_inf * MSE_inf
         
         return dG0_cc, cov_dG0, params
+
+if __name__ == '__main__':
+    from kegg_model import KeggModel
+    
+    reaction_strings = sys.stdin.readlines()
+    td = TrainingData()
+    cc = ComponentContribution(td)
+    model = KeggModel.parse_kegg_model(reaction_strings)
+    model_dG0, model_cov_dG0 = cc.estimate_kegg_model(model)
+    sys.stdout.write('[[' + ', '.join([str(x) for x in model_dG0.flat]) + ']]')
