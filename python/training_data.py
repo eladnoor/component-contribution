@@ -2,7 +2,7 @@ import os, logging, csv
 import numpy as np
 from thermodynamic_constants import R, F
 from compound_cacher import CompoundCacher
-import kegg_reaction
+from kegg_reaction import KeggReaction
 from scipy.io import savemat
 
 class TrainingData(object):
@@ -90,13 +90,13 @@ class TrainingData(object):
                 continue
             
             # parse the reaction
-            sparse = kegg_reaction.parse_kegg_reaction(row['REACTION IN KEGG IDS'], arrow='=')
+            reaction = KeggReaction.parse_formula(row['REACTION IN KEGG IDS'], arrow='=')
 
             # calculate dG'0
             dG0_prime = -R * TrainingData.str2double(row['T']) * \
                              np.log(TrainingData.str2double(row['K\''])) 
             try:
-                thermo_params.append({'reaction': sparse,
+                thermo_params.append({'reaction': reaction,
                                       'dG\'0' : dG0_prime,
                                       'T': TrainingData.str2double(row['T']), 
                                       'I': TrainingData.str2double(row['I']),
@@ -125,7 +125,7 @@ class TrainingData(object):
             if int(row['decompose']) == 0:
                 cids_that_dont_decompose.add(cid)
             if row['dG\'0'] != '':
-                thermo_params.append({'reaction': {cid : 1},
+                thermo_params.append({'reaction': KeggReaction({cid : 1}),
                                       'dG\'0' : TrainingData.str2double(row['dG\'0']),
                                       'T': TrainingData.str2double(row['T']), 
                                       'I': TrainingData.str2double(row['I']),
@@ -157,7 +157,7 @@ class TrainingData(object):
             delta_e = delta_nH - delta_charge
             dG0_prime = -F * TrainingData.str2double(row['E\'0']) * delta_e
             
-            thermo_params.append({'reaction': {cid_ox : -1, cid_red : 1},
+            thermo_params.append({'reaction': KeggReaction({cid_ox : -1, cid_red : 1}),
                                   'dG\'0' : dG0_prime,
                                   'T': TrainingData.str2double(row['T']), 
                                   'I': TrainingData.str2double(row['I']),
@@ -174,25 +174,9 @@ class TrainingData(object):
             use the chemical formulas from the InChIs to verify that each and every
             reaction is balanced
         """
-        elements = set()
-        atom_bag_list = []
-        for cid in self.cids:
-            comp = self.ccache.get_kegg_compound(cid)
-            atom_bag = comp.get_atom_bag_with_electrons()
-            if atom_bag is not None:
-                elements = elements.union(atom_bag.keys())
-            atom_bag_list.append(atom_bag)
-        elements.discard('H') # no need to balance H atoms (balancing electrons is sufficient)
-        elements = sorted(elements)
-        
-        Ematrix = np.matrix(np.zeros((len(atom_bag_list), len(elements))))
-        cpd_inds_without_formula = [] # we will have to skip reactions that contain them
-        for i, atom_bag in enumerate(atom_bag_list):
-            if atom_bag is None:
-                cpd_inds_without_formula.append(i)
-                continue
-            for j, elem in enumerate(elements):
-                Ematrix[i, j] = atom_bag.get(elem, 0)
+        elements, Ematrix = self.ccache.get_kegg_ematrix(self.cids)
+        cpd_inds_without_formula = list(np.nonzero(np.any(np.isnan(Ematrix), 1))[0].flat)
+        Ematrix[np.isnan(Ematrix)] = 0
 
         S_without_formula = self.S[cpd_inds_without_formula, :]
         rxn_inds_without_formula = np.nonzero(np.any(S_without_formula != 0, 0))[0]
@@ -211,16 +195,17 @@ class TrainingData(object):
         conserved = Ematrix.T * self.S
         
         rxn_inds_to_remove = [k for k in rxn_inds_to_balance 
-                              if not np.all(conserved[:, k] == 0, 0)]
+                              if np.any(conserved[:, k] != 0, 0)]
         
         for k in rxn_inds_to_remove:
             sprs = {}
             for i in np.nonzero(self.S[:, k])[0]:
                 sprs[self.cids[i]] = self.S[i, k]
-            logging.debug('Unbalanced reaction #%d: %s' %
-                          (k, kegg_reaction.write_full_reaction(sprs)))
-            for j in np.where(conserved[:, k])[0]:
-                logging.debug('There are %d more %s atoms on the right-hand side' %
+            reaction = KeggReaction(sprs)
+            logging.debug('unbalanced reaction #%d: %s' %
+                          (k, reaction.write_formula()))
+            for j in np.where(conserved[:, k])[0].flat:
+                logging.debug('there are %d more %s atoms on the right-hand side' %
                               (conserved[j, k], elements[j]))
         
         rxn_inds_to_keep = \

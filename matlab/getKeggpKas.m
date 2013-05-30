@@ -1,4 +1,4 @@
-function KeggSpeciespKa = getKeggpKas(target_cids, target_inchi, n_pkas)
+function KeggSpeciespKa = getKeggpKas(target_cids, target_inchis, n_pkas)
 if nargin < 3
     n_pkas = 20;
 end
@@ -28,7 +28,7 @@ for i_cid = 1:length(target_cids)
     KeggSpeciespKa(i_cid).nHs = 0;
     KeggSpeciespKa(i_cid).success = false;
 
-    inchi = target_inchi{i_cid};
+    inchi = target_inchis{i_cid};
     if isempty(inchi)
         continue
     end

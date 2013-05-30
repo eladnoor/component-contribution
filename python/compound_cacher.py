@@ -1,6 +1,7 @@
 import json, os, logging, csv
 from singletonmixin import Singleton
 from compound import Compound
+import numpy as np
 
 CACHE_FNAME = '../cache/compounds.json'
 KEGG_ADDITIONS_TSV_FNAME = '../data/kegg_additions.tsv'
@@ -25,15 +26,18 @@ class CompoundCacher(Singleton):
         to a file that will be loaded in future python sessions.
     """
     def __init__(self):
-        self.compound_dict = {}
         self.need_to_update_cache_file = False
         self.load()
         self.get_kegg_additions()
         self.dump()
     
     def load(self):
+        # parse the JSON cache file and store in a dictionary 'compound_dict'
+        self.compound_dict = {}
+        self.compound_ids = []
         if os.path.exists(CACHE_FNAME):
             for d in json.load(open(CACHE_FNAME, 'r')):
+                self.compound_ids.append(d['id'])
                 self.compound_dict[d['id']] = Compound.from_json_dict(d)
 
     def dump(self):
@@ -72,6 +76,30 @@ class CompoundCacher(Singleton):
             self.compound_dict[comp.compound_id] = comp
             self.need_to_update_cache_file = True
             return comp
+            
+    def get_kegg_ematrix(self, cids):
+        # gather the "atom bags" of all compounds in a list 'atom_bag_list'
+        elements = set()
+        atom_bag_list = []
+        for cid in cids:
+            comp = self.get_kegg_compound(cid)
+            atom_bag = comp.get_atom_bag_with_electrons()
+            if atom_bag is not None:
+                elements = elements.union(atom_bag.keys())
+            atom_bag_list.append(atom_bag)
+        elements.discard('H') # no need to balance H atoms (balancing electrons is sufficient)
+        elements = sorted(elements)
+        
+        # create the elemental matrix, where each row is a compound and each
+        # column is an element (or e-)
+        Ematrix = np.matrix(np.zeros((len(atom_bag_list), len(elements))))
+        for i, atom_bag in enumerate(atom_bag_list):
+            if atom_bag is None:
+                Ematrix[i, :] = np.nan
+            else:
+                for j, elem in enumerate(elements):
+                    Ematrix[i, j] = atom_bag.get(elem, 0)
+        return elements, Ematrix
         
 if __name__ == '__main__':
     logger = logging.getLogger('')

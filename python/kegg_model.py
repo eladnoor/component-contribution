@@ -1,6 +1,6 @@
 import re
 import numpy as np
-from kegg_reaction import parse_kegg_reaction
+from kegg_reaction import KeggReaction
 from compound_cacher import CompoundCacher
 
 class KeggModel(object):
@@ -10,7 +10,7 @@ class KeggModel(object):
         self.cids = cids
     
     @staticmethod
-    def load_kegg_model(fname, arrow='<=>', has_reaction_ids=False):
+    def from_file(fname, arrow='<=>', has_reaction_ids=False):
         """
         reads a file containing reactions in KEGG format
         
@@ -26,10 +26,10 @@ class KeggModel(object):
         fd = open(fname, 'r')
         reaction_strings = fd.readlines()
         fd.close()
-        return KeggModel.parse_kegg_model(reaction_strings, arrow, has_reaction_ids)
+        return KeggModel.from_formulas(reaction_strings, arrow, has_reaction_ids)
 
     @staticmethod
-    def parse_kegg_model(reaction_strings, arrow='<=>', has_reaction_ids=False):
+    def from_formulas(reaction_strings, arrow='<=>', has_reaction_ids=False):
         """
         parses a list of reactions in KEGG format
         
@@ -51,7 +51,9 @@ class KeggModel(object):
             if has_reaction_ids:
                 tokens = re.split('(\w+)\s+(.*)', line, maxsplit=1)
                 line = tokens[1]
-            reaction = parse_kegg_reaction(line, arrow)
+            reaction = KeggReaction.parse_formula(line, arrow)
+            if not reaction.is_balanced():
+                raise ValueError('Model contains unbalanced reactions')
             cids = cids.union(reaction.keys())
             reactions.append(reaction)
         

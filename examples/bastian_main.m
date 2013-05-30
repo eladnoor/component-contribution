@@ -14,7 +14,7 @@ if exist(CACHED_MODEL_FNAME, 'file')
     load(CACHED_MODEL_FNAME);
 else
     [S, cids] = loadKeggModel(REACTION_FNAME, '<=>', 0);
-    model = createModelFromS(S, cids);
+    model = createKeggModelFromS(S, cids);
     save(CACHED_MODEL_FNAME, 'model', '-v7');
 end
 

@@ -1,6 +1,9 @@
-function inchies = getInchies(target_cids, use_cache)
+function inchies = getInchies(target_cids, use_cache, use_kegg_additions)
 if nargin < 2
     use_cache = true;
+end
+if nargin < 3
+    use_kegg_additions = true;
 end
 
 [s, mess, messid] = mkdir([getBasePath() 'cache'], 'newFolder');
@@ -12,33 +15,34 @@ if use_cache && exist(CACHED_KEGG_INCHI_MAT_FNAME, 'file')
     fprintf('Loading the InChIs for the training data from: %s\n', CACHED_KEGG_INCHI_MAT_FNAME);
     load(CACHED_KEGG_INCHI_MAT_FNAME);
 else
-    % load the InChIs for all KEGG compounds in the 'kegg_additions.tsv' file.
-    % this contains a few corrections needed in KEGG and added compounds (all starting with C80000)
-    if ~exist(KEGG_ADDITIONS_TSV_FNAME, 'file')
-        error(['file not found: ', KEGG_ADDITIONS_TSV_FNAME]);
-    end
-    fprintf('Adding the non-KEGG compounds first from: %s\n', KEGG_ADDITIONS_TSV_FNAME);
-
     inchies.cids = [];
     inchies.std_inchi = {};
     inchies.std_inchi_stereo = {};
     inchies.std_inchi_stereo_charge = {};
     inchies.nstd_inchi = {};
-    
-    fid = fopen(KEGG_ADDITIONS_TSV_FNAME, 'r');
-    fgetl(fid); % fields are: name, cid, inchi
-    filecols = textscan(fid, '%s%d%s', 'delimiter','\t');
-    fclose(fid);
-    added_cids = filecols{2};
-    added_inchies = filecols{3};
-    for i = 1:length(added_cids)
-        inchies.cids(i) = added_cids(i);
-        [std_inchi, std_inchi_stereo, std_inchi_stereo_charge, nstd_inchi] = getInchi(added_cids(i), added_inchies{i,1});
-        inchies.std_inchi{1,i} = std_inchi;
-        inchies.std_inchi_stereo{1,i} = std_inchi_stereo;
-        inchies.std_inchi_stereo_charge{1,i} = std_inchi_stereo_charge;
-        inchies.nstd_inchi{1,i} = nstd_inchi;
-    end
+    if use_kegg_additions
+        % load the InChIs for all KEGG compounds in the 'kegg_additions.tsv' file.
+        % this contains a few corrections needed in KEGG and added compounds (all starting with C80000)
+        if ~exist(KEGG_ADDITIONS_TSV_FNAME, 'file')
+            error(['file not found: ', KEGG_ADDITIONS_TSV_FNAME]);
+        end
+        fprintf('Adding the non-KEGG compounds first from: %s\n', KEGG_ADDITIONS_TSV_FNAME);
+
+        fid = fopen(KEGG_ADDITIONS_TSV_FNAME, 'r');
+        fgetl(fid); % fields are: name, cid, inchi
+        filecols = textscan(fid, '%s%d%s', 'delimiter','\t');
+        fclose(fid);
+        added_cids = filecols{2};
+        added_inchies = filecols{3};
+        for i = 1:length(added_cids)
+            inchies.cids(i) = added_cids(i);
+            [std_inchi, std_inchi_stereo, std_inchi_stereo_charge, nstd_inchi] = getInchi(added_cids(i), added_inchies{i,1});
+            inchies.std_inchi{1,i} = std_inchi;
+            inchies.std_inchi_stereo{1,i} = std_inchi_stereo;
+            inchies.std_inchi_stereo_charge{1,i} = std_inchi_stereo_charge;
+            inchies.nstd_inchi{1,i} = nstd_inchi;
+        end
+    end    
 end
 
 target_cids = setdiff(target_cids, inchies.cids);
