@@ -1,4 +1,8 @@
 clear all;
+
+fprintf('********** RUNNING TESTS **********\n');
+fprintf('If you do not see a "success" message in the end of the script, \n');
+
 tempd = pwd();
 cd('../matlab');
 
@@ -29,3 +33,5 @@ assert(all(find(res_group_ATP) == [44 51 73 75 104 120 128 148 149 150 158 161 1
 assert(all(res_group_ATP(res_group_ATP ~= 0) == [1 1 1 3 1 2 1 2 2 1 2 1 1]));
 
 cd(tempd);
+
+msgbox('Success! All unit tests have completed without errors');
