@@ -166,6 +166,12 @@ if __name__ == '__main__':
     reaction_strings = sys.stdin.readlines()
     td = TrainingData()
     cc = ComponentContribution(td)
-    model = KeggModel.parse_kegg_model(reaction_strings)
+    model = KeggModel.from_formulas(reaction_strings)
     model_dG0, model_cov_dG0 = cc.estimate_kegg_model(model)
-    sys.stdout.write('[[' + ', '.join([str(x) for x in model_dG0.flat]) + ']]')
+    
+    model_dG0_prime = model_dG0 + model.get_transform_ddG0(pH=7.5, I=0.2, T=298.15)
+    
+    sys.stdout.write('[' + 
+                     ', '.join([str(x) for x in model_dG0.flat]) + '; ' + 
+                     ', '.join([str(x) for x in model_dG0_prime.flat]) + 
+                     ']')    

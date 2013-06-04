@@ -9,5 +9,5 @@ p1 = Popen(['cat', REACTION_FNAME], stdout=PIPE)
 p2 = Popen([PYTHON_BIN, PYTHON_SCRIPT_FNAME], stdin=p1.stdout,
            executable=PYTHON_BIN, stdout=PIPE)
 res = p2.communicate()[0]
-model_dG0 = np.matrix(res)
+model_dG0 = np.array(res)
 print str(model_dG0)
