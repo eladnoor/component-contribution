@@ -5,7 +5,7 @@ if nargin < 2
 end
 
 
-if ~isfield(model, 'Ematrix') || isempty(model.Ematrix)
+
     [MW, Ematrix, elements] = getMolecularWeight(model.inchi.nonstandard, 0);
     model.Ematrix = Ematrix(:, 2:end); % remove H, columns are [C, N, O, P, S, e-]
     %elements = elements(:, 2:end);
@@ -29,8 +29,9 @@ if ~isfield(model, 'Ematrix') || isempty(model.Ematrix)
     inds= any(conserved(:, inds));
     
     model.S(:, inds) = 0;
+    fprintf('Successfully created balanced S structure: %d compounds and %d reactions\n%d reactions were not balanced and set to zero \n',...
+        size(model.S, 1), size(model.S, 2),sum(inds));
     
-end
 
-fprintf('Successfully created balanced S structure: %d compounds and %d reactions\n%d reactions were not balanced and set to zero \n',...
-        size(model.S, 1), size(model.S, 2),length(inds));
+
+
