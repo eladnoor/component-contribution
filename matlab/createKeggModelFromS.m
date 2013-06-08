@@ -21,7 +21,12 @@ fprintf('Loaded a KEGG model with %d compounds and %d reactions\n', size(model.S
 % get the InChIs for all the compounds in the training data
 % (note that all of them have KEGG IDs)
 kegg_inchies = getInchies(model.cids, false);
-inds = ismember(kegg_inchies.cids, model.cids);
+
+% match the kegg data to the model.cids
+matchKegg =@(x) find(x == kegg_inchies.cids);
+inds = arrayfun(matchKegg,model.cids);
+%inds = ismember(kegg_inchies.cids, model.cids);
+
 model.inchi.standard = kegg_inchies.std_inchi(inds);
 model.inchi.standardWithStereo = kegg_inchies.std_inchi_stereo(inds);
 model.inchi.standardWithStereoAndCharge = kegg_inchies.std_inchi_stereo_charge(inds);
