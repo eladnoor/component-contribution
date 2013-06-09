@@ -26,7 +26,6 @@ for i in range(len(tabinput)):
     for j in range(len(tabinput[0])-1):
         S[i,j] = tabinput[i][j+1]
 
-np.array()
 model = KeggModel(S, cids)
 model = model.check_S_balance()
 td = TrainingData()
@@ -44,14 +43,14 @@ for i in range(len(reactions)):
 
 outf.close()
 
-out_file = '../examples/vz/output/cc_dG_cov.tsv'
-outf = open(out_file, "w")
-outf.write("reaction\tdGr\tdGrSD\n")
-for i in range(len(reactions)):
-    for j in range(len(reactions)):
-        if j+1 < len(reactions):
-            outf.write(str(model_cov_dG0[i,j]) + "\t" )
-        else:
-            outf.write(str(model_cov_dG0[i,j]) + "\n" )
-
-outf.close()
+#out_file = '../examples/vz/output/cc_dG_cov.tsv'
+#outf = open(out_file, "w")
+#outf.write("reaction\tdGr\tdGrSD\n")
+#for i in range(len(reactions)):
+#    for j in range(len(reactions)):
+#        if j+1 < len(reactions):
+#            outf.write(str(model_cov_dG0[i,j]) + "\t" )
+#        else:
+#            outf.write(str(model_cov_dG0[i,j]) + "\n" )
+#
+#outf.close()
