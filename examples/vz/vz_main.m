@@ -17,8 +17,10 @@ else
     
     tab = importdata(REACTION_FNAME,'\t');
     S = tab.data;
-    uS = unique(S','rows')';
-    cids = str2double(tab.textdata(2:end,1))';
+    cids = str2double(tab.textdata(2:end,1));
+    [cids,order] = sort(cids);
+    S = S(order,:);
+    
     rxn = tab.textdata(1,2:end);
     
     model = createKEGGModelFromS(S, cids);

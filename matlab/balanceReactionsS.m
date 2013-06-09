@@ -9,7 +9,18 @@ end
     [MW, Ematrix, elements] = getMolecularWeight(model.inchi.nonstandard, 0);
     model.Ematrix = Ematrix(:, 2:end); % remove H, columns are [C, N, O, P, S, e-]
     %elements = elements(:, 2:end);
-    conserved = model.Ematrix' * model.S;
+    
+    % as there are few compounds with an unknown number of electrons (e- = NA)
+    %-> we only want mark reactions as unbalanced if their compounds have known electrons but 
+    % they don't match.
+    
+    rxnwoE= find(isnan(Ematrix(:,end))'*abs(model.S));
+    
+    tEmatrix = model.Ematrix;
+    tEmatrix(isnan(tEmatrix(:,end)),end) = 0;
+    
+    conserved = tEmatrix' * model.S;
+    conserved(end,rxnwoE) = 0;
     
     % need to check that all elements are balanced (except H, but including e-)
     % if only O is not balanced, add water molecules
@@ -23,7 +34,8 @@ end
         i_h2o = find(model.cids == 1);
         model.S(i_h2o, inds) = model.S(i_h2o, inds) - conserved(3, inds);
         % recalculate conservation matrix
-        conserved = model.Ematrix' * model.S;
+        conserved = tEmatrix' * model.S;
+        conserved(end,rxnwoE) = 0;
     end
     
     inds= any(conserved(:, inds));

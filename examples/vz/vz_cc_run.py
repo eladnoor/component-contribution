@@ -26,7 +26,9 @@ for i in range(len(tabinput)):
     for j in range(len(tabinput[0])-1):
         S[i,j] = tabinput[i][j+1]
 
+np.array()
 model = KeggModel(S, cids)
+model = model.check_S_balance()
 td = TrainingData()
 cc = ComponentContribution(td)
 model_dG0, model_cov_dG0 = cc.estimate_kegg_model(model)
