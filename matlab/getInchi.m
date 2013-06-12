@@ -25,7 +25,10 @@ if nargin < 2
     end
     
     if ispc
-        cmd = ['echo ' mol ' | ' babel_cmd ' -imol -oinchi ---errorlevel 0 -w'];
+        fid = fopen([tempdir 'mol.mol'],'w+');
+        fprintf(fid,'%s',mol);
+        fclose(fid);
+        cmd = [babel_cmd ' -imol ' tempdir 'mol.mol -oinchi ---errorlevel 0 -w'];
     else
         cmd = ['echo "' mol '" | ' babel_cmd ' -imol -oinchi ---errorlevel 0 -w'];
     end
@@ -67,4 +70,3 @@ if ~isempty(nstd_inchi) && strcmp('InChI=',nstd_inchi(1:6))
 else
     nstd_inchi = '';
 end
-
