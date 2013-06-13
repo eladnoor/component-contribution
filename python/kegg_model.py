@@ -4,7 +4,7 @@ from kegg_reaction import KeggReaction
 from compound_cacher import CompoundCacher
 
 class KeggModel(object):
-
+    
     def __del__(self):
         self.ccache.dump()
     
@@ -32,7 +32,7 @@ class KeggModel(object):
         reaction_strings = fd.readlines()
         fd.close()
         return KeggModel.from_formulas(reaction_strings, arrow, has_reaction_ids)
-
+        
     @staticmethod
     def from_formulas(reaction_strings, arrow='<=>', has_reaction_ids=False):
         """
@@ -49,7 +49,7 @@ class KeggModel(object):
            S     - a stoichiometric matrix
            cids  - the KEGG compound IDs in the same order as the rows of S
         """
-
+        
         cids = set()
         reactions = []
         for line in reaction_strings:
@@ -72,7 +72,7 @@ class KeggModel(object):
                 S[cids.index(cid), i] = coeff
                 
         return KeggModel(S, cids)
-        
+            
     def get_transform_ddG0(self, pH, I, T):
         """
         needed in order to calculate the transformed Gibbs energies of the 
@@ -91,3 +91,11 @@ class KeggModel(object):
         
         ddG0_forward = np.dot(self.S.T, ddG0_compounds)
         return ddG0_forward
+        
+    def check_S_balance(self):
+        elements, Ematrix = self.ccache.get_kegg_ematrix(self.cids)
+        conserved = Ematrix.T * self.S
+        rxnFil = np.any(conserved[:,range(self.S.shape[1])],axis=0)
+        "set all stoi coefficients in unbalanced reactions to 0"
+        self.S[:,np.nonzero(rxnFil)[1]] = 0
+        return self
