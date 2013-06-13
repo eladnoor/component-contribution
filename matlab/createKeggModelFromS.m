@@ -23,7 +23,10 @@ fprintf('Loaded a KEGG model with %d compounds and %d reactions\n', size(model.S
 kegg_inchies = getInchies(model.cids, false);
 
 % match the kegg data to the model.cids
-inds = subset_index(kegg_inchies.cids, model.cids);
+[~, inds] = ismember(model.cids, kegg_inchies.cids);
+if any(inds == 0) 
+    error('model.cids is not a proper subset of kegg_inchies.cids');
+end
 
 model.inchi.standard = kegg_inchies.std_inchi(inds);
 model.inchi.standardWithStereo = kegg_inchies.std_inchi_stereo(inds);
