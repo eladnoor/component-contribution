@@ -46,8 +46,9 @@ end
 [~, std_inchi] = system([cmd ' -xT/noiso/nochg/nostereo']);
 
 if not(isempty(strfind(std_inchi,'command not found'))) || not(isempty(strfind(std_inchi,'error')))
-        warning('The Inchi of compound C%05d has conversion problems', cid);
-        return
+    warning('The Inchi of compound C%05d has conversion problems', cid);
+    std_inchi = '';
+    return
 end
 
 if ~isempty(std_inchi) && strcmp('InChI=',std_inchi(1:6))
