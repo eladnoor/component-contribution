@@ -25,8 +25,12 @@ if nargin < 2
     end
     
     if ispc
-        cmd = ['echo ' mol ' | ' babel_cmd ' -imol -oinchi ---errorlevel 0 -w'];
+        fid = fopen([tempdir 'mol.mol'],'w+');
+        fprintf(fid,'%s',mol);
+        fclose(fid);
+        cmd = [babel_cmd ' -imol ' tempdir 'mol.mol -oinchi ---errorlevel 0 -w'];
     else
+        mol = regexprep(mol,'^"|"$',''); % replaces " but only if it is at the beginning/end
         cmd = ['echo "' mol '" | ' babel_cmd ' -imol -oinchi ---errorlevel 0 -w'];
     end
 else
@@ -36,11 +40,20 @@ else
     if ispc
         cmd = ['echo ' inchi ' | ' babel_cmd ' -iinchi -oinchi ---errorlevel 0 -w'];
     else
+        inchi = regexprep(inchi,'^"|"$',''); % replaces " but only if at the beginning/end
         cmd = ['echo "' inchi '" | ' babel_cmd ' -iinchi -oinchi ---errorlevel 0 -w'];
     end
+    
 end
 
 [~, std_inchi] = system([cmd ' -xT/noiso/nochg/nostereo']);
+
+if not(isempty(strfind(std_inchi,'command not found'))) || not(isempty(strfind(std_inchi,'error')))
+    warning('The Inchi of compound C%05d has conversion problems', cid);
+    std_inchi = '';
+    return
+end
+
 if ~isempty(std_inchi) && strcmp('InChI=',std_inchi(1:6))
     std_inchi = strtok(std_inchi);
 else
@@ -67,4 +80,3 @@ if ~isempty(nstd_inchi) && strcmp('InChI=',nstd_inchi(1:6))
 else
     nstd_inchi = '';
 end
-

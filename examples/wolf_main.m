@@ -18,9 +18,3 @@ model = addThermoToModel(model, rt_training_data);
 model = addBiochemicalEnergies(model, pH, I, T);
 
 save('../examples/wolf_res.mat');
-
-%%
-clear all;
-load('../examples/wolf_res.mat');
-load('../examples/groups.mat');
-plot(model.DrG0, model_dG0, '.');

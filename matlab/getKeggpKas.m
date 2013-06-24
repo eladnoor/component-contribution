@@ -74,6 +74,14 @@ for i_cid = 1:length(target_cids)
        success = -1; 
     end
     
+    if ~isempty(strfind(cxcalc_stdout,'chemaxon.formats.MolFormatException: Cannot read molecule file'))
+       success = -1; 
+    end
+    
+    if ~isempty(strfind(cxcalc_stdout,'pka: Inconsistent molecular structure.'))
+       success = -1; 
+    end
+    
     if success == 0
         pkalist = regexp(cxcalc_stdout,'\n','split');
         titles = regexp(pkalist{1,1}, '\t', 'split');
