@@ -187,13 +187,41 @@ class Compound(object):
         return atom_bag
         
     def transform(self, pH, I, T):
+        """
+            Returns the difference between the dG0 of the major microspecies at pH 7
+            and the transformed dG0' (in kJ/mol)
+        """
+        ddG0 = sum(self.pKas[:self.majorMSpH7]) * R * T * np.log(10)
+        return self._transform(pH, I, T) + ddG0
+
+    def transform_neutral(self, pH, I, T):
+        """
+            Returns the difference between the dG0 of microspecies with the 0 charge
+            and the transformed dG0' (in kJ/mol)
+        """
+        try:
+            MS_ind = self.zs.index(0)
+        except ValueError:
+            raise ValueError("The compound (%s) does not have a microspecies with 0 charge"
+                             % self.compound_id)
+        
+        # calculate the difference between the microspecies with the least hydrogens
+        # and the microspecies with 0 charge 
+        ddG0 = sum(self.pKas[:MS_ind]) * R * T * np.log(10)
+        return self._transform(pH, I, T) + ddG0
+
+    def _transform(self, pH, I, T):
+        """
+            Returns the difference between the dG0 of microspecies with the least hydrogens
+            and the transformed dG0' (in kJ/mol)
+        """
         if self.inchi is None:
             return 0
         elif self.pKas == []:
             dG0s = np.zeros((1, 1))
         else:
             dG0s = -np.cumsum([0] + self.pKas) * R * T * np.log(10)
-            dG0s = dG0s - dG0s[self.majorMSpH7]
+            dG0s = dG0s
         DH = debye_huckel((I, T))
         
         # dG0' = dG0 + nH * (R T ln(10) pH + DH) - charge^2 * DH
