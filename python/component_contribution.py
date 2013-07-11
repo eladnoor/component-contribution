@@ -1,5 +1,6 @@
 import sys
 import numpy as np
+import scipy.io as sio
 from inchi2gv import GroupsData, InChI2GroupVector, GROUP_CSV, GroupDecompositionError
 from training_data import TrainingData
 from kegg_model import KeggModel
@@ -18,38 +19,69 @@ class ComponentContribution(object):
         self.inchi2gv = InChI2GroupVector(self.groups_data)
         self.group_names = self.groups_data.GetGroupNames()
         
-        self.training_data = training_data
+        self.train_cids = training_data.cids
+        self.train_S = training_data.S
+        self.train_b = np.matrix(training_data.dG0).T
+        self.train_w = np.matrix(training_data.weight).T
+        self.train_G = None
+        self.train_S_joined = None
+        self.model_S_joined = None
+        self.params = None
 
+    def savemat(self, fname):
+        if self.params is None:
+            raise Exception('One cannot call savemat() before calling estimate_kegg_model()')
+        d = {'dG0_rc':self.params['contributions'][0],
+             'dG0_gc':self.params['contributions'][1],
+             'dG0_cc':self.params['contributions'][2],
+             'P_R_rc':self.params['projections'][0],
+             'P_R_gc':self.params['projections'][3],
+             'P_N_rc':self.params['projections'][4],
+             'P_N_gc':self.params['projections'][5],
+             'inv_S':self.params['inverses'][0],
+             'inv_GS':self.params['inverses'][1],
+             'inv_SWS':self.params['inverses'][2],
+             'inv_GSWGS':self.params['inverses'][3],
+             'b':self.train_b,
+             'train_S':self.train_S_joined,
+             'model_S':self.model_S_joined,
+             'cids':self.cids_joined,
+             'w':self.train_w,
+             'G':self.train_G}
+        sio.savemat(fname, d, oned_as='row')
     
     def estimate_kegg_model(self, kegg_model):
         # standardize the CID list of the training data and the model
         # and create new (larger) matrices for each one
-        cids = sorted(set(kegg_model.cids + self.training_data.cids))
-        model_S = ComponentContribution._zero_pad_S(
-            kegg_model.S, kegg_model.cids, cids)
-        train_S = ComponentContribution._zero_pad_S(
-            self.training_data.S, self.training_data.cids, cids)
+        cids_common = set(kegg_model.cids).intersection(self.train_cids)
+        cids_new = [cid for cid in kegg_model.cids if cid not in cids_common]
+        
+        self.cids_joined = self.train_cids + cids_new
+        self.model_S_joined = ComponentContribution._zero_pad_S(
+            kegg_model.S, kegg_model.cids, self.cids_joined)
+        self.train_S_joined = ComponentContribution._zero_pad_S(
+            self.train_S, self.train_cids, self.cids_joined)
 
-        G = self.create_group_incidence_matrix(cids)
+        self.train_G = self.create_group_incidence_matrix(self.cids_joined)
         
-        dG0_f, cov_dG0, params = self.train(train_S, G)
+        dG0_f, cov_dG0 = self.train()
         
-        model_dG0 = model_S.T * dG0_f
-        model_cov_dG0 = model_S.T * cov_dG0 * model_S 
+        model_dG0 = self.model_S_joined.T * dG0_f
+        model_cov_dG0 = self.model_S_joined.T * cov_dG0 * self.model_S_joined 
 
         return model_dG0, model_cov_dG0
     
     @staticmethod
-    def _zero_pad_S(S, cids, all_cids):
+    def _zero_pad_S(S, cids_orig, cids_joined):
         """
             takes a stoichiometric matrix with a given list of IDs 'cids' and adds
-            0-rows so that the list of IDs will be 'all_cids'
+            0-rows so that the list of IDs will be 'cids_joined'
         """
-        if not set(cids).issubset(all_cids):
+        if not set(cids_orig).issubset(cids_joined):
             raise Exception('The full list is missing some IDs in "cids"')
-        full_S = np.zeros((len(all_cids), S.shape[1]))
-        for i, cid in enumerate(cids):
-            full_S[all_cids.index(cid), :] = S[i, :]
+        full_S = np.zeros((len(cids_joined), S.shape[1]))
+        for i, cid in enumerate(cids_orig):
+            full_S[cids_joined.index(cid), :] = S[i, :]
         
         return np.matrix(full_S)
         
@@ -89,12 +121,14 @@ class ComponentContribution(object):
         P_N = U[:,r:] * (U[:,r:].T) # a projection matrix onto the null-space of A
         return inv_A, r, P_R, P_N
         
-    def train(self, S, G):
+    def train(self):
         """
             Estimate standard Gibbs energies of formation
         """
-        b = np.matrix(self.training_data.dG0).T
-        w = np.matrix(self.training_data.weight).T
+        S = self.train_S_joined
+        G = self.train_G
+        b = self.train_b
+        w = self.train_w
         
         m, n = S.shape
         assert G.shape[0] == m
@@ -143,22 +177,22 @@ class ComponentContribution(object):
         V_inf = P_N_rc * G * P_N_gc * G.T * P_N_rc
 
         # Put all the calculated data in 'params' for the sake of debugging
-        params = {}
-        params['contributions'] = [dG0_rc, dG0_gc]
-        params['covariances']   = [V_rc, V_gc, V_inf]
-        params['MSEs']          = [MSE_rc, MSE_gc, MSE_inf]
-        params['projections']   = [P_R_rc,
-                                   P_R_gc * G.T * P_N_rc,
-                                   P_N_gc * G.T * P_N_rc,
-                                   P_R_gc,
-                                   P_N_rc,
-                                   P_N_gc]
-        params['inverses']      = [inv_S, inv_GS, inv_SWS, inv_GSWGS]
+        self.params = {}
+        self.params['contributions'] = [dG0_rc, dG0_gc, dG0_cc]
+        self.params['covariances']   = [V_rc, V_gc, V_inf]
+        self.params['MSEs']          = [MSE_rc, MSE_gc, MSE_inf]
+        self.params['projections']   = [P_R_rc,
+                                        P_R_gc * G.T * P_N_rc,
+                                        P_N_gc * G.T * P_N_rc,
+                                        P_R_gc,
+                                        P_N_rc,
+                                        P_N_gc]
+        self.params['inverses']      = [inv_S, inv_GS, inv_SWS, inv_GSWGS]
 
         # Calculate the total of the contributions and covariances
         cov_dG0 = V_rc * MSE_rc + V_gc * MSE_gc + V_inf * MSE_inf
         
-        return dG0_cc, cov_dG0, params
+        return dG0_cc, cov_dG0
 
 if __name__ == '__main__':
     from kegg_model import KeggModel

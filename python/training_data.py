@@ -45,7 +45,7 @@ class TrainingData(object):
             for cid, coeff in d['reaction'].iteritems():
                 self.S[cids.index(cid), k] = coeff
             
-        self.cids = cids;
+        self.cids = cids
         self.cids_that_dont_decompose = cids_that_dont_decompose
 
         self.dG0_prime = np.array([d['dG\'0'] for d in thermo_params])
@@ -60,6 +60,19 @@ class TrainingData(object):
         self.balance_reactions(rxn_inds_to_balance)
         
         self.reverse_transform()
+
+    def savemat(self, fname):
+        if self.params is None:
+            raise Exception('One cannot call savemat() before calling estimate_kegg_model()')
+        d = {'dG0_prime': self.dG0_prime,
+             'dG0': self.dG0,
+             'T': self.T,
+             'I': self.I,
+             'pH': self.pH,
+             'pMg': self.pMg,
+             'weight': self.weight,
+             'cids': self.cids}
+        sio.savemat(fname, d, oned_as='row')
 
     @staticmethod
     def str2double(s):
@@ -242,10 +255,6 @@ class TrainingData(object):
                 reverse_ddG0[i] = reverse_ddG0[i] + ddG0 * self.S[j, i]
 
         self.dG0 = self.dG0_prime - reverse_ddG0
-        savemat('../examples/rt.mat',
-                {'dG0_prime': self.dG0_prime,
-                 'dG0' : self.dG0,
-                 'reverse_ddG0' : reverse_ddG0}, oned_as='row')
         
 if __name__ == '__main__':
     logger = logging.getLogger('')

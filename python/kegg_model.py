@@ -1,4 +1,4 @@
-import re
+import re, csv, logging
 import numpy as np
 from kegg_reaction import KeggReaction
 from compound_cacher import CompoundCacher
@@ -8,20 +8,24 @@ class KeggModel(object):
     def __del__(self):
         self.ccache.dump()
     
-    def __init__(self, S, cids):
+    def __init__(self, S, cids, rids=None):
         self.S = S
         self.cids = cids
+        self.rids = rids
         assert len(self.cids) == self.S.shape[0]
+        if self.rids is not None:
+            assert len(self.rids) == self.S.shape[1]
         self.ccache = CompoundCacher.getInstance()
     
     @staticmethod
-    def from_file(fname, arrow='<=>', has_reaction_ids=False):
+    def from_file(fname, arrow='<=>', format='kegg', has_reaction_ids=False):
         """
         reads a file containing reactions in KEGG format
         
         Arguments:
            fname            - the filename to read
            arrow            - the string used as the 'arrow' in each reaction (default: '<=>')
+           format           - the text file format provided ('kegg', 'tsv' or 'csv')
            has_reaction_ids - a boolean flag indicating if there is a column of
                               reaction IDs (separated from the reaction with
                               whitespaces)
@@ -29,10 +33,31 @@ class KeggModel(object):
         Return a KeggModel
         """
         fd = open(fname, 'r')
-        reaction_strings = fd.readlines()
+        if format == 'kegg':
+            model = KeggModel.from_formulas(fd.readlines(), arrow, has_reaction_ids)
+        elif format == 'tsv':
+            model = KeggModel.from_csv(fd, has_reaction_ids=has_reaction_ids, delimiter='\t')
+        elif format == 'csv':
+            model = KeggModel.from_csv(fd, has_reaction_ids=has_reaction_ids, delimiter=None)
         fd.close()
-        return KeggModel.from_formulas(reaction_strings, arrow, has_reaction_ids)
-        
+        return model
+    
+    @staticmethod
+    def from_csv(fd, has_reaction_ids=True, delimiter=None):
+        csv_reader = csv.reader(fd, delimiter=delimiter)
+        if has_reaction_ids:
+            rids = csv_reader.next()
+            rids = rids[1:]
+        else:
+            rids = None
+        S = []
+        cids = []
+        for i, row in enumerate(csv_reader):
+            cids.append(int(row[0]))
+            S.append([float(x) for x in row[1:]])
+        S = np.array(S)
+        return KeggModel(S, cids, rids)
+    
     @staticmethod
     def from_formulas(reaction_strings, arrow='<=>', has_reaction_ids=False):
         """
@@ -51,10 +76,15 @@ class KeggModel(object):
         """
         
         cids = set()
+        if has_reaction_ids:
+            rids = []
+        else:
+            rids = None
         reactions = []
         for line in reaction_strings:
             if has_reaction_ids:
                 tokens = re.split('(\w+)\s+(.*)', line, maxsplit=1)
+                rids.append(tokens[0])
                 line = tokens[1]
             reaction = KeggReaction.parse_formula(line, arrow)
             if not reaction.is_balanced():
@@ -71,7 +101,7 @@ class KeggModel(object):
             for cid, coeff in reaction.iteritems():
                 S[cids.index(cid), i] = coeff
                 
-        return KeggModel(S, cids)
+        return KeggModel(S, cids, rids)
             
     def get_transform_ddG0(self, pH, I, T):
         """
@@ -96,6 +126,14 @@ class KeggModel(object):
         elements, Ematrix = self.ccache.get_kegg_ematrix(self.cids)
         conserved = Ematrix.T * self.S
         rxnFil = np.any(conserved[:,range(self.S.shape[1])],axis=0)
-        "set all stoi coefficients in unbalanced reactions to 0"
-        self.S[:,np.nonzero(rxnFil)[1]] = 0
+        unbalanced_ind = np.nonzero(rxnFil)[1]
+        if unbalanced_ind != []:
+            logging.warning('There are (%d) unbalanced reactions in S.' 
+                            'Setting their coefficients to 0.' % 
+                            len(unbalanced_ind.flat))
+            if self.rids is not None:
+                logging.warning('These are the unbalanced reactions: ' +
+                                ', '.join([self.rids[i] for i in unbalanced_ind.flat]))
+                    
+            self.S[:, unbalanced_ind] = 0
         return self
