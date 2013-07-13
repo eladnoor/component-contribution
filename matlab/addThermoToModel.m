@@ -26,7 +26,7 @@ model.DfG0 = x(model2train_map);
 model.covf = cov_x(model2train_map, model2train_map);
 model.uf = diag(sqrt(model.covf));
 model.DrG0 = model.S' * model.DfG0;
-model.ur = sqrt(diag(model.S'*model.covf*model.S));
+model.ur = diag(sqrt(model.S'*model.covf*model.S));
 model.uf(model.uf >= 1e3) = 1e10; % Set large uncertainty in formation energies to inf
 model.ur(model.ur >= 1e3) = 1e10; % Set large uncertainty in reaction energies to inf
 model.ur(sum(model.S~=0)==1) = 1e10; % set uncertainty of exchange, demand and sink reactions to inf

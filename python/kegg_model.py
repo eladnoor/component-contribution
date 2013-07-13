@@ -128,7 +128,7 @@ class KeggModel(object):
         rxnFil = np.any(conserved[:,range(self.S.shape[1])],axis=0)
         unbalanced_ind = np.nonzero(rxnFil)[1]
         if unbalanced_ind != []:
-            logging.warning('There are (%d) unbalanced reactions in S.' 
+            logging.warning('There are (%d) unbalanced reactions in S. ' 
                             'Setting their coefficients to 0.' % 
                             len(unbalanced_ind.flat))
             if self.rids is not None:

@@ -1,6 +1,6 @@
 import sys
 import numpy as np
-import scipy.io as sio
+from scipy.io import savemat
 from inchi2gv import GroupsData, InChI2GroupVector, GROUP_CSV, GroupDecompositionError
 from training_data import TrainingData
 from kegg_model import KeggModel
@@ -48,7 +48,7 @@ class ComponentContribution(object):
              'cids':self.cids_joined,
              'w':self.train_w,
              'G':self.train_G}
-        sio.savemat(fname, d, oned_as='row')
+        savemat(fname, d, oned_as='row')
     
     def estimate_kegg_model(self, kegg_model):
         # standardize the CID list of the training data and the model

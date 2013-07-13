@@ -18,17 +18,20 @@ class TrainingData(object):
 
     def __init__(self):
         self.ccache = CompoundCacher.getInstance()
+        
+        base_path = os.path.split(os.path.realpath(__file__))[0]
     
-        # verify that the files exist
-        for fname, _ in TrainingData.FNAME_DICT.values():
-            if not os.path.exists(fname):
-                raise Exception('file not found: ' + fname)
+        fname, weight = TrainingData.FNAME_DICT['TECRDB']
+        fname = os.path.join(base_path, fname)
+        tecrdb_params = TrainingData.read_tecrdb(fname, weight)
         
-        tecrdb_params = TrainingData.read_tecrdb()
+        fname, weight = TrainingData.FNAME_DICT['FORMATION']
+        fname = os.path.join(base_path, fname)
+        formation_params, cids_that_dont_decompose = TrainingData.read_formations(fname, weight)
         
-        formation_params, cids_that_dont_decompose = TrainingData.read_formations()
-        
-        redox_params = TrainingData.read_redox()
+        fname, weight = TrainingData.FNAME_DICT['REDOX']
+        fname = os.path.join(base_path, fname)
+        redox_params = TrainingData.read_redox(fname, weight)
         
         thermo_params = tecrdb_params + formation_params + redox_params
         
@@ -62,8 +65,6 @@ class TrainingData(object):
         self.reverse_transform()
 
     def savemat(self, fname):
-        if self.params is None:
-            raise Exception('One cannot call savemat() before calling estimate_kegg_model()')
         d = {'dG0_prime': self.dG0_prime,
              'dG0': self.dG0,
              'T': self.T,
@@ -72,7 +73,7 @@ class TrainingData(object):
              'pMg': self.pMg,
              'weight': self.weight,
              'cids': self.cids}
-        sio.savemat(fname, d, oned_as='row')
+        savemat(fname, d, oned_as='row')
 
     @staticmethod
     def str2double(s):
@@ -85,10 +86,8 @@ class TrainingData(object):
             return float(s)
 
     @staticmethod
-    def read_tecrdb():       
+    def read_tecrdb(fname, weight):
         """Read the raw data of TECRDB (NIST)"""
-        fname, weight = TrainingData.FNAME_DICT['TECRDB']
-
         thermo_params = [] # columns are: reaction, dG'0, T, I, pH, pMg, weight, balance?
 
         headers = ["URL", "REF_ID", "METHOD", "EVAL", "EC", "ENZYME NAME",
@@ -124,9 +123,9 @@ class TrainingData(object):
         return thermo_params
         
     @staticmethod
-    def read_formations():
+    def read_formations(fname, weight):
         """Read the Formation Energy data"""
-        fname, weight = TrainingData.FNAME_DICT['FORMATION']
+        
         # columns are: reaction, dG'0, T, I, pH, pMg, weight, balance?
         thermo_params = []
         cids_that_dont_decompose = set()
@@ -151,10 +150,8 @@ class TrainingData(object):
         return thermo_params, cids_that_dont_decompose
         
     @staticmethod
-    def read_redox():
+    def read_redox(fname, weight):
         """Read the Reduction potential data"""
-        
-        fname, weight = TrainingData.FNAME_DICT['REDOX']
         # columns are: reaction, dG'0, T, I, pH, pMg, weight, balance?
         thermo_params = []
         

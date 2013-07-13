@@ -3,7 +3,7 @@ from singletonmixin import Singleton
 from compound import Compound
 import numpy as np
 
-CACHE_FNAME = '../cache/compounds.json'
+DEFAULT_CACHE_FNAME = '../cache/compounds.json'
 KEGG_ADDITIONS_TSV_FNAME = '../data/kegg_additions.tsv'
 
 class CompoundEncoder(json.JSONEncoder):
@@ -25,7 +25,12 @@ class CompoundCacher(Singleton):
         the cache. When the method dump() is called, all cached data is written
         to a file that will be loaded in future python sessions.
     """
-    def __init__(self):
+    def __init__(self, cache_fname=None):
+        base_path = os.path.split(os.path.realpath(__file__))[0]
+        self.cache_fname = cache_fname
+        if self.cache_fname is None:
+            self.cache_fname = os.path.join(base_path, DEFAULT_CACHE_FNAME)
+        self.additions_fname = os.path.join(base_path, KEGG_ADDITIONS_TSV_FNAME)
         self.need_to_update_cache_file = False
         self.load()
         self.get_kegg_additions()
@@ -35,14 +40,14 @@ class CompoundCacher(Singleton):
         # parse the JSON cache file and store in a dictionary 'compound_dict'
         self.compound_dict = {}
         self.compound_ids = []
-        if os.path.exists(CACHE_FNAME):
-            for d in json.load(open(CACHE_FNAME, 'r')):
+        if os.path.exists(self.cache_fname):
+            for d in json.load(open(self.cache_fname, 'r')):
                 self.compound_ids.append(d['id'])
                 self.compound_dict[d['id']] = Compound.from_json_dict(d)
 
     def dump(self):
         if self.need_to_update_cache_file:
-            fp = open(CACHE_FNAME, 'w')
+            fp = open(self.cache_fname, 'w')
             data = sorted(self.compound_dict.values(), key=lambda d:d.compound_id)
             json.dump(data, fp, cls=CompoundEncoder, 
                       sort_keys=True, indent=4,  separators=(',', ': '))
@@ -51,7 +56,7 @@ class CompoundCacher(Singleton):
         
     def get_kegg_additions(self):
         # fields are: name, cid, inchi
-        for row in csv.DictReader(open(KEGG_ADDITIONS_TSV_FNAME, 'r'), delimiter='\t'):
+        for row in csv.DictReader(open(self.additions_fname, 'r'), delimiter='\t'):
             cid = int(row['cid'])
             compound_id = 'C%05d' % cid
             inchi = row['inchi']
