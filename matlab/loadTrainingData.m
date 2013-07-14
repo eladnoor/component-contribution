@@ -23,7 +23,7 @@ WEIGHT_TECRDB = 1;
 WEIGHT_FORMATION = formation_weight;
 WEIGHT_REDOX = formation_weight;
 R = 8.31e-3; % kJ/mol/K
-F = 96.45; % kC/mol
+F = 96.485; % kC/mol
 
 if ~exist(TECRDB_TSV_FNAME, 'file')
     error(['file not found: ', TECRDB_TSV_FNAME]);

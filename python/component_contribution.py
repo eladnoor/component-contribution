@@ -45,6 +45,7 @@ class ComponentContribution(object):
              'b':self.train_b,
              'train_S':self.train_S_joined,
              'model_S':self.model_S_joined,
+             'train_cids':self.train_cids,
              'cids':self.cids_joined,
              'w':self.train_w,
              'G':self.train_G}
@@ -53,9 +54,7 @@ class ComponentContribution(object):
     def estimate_kegg_model(self, kegg_model):
         # standardize the CID list of the training data and the model
         # and create new (larger) matrices for each one
-        cids_common = set(kegg_model.cids).intersection(self.train_cids)
-        cids_new = [cid for cid in kegg_model.cids if cid not in cids_common]
-        
+        cids_new = [cid for cid in kegg_model.cids if cid not in self.train_cids]
         self.cids_joined = self.train_cids + cids_new
         self.model_S_joined = ComponentContribution._zero_pad_S(
             kegg_model.S, kegg_model.cids, self.cids_joined)

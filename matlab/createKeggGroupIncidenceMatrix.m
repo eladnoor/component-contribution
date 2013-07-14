@@ -11,6 +11,7 @@ groups = regexp(groups,'\n','split');
 Groups = groups(~cellfun(@isempty, groups));
 
 [~, missing_inds] = setdiff(model.cids, training_data.cids);
+training_data.cids_orig = training_data.cids;
 training_data.cids = [training_data.cids, model.cids(missing_inds)];
 training_data.inchis = [training_data.nstd_inchi, model.inchi.nonstandard(missing_inds)];
 [~, inds, ~] = intersect(training_data.cids, model.cids);

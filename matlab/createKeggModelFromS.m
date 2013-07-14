@@ -9,7 +9,7 @@
 function model = createKeggModelFromS(S, cids)
 
 model.S = S;
-model.cids = cids;
+model.cids = reshape(cids, 1, length(cids));
 model.mets = cell(length(model.cids),1);
 for i = 1:length(model.cids)
     model.mets{i} = sprintf('C%05d[c]', model.cids(i));

@@ -100,7 +100,7 @@ for i_cid = 1:length(target_cids)
         pkalist = regexprep(pkalist, ',', '\.');
         pkalist = str2double(pkalist);
         pkalist = sort(pkalist,'descend');
-        pkalist = pkalist(pkalist>=0 & pkalist<=14);
+        pkalist = pkalist(pkalist > 0 & pkalist < 14);
 
         % find the nH and charge of the major macrospecies
         ind = find(strcmp(titles, 'major-ms'));
