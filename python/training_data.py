@@ -247,6 +247,8 @@ class TrainingData(object):
         for i in xrange(n_rxns):
             for j in np.nonzero(self.S[:, i])[0]:
                 cid = self.cids[j]
+                if cid == 80: # H+ should be ignored in the Legendre transform
+                    continue
                 comp = self.ccache.get_kegg_compound(cid)
                 ddG0 = comp.transform(self.pH[i], self.I[i], self.T[i])
                 reverse_ddG0[i] = reverse_ddG0[i] + ddG0 * self.S[j, i]

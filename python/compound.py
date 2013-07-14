@@ -23,12 +23,19 @@ class Compound(object):
     @staticmethod
     def from_kegg(cid):
         inchi = Compound.get_inchi(cid)
-        if inchi is None:
+
+        # There are two cases where we say there is only one microspecies with zero 
+        # hydrogens and no charge:
+        # 1) for H+, in order to eliminate its effect on the Legendre transform
+        # 2) if the compound has no explicit structure, so we have no choice
+        if (cid == 80) or (inchi is None):
             pKas = []
-            majorMSpH7 = -1
-            nHs = []
-            zs = []
+            majorMSpH7 = 0
+            nHs = [0]
+            zs = [0]
         else:
+            # otherwise, we use ChemAxon's software to get the pKas and the 
+            # properties of all microspecies
             pKas, majorMSpH7, nHs, zs = Compound.get_species_pka(inchi)
         return Compound('KEGG', 'C%05d' % cid, inchi,
                         pKas, majorMSpH7, nHs, zs)
