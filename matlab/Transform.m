@@ -21,7 +21,7 @@ function dG0_prime = Transform(pseudoisomers, pH, I, T)
 % Elad Noor, Nov. 2012
 % Hulda SH, Nov. 2012   Added temperature dependent alpha.
 
-R = 8.3144621e-3; % Gas constant in kJ/(K*mol)
+R = 8.31e-3; % Gas constant in kJ/(K*mol)
 alpha = (9.20483*T)/10^3 - (1.284668*T^2)/10^5 + (4.95199*T^3)/10^8; % Approximation of the temperature dependency of ionic strength effects
 DH = (alpha * sqrt(I)) / (1 + 1.6 * sqrt(I)); % Debye Huckel
 

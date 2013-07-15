@@ -42,6 +42,11 @@ for i_cid = 1:length(target_cids)
         KeggSpeciespKa(i_cid).nHs = nH;
         KeggSpeciespKa(i_cid).success = true;
         continue;
+    elseif target_cids(i_cid) == 305 % C00305 is magnesium cation (Mg2+)
+        KeggSpeciespKa(i_cid).zs = 2;
+        KeggSpeciespKa(i_cid).nHs = 0;
+        KeggSpeciespKa(i_cid).success = true;
+        continue;
     elseif target_cids(i_cid) == 237 % C00237 is carbon monoxide (CO)
         structure = '[C-]#[O+]';
     else % for all other compounds, use babel to convert them to SMILES

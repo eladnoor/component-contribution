@@ -1,9 +1,9 @@
-% Perform the GERALD method on the training data which comprises
+% Perform the CC method on the training data which comprises
 % S - the stoichiometric matrix of measured reactions
 % G - the group incidence matrix
 % b - the observation vector (standard Gibbs energy of reactions)
 % w - the weight vector for each reaction in S
-function [G_gerald, cov_G, params] = componentContribution(S, G, b, w)
+function [G_cc, cov_G, params] = componentContribution(S, G, b, w)
 
 [m, n] = size(S);
 assert (size(G, 1) == m);
@@ -24,7 +24,7 @@ GS = G' * S;
 % Calculate the contributions in the stoichiometric space
 G_rc = inv_S' * W * b;
 G_gc = G * inv_GS' * W * b;
-G_gerald = P_R_rc * G_rc + P_N_rc * G_gc;
+G_cc = P_R_rc * G_rc + P_N_rc * G_gc;
 
 % Calculate the residual error (unweighted squared error divided by N - rank)
 e_rc = (S' * G_rc - b);
@@ -53,7 +53,7 @@ V_gc  = P_N_rc * G * inv_GSWGS * G' * P_N_rc;
 V_inf = P_N_rc * G * P_N_gc * G' * P_N_rc;
 
 % Put all the calculated data in 'params' for the sake of debugging
-params.contributions = {G_rc, G_gc};
+params.contributions = {G_rc, G_gc, G_cc};
 params.covariances = {V_rc, V_gc, V_inf};
 params.MSEs = {MSE_rc, MSE_gc, MSE_inf};
 params.projections = {              P_R_rc, ...
