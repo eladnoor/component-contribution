@@ -111,13 +111,29 @@ class ComponentContribution(object):
         return np.matrix(np.hstack([G, add_G]))
     
     @staticmethod
-    def _invert_project(A, eps=1e-10):
-        U, s, V = np.linalg.svd(A, full_matrices=True)
-        r = (s > eps).nonzero()[0].shape[0] # the rank of A
+    def _invert_project(A, eps=1e-10, method='octave'):
+        if method == 'octave':
+            from oct2py import Oct2Py
+            oc = Oct2Py()
+            U, S, V = oc.svd(A)
+            s = np.diag(S)
+            U = np.matrix(U)
+            V = np.matrix(V)
+        elif method == 'numpy':
+            # numpy.linalg.svd returns U, s, V_H such that
+            # A = U * s * V_H
+            # however, matlab and octave return U, S, V such that
+            # V needs to be transposed when multiplied:
+            # A = U * S * V.T
+            U, s, V_H = np.linalg.svd(A, full_matrices=True)
+            V = V_H.T
+        else:
+            raise ArgumentError('method argument must be "octave" or "numpy"')
+        r = sum(abs(s) > eps)
         inv_S = np.matrix(np.diag([1.0/s[i] for i in xrange(r)]))
-        inv_A = (V[:r, :].T) * inv_S * (U[:, :r].T)
-        P_R = U[:,:r] * (U[:,:r].T) # a projection matrix onto the row-space of A
-        P_N = U[:,r:] * (U[:,r:].T) # a projection matrix onto the null-space of A
+        inv_A = V[:, :r] * inv_S * U[:, :r].T
+        P_R   = U[:, :r] * U[:, :r].T
+        P_N   = U[:, r:] * U[:, r:].T
         return inv_A, r, P_R, P_N
         
     def train(self):
