@@ -11,3 +11,4 @@ for cid in [2]:
     print "C%05d: ddG0_prime = %.2f" % (cid, comp.transform(7.0, 0.2, 300))
     print "C%05d: ddG0_prime(z=0) = %.2f" % (cid, comp.transform_neutral(7.0, 0.2, 300))
     
+    

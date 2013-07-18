@@ -1,7 +1,7 @@
 import sys
 import numpy as np
 from scipy.io import savemat
-from inchi2gv import GroupsData, InChI2GroupVector, GROUP_CSV, GroupDecompositionError
+from inchi2gv import GroupsData, InChI2GroupVector, init_groups_data, GroupDecompositionError
 from training_data import TrainingData
 from kegg_model import KeggModel
 from compound_cacher import CompoundCacher
@@ -15,7 +15,7 @@ class ComponentContribution(object):
         """
         self.ccache = CompoundCacher.getInstance()
         
-        self.groups_data = GroupsData.FromGroupsFile(GROUP_CSV, transformed=False)
+        self.groups_data = init_groups_data()
         self.inchi2gv = InChI2GroupVector(self.groups_data)
         self.group_names = self.groups_data.GetGroupNames()
         
@@ -26,46 +26,31 @@ class ComponentContribution(object):
         self.train_G = None
         self.train_S_joined = None
         self.model_S_joined = None
-        self.params = None
+        self.params = {}
 
     def savemat(self, fname):
         if self.params is None:
             raise Exception('One cannot call savemat() before calling estimate_kegg_model()')
-        d = {'dG0_rc':self.params['contributions'][0],
-             'dG0_gc':self.params['contributions'][1],
-             'dG0_cc':self.params['contributions'][2],
-             'P_R_rc':self.params['projections'][0],
-             'P_R_gc':self.params['projections'][3],
-             'P_N_rc':self.params['projections'][4],
-             'P_N_gc':self.params['projections'][5],
-             'inv_S':self.params['inverses'][0],
-             'inv_GS':self.params['inverses'][1],
-             'inv_SWS':self.params['inverses'][2],
-             'inv_GSWGS':self.params['inverses'][3],
-             'b':self.train_b,
-             'train_S':self.train_S_joined,
-             'model_S':self.model_S_joined,
-             'train_cids':self.train_cids,
-             'cids':self.cids_joined,
-             'w':self.train_w,
-             'G':self.train_G}
-        savemat(fname, d, oned_as='row')
+
+        savemat(fname, self.params, oned_as='row')
     
-    def estimate_kegg_model(self, kegg_model):
+    def estimate_kegg_model(self, model_S, model_cids):
         # standardize the CID list of the training data and the model
         # and create new (larger) matrices for each one
-        cids_new = [cid for cid in kegg_model.cids if cid not in self.train_cids]
+        cids_new = [cid for cid in model_cids if cid not in self.train_cids]
         self.cids_joined = self.train_cids + cids_new
         self.model_S_joined = ComponentContribution._zero_pad_S(
-            kegg_model.S, kegg_model.cids, self.cids_joined)
+            model_S, model_cids, self.cids_joined)
         self.train_S_joined = ComponentContribution._zero_pad_S(
             self.train_S, self.train_cids, self.cids_joined)
 
         self.train_G = self.create_group_incidence_matrix(self.cids_joined)
+        self.train()
         
-        dG0_f, cov_dG0 = self.train()
+        dG0_cc = self.params['dG0_cc']
+        cov_dG0 = self.params['cov_dG0']
         
-        model_dG0 = self.model_S_joined.T * dG0_f
+        model_dG0 = self.model_S_joined.T * dG0_cc
         model_cov_dG0 = self.model_S_joined.T * cov_dG0 * self.model_S_joined 
 
         return model_dG0, model_cov_dG0
@@ -97,9 +82,9 @@ class ComponentContribution(object):
         for i, cid in enumerate(cids):
             inchi = self.ccache.get_kegg_compound(cid).inchi
             try:
-                group_def = self.inchi2gv.EstimateInChI(inchi)
+                group_def = self.inchi2gv.InChI2GroupVector(inchi)
                 for j in xrange(len(self.group_names)):
-                    G[i, j] = group_def[0, j]
+                    G[i, j] = group_def[j]
             except GroupDecompositionError as e:
                 # for compounds that have no InChI or are not decomposable
                 # add a unique 1 in a new column
@@ -112,6 +97,7 @@ class ComponentContribution(object):
     
     @staticmethod
     def _invert_project(A, eps=1e-10, method='octave'):
+        n, m = A.shape
         if method == 'octave':
             from oct2py import Oct2Py
             oc = Oct2Py()
@@ -119,6 +105,11 @@ class ComponentContribution(object):
             s = np.diag(S)
             U = np.matrix(U)
             V = np.matrix(V)
+            r = sum(abs(s) > eps)
+            inv_S = np.matrix(np.diag([1.0/s[i] for i in xrange(r)]))
+            inv_A = V[:, :r] * inv_S * U[:, :r].T
+            P_R   = U[:, :r] * U[:, :r].T
+            P_N   = U[:, r:] * U[:, r:].T
         elif method == 'numpy':
             # numpy.linalg.svd returns U, s, V_H such that
             # A = U * s * V_H
@@ -127,13 +118,20 @@ class ComponentContribution(object):
             # A = U * S * V.T
             U, s, V_H = np.linalg.svd(A, full_matrices=True)
             V = V_H.T
+            r = sum(abs(s) > eps)
+            inv_S = np.matrix(np.diag([1.0/s[i] for i in xrange(r)]))
+            inv_A = V[:, :r] * inv_S * U[:, :r].T
+            P_R   = U[:, :r] * U[:, :r].T
+            P_N   = np.eye(n) - P_R
+        elif method == 'nosvd':
+            inv_A = A.T * np.linalg.inv(A * A.T + np.eye(n)*4e-6).T
+            # then the solution for (A.T * x = b) will be given by (x = inv_A.T * b)
+            P_R = A * inv_A
+            P_N = np.eye(n) - P_R
+            r = sum(np.abs(np.linalg.eig(P_R)[0]) > 0.5)
         else:
-            raise ArgumentError('method argument must be "octave" or "numpy"')
-        r = sum(abs(s) > eps)
-        inv_S = np.matrix(np.diag([1.0/s[i] for i in xrange(r)]))
-        inv_A = V[:, :r] * inv_S * U[:, :r].T
-        P_R   = U[:, :r] * U[:, :r].T
-        P_N   = U[:, r:] * U[:, r:].T
+            raise ArgumentError('method argument must be "octave", "numpy" or "nosvd"')
+
         return inv_A, r, P_R, P_N
         
     def train(self):
@@ -174,6 +172,14 @@ class ComponentContribution(object):
         MSE_gc = float((e_gc.T * W * e_gc) / (n - r_gc))
         # MSE_gc = (e_gc.T * e_gc) / (n - r_gc)
 
+        # Calculate the MSE of GC residuals for all reactions in ker(G).
+        # This will help later to give an estimate of the uncertainty for such
+        # reactions, which otherwise would have a 0 uncertainty in the GC method.
+        kerG_inds = list(np.where(np.all(GS == 0, 0))[1].flat)
+        
+        e_kerG = e_gc[kerG_inds]
+        MSE_kerG = float((e_kerG.T * e_kerG) / len(kerG_inds))
+
         MSE_inf = 1e10
 
         # Calculate the uncertainty covariance matrices
@@ -191,23 +197,34 @@ class ComponentContribution(object):
         # V_gc  = P_N_rc * G * (inv_GS_orig.T * inv_GS_orig) * G.T * P_N_rc
         V_inf = P_N_rc * G * P_N_gc * G.T * P_N_rc
 
-        # Put all the calculated data in 'params' for the sake of debugging
-        self.params = {}
-        self.params['contributions'] = [dG0_rc, dG0_gc, dG0_cc]
-        self.params['covariances']   = [V_rc, V_gc, V_inf]
-        self.params['MSEs']          = [MSE_rc, MSE_gc, MSE_inf]
-        self.params['projections']   = [P_R_rc,
-                                        P_R_gc * G.T * P_N_rc,
-                                        P_N_gc * G.T * P_N_rc,
-                                        P_R_gc,
-                                        P_N_rc,
-                                        P_N_gc]
-        self.params['inverses']      = [inv_S, inv_GS, inv_SWS, inv_GSWGS]
-
         # Calculate the total of the contributions and covariances
         cov_dG0 = V_rc * MSE_rc + V_gc * MSE_gc + V_inf * MSE_inf
-        
-        return dG0_cc, cov_dG0
+
+        # Put all the calculated data in 'params' for the sake of debugging
+        self.params = {'b':           self.train_b,
+                       'train_S':     self.train_S_joined,
+                       'model_S':     self.model_S_joined,
+                       'train_cids':  self.train_cids,
+                       'cids':        self.cids_joined,
+                       'w':           self.train_w,
+                       'G':           self.train_G,
+                       'dG0_rc':      dG0_rc,
+                       'dG0_gc':      dG0_gc,
+                       'dG0_cc':      dG0_cc,
+                       'cov_dG0':     cov_dG0,
+                       'V_rc':        V_rc,
+                       'V_gc':        V_gc,
+                       'V_inf':       V_inf,
+                       'MSE_rc':      MSE_rc,
+                       'MSE_gc':      MSE_gc,
+                       'MSE_kerG':    MSE_kerG,
+                       'MSE_inf':     MSE_inf,
+                       'P_R_rc':      P_R_rc,
+                       'P_R_gc':      P_R_gc,
+                       'inv_S':       inv_S,
+                       'inv_GS':      inv_GS,
+                       'inv_SWS':     inv_SWS,
+                       'inv_GSWGS':   inv_GSWGS}
 
 if __name__ == '__main__':
     from kegg_model import KeggModel
@@ -216,11 +233,11 @@ if __name__ == '__main__':
     td = TrainingData()
     cc = ComponentContribution(td)
     model = KeggModel.from_formulas(reaction_strings)
-    model_dG0, model_cov_dG0 = cc.estimate_kegg_model(model)
+    model.add_thermo(cc)
     
-    model_dG0_prime = model_dG0 + model.get_transform_ddG0(pH=7.5, I=0.2, T=298.15)
+    dG0_prime, dG0_std = model.get_transformed_dG0(pH=7.5, I=0.2, T=298.15)
     
     sys.stdout.write('[' + 
-                     ', '.join([str(x) for x in model_dG0.flat]) + '; ' + 
-                     ', '.join([str(x) for x in model_dG0_prime.flat]) + 
+                     ', '.join([str(x) for x in model.dG0.flat]) + '; ' + 
+                     ', '.join([str(x) for x in dG0_prime.flat]) + 
                      ']')    

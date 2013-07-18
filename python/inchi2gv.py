@@ -259,6 +259,9 @@ class GroupVector(list):
             biochemical_vector[new_index] += x
         return tuple(biochemical_vector)        
 
+    def ToArray(self):
+        return np.matrix(self.Flatten())
+
 class GroupsDataError(Exception):
     pass
 
@@ -1137,8 +1140,8 @@ class InChI2GroupVector(object):
     def __init__(self, groups_data):
         self.RT = R * default_T
         self.group_decomposer = GroupDecomposer(groups_data)
-        
-    def EstimateInChI(self, inchi):
+    
+    def InChI2GroupVector(self, inchi):
         try:
             mol = Molecule.FromInChI(str(inchi))
         except OpenBabelError as e:
@@ -1151,17 +1154,7 @@ class InChI2GroupVector(object):
         #nH = decomposition.Hydrogens()
         #charge = decomposition.NetCharge()
         #nMg = decomposition.Magnesiums()
-        groupvec = decomposition.AsVector()
-        gv = np.matrix(groupvec.Flatten())
-        return gv
-    
-    def ArrayToSparseRep(self, a):
-        d = {'size': a.shape, "nonzero": []}
-        non_zero = a.nonzero()
-        for i in xrange(len(non_zero[0])):
-            index = tuple([p[i] for p in non_zero])
-            d["nonzero"].append(list(index) + [a[index]])
-        return d
+        return decomposition.AsVector()
 
 def MakeOpts():
     """Returns an OptionParser object with all the default options."""
@@ -1182,6 +1175,9 @@ def MakeOpts():
                           help="list all group names")
     return opt_parser
 
+def init_groups_data():
+    return GroupsData.FromGroupsFile(GROUP_CSV, transformed=False)
+
 if __name__ == "__main__":
     parser = MakeOpts()
     options, _ = parser.parse_args(sys.argv)
@@ -1189,11 +1185,11 @@ if __name__ == "__main__":
         sys.stderr.write(parser.get_usage())
         sys.exit(-1)
     
-    groups_data = GroupsData.FromGroupsFile(GROUP_CSV, transformed=False)
+    groups_data = init_groups_data()
     if options.inchi:
-        inchi2gv = InChI2GroupVector(groups_data)
+        inchi2gv_converter = InChI2GroupVector(groups_data)
         try:
-            groupvec = inchi2gv.EstimateInChI(options.inchi)
+            groupvec = inchi2gv_converter.InChI2GroupVector(options.inchi)
         except GroupDecompositionError as e:
             if not options.silent:
                 sys.stderr.write(str(e) + '\n')
@@ -1201,6 +1197,6 @@ if __name__ == "__main__":
             sys.exit(-1)
         if options.list_groups:
             sys.stdout.write(', '.join(groups_data.GetGroupNames()) + '\n')
-        sys.stdout.write(', '.join("%g" % i for i in groupvec.flat) + '\n')
+        sys.stdout.write(', '.join("%g" % i for i in groupvec.Flatten()) + '\n')
     else:
         sys.stdout.write('\n'.join(groups_data.GetGroupNames()))

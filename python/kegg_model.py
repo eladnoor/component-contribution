@@ -102,8 +102,25 @@ class KeggModel(object):
                 S[cids.index(cid), i] = coeff
                 
         return KeggModel(S, cids, rids)
-            
-    def get_transform_ddG0(self, pH, I, T):
+
+    def add_thermo(self, cc):
+        dG0_cc, cov_dG0 = cc.estimate_kegg_model(self.S, self.cids)
+        self.dG0 = dG0_cc
+        self.cov_dG0 = cov_dG0
+        
+    def get_transformed_dG0(self, pH, I, T):
+        """
+            returns the estimated dG0_prime and the standard deviation of
+            each estimate (i.e. a measure for the uncertainty).
+        """
+        dG0_prime = self.dG0 + self._get_transform_ddG0(pH=pH, I=I, T=T)
+        dG0_std = np.matrix(np.sqrt(np.diag(self.cov_dG0))).T
+        
+        print np.nonzero(dG0_std < 1e-5)[0]
+        
+        return dG0_prime, dG0_std
+
+    def _get_transform_ddG0(self, pH, I, T):
         """
         needed in order to calculate the transformed Gibbs energies of the 
         model reactions.
