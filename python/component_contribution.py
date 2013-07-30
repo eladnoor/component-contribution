@@ -26,11 +26,11 @@ class ComponentContribution(object):
         self.train_G = None
         self.train_S_joined = None
         self.model_S_joined = None
-        self.params = {}
+        self.params = None
 
     def savemat(self, fname):
         if self.params is None:
-            raise Exception('One cannot call savemat() before calling estimate_kegg_model()')
+            raise Exception('One cannot call savemat() before calling train()')
 
         savemat(fname, self.params, oned_as='row')
     
@@ -49,11 +49,12 @@ class ComponentContribution(object):
         
         dG0_cc = self.params['dG0_cc']
         cov_dG0 = self.params['cov_dG0']
+        MSE_kerG = self.params['MSE_kerG']
         
         model_dG0 = self.model_S_joined.T * dG0_cc
         model_cov_dG0 = self.model_S_joined.T * cov_dG0 * self.model_S_joined 
 
-        return model_dG0, model_cov_dG0
+        return model_dG0, model_cov_dG0, MSE_kerG
     
     @staticmethod
     def _zero_pad_S(S, cids_orig, cids_joined):
