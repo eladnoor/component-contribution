@@ -125,3 +125,9 @@ class KeggReaction(object):
             return False
 
         return True
+    
+    def dense(self, cids):
+        s = np.matrix(np.zeros((len(cids), 1)))
+        for cid, coeff in self.iteritems():
+            s[cids.index(cid), 0] = coeff
+        return s

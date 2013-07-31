@@ -98,15 +98,12 @@ class KeggModel(object):
         cids = sorted(cids)
         S = np.zeros((len(cids), len(reactions)))
         for i, reaction in enumerate(reactions):
-            for cid, coeff in reaction.iteritems():
-                S[cids.index(cid), i] = coeff
+            S[:, i] = reaction.dense(cids)
                 
         return KeggModel(S, cids, rids)
 
     def add_thermo(self, cc):
-        dG0_cc, cov_dG0 = cc.estimate_kegg_model(self.S, self.cids)
-        self.dG0 = dG0_cc
-        self.cov_dG0 = cov_dG0
+        self.dG0, self.cov_dG0, self.MSE_kerG = cc.estimate_kegg_model(self.S, self.cids)
         
     def get_transformed_dG0(self, pH, I, T):
         """
@@ -116,6 +113,9 @@ class KeggModel(object):
         dG0_prime = self.dG0 + self._get_transform_ddG0(pH=pH, I=I, T=T)
         dG0_std = np.matrix(np.sqrt(np.diag(self.cov_dG0))).T
         
+        # find all reactions what are not 0, not covered by RC, and are in ker(G)
+        # and therefore have a dG0 estimate of 0 and a dG0_std of 0.
+        # change the std estimate for them to the RMSE of ker(G) reactions
         inds_zero = np.where(np.all(self.S == 0, 0))[0]
         dG0_std[inds_zero, 0] = 1e10
         
