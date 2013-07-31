@@ -27,8 +27,9 @@ class Compound(object):
         # There are two cases where we say there is only one microspecies with zero 
         # hydrogens and no charge:
         # 1) for H+, in order to eliminate its effect on the Legendre transform
-        # 2) if the compound has no explicit structure, so we have no choice
-        if (cid == 80) or (inchi is None):
+        # 2) for S, which is the elemental form of Sulfur (no hydrogens or charges)
+        # 3) if the compound has no explicit structure, so we have no choice
+        if (cid in [80, 87]) or (inchi is None):
             pKas = []
             majorMSpH7 = 0
             nHs = [0]
@@ -77,7 +78,25 @@ class Compound(object):
             return None
         else:
             return inchi
+
+    @staticmethod
+    def inchi2smiles(inchi):
+        openbabel.obErrorLog.SetOutputLevel(-1)
         
+        conv = openbabel.OBConversion()
+        conv.SetInAndOutFormats('inchi', 'smiles')
+        #conv.AddOption("F", conv.OUTOPTIONS)
+        #conv.AddOption("T", conv.OUTOPTIONS)
+        #conv.AddOption("x", conv.OUTOPTIONS, "noiso")
+        #conv.AddOption("w", conv.OUTOPTIONS)
+        obmol = openbabel.OBMol()
+        conv.ReadString(obmol, inchi)
+        smiles = conv.WriteString(obmol, True) # second argument is trimWhitespace
+        if smiles == '':
+            return None
+        else:
+            return smiles
+
     @staticmethod
     def smiles2inchi(smiles):
         openbabel.obErrorLog.SetOutputLevel(-1)
@@ -143,18 +162,23 @@ class Compound(object):
         return atom_bag, fixed_charge
     
     @staticmethod
-    def get_species_pka(inchi):
-        if inchi is None:
+    def get_species_pka(molstring, moltype='inchi'):
+        if molstring is None:
             return [], -1, [], []
 
         try:
-            pKas, major_ms = GetDissociationConstants(inchi)
+            pKas, major_ms = GetDissociationConstants(molstring)
             pKas = sorted([pka for pka in pKas if pka > MIN_PH and pka < MAX_PH], reverse=True)
             major_ms_inchi = Compound.smiles2inchi(major_ms)
         except ChemAxonError:
-            logging.warning('chemaxon failed to find pKas for this inchi: ' + inchi)
+            logging.warning('chemaxon failed to find pKas for this molecule: ' + molstring)
             pKas = []
-            major_ms_inchi = inchi
+            if moltype == 'inchi':
+                major_ms_inchi = molstring
+            elif moltype == 'smiles':
+                major_ms_inchi = Compound.smiles2inchi(molstring)
+            else:
+                raise ValueError('Can only handle "inchi" or "smiles" molstrings')
 
         atom_bag, major_ms_charge = Compound.get_atom_bag_and_charge_from_inchi(major_ms_inchi)
         major_ms_nH = atom_bag.get('H', 0)
@@ -240,4 +264,7 @@ class Compound(object):
         return -R * T * logsumexp(dG0_prime_vector / (-R * T))
 
 if __name__ == '__main__':
-    print Compound.get_inchi(125)
+    comp = Compound.from_kegg(87)
+    print comp.pKas
+    print comp.nHs
+    print comp.zs

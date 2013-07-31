@@ -116,7 +116,8 @@ class KeggModel(object):
         dG0_prime = self.dG0 + self._get_transform_ddG0(pH=pH, I=I, T=T)
         dG0_std = np.matrix(np.sqrt(np.diag(self.cov_dG0))).T
         
-        print np.nonzero(dG0_std < 1e-5)[0]
+        inds_zero = np.where(np.all(self.S == 0, 0))[0]
+        dG0_std[inds_zero, 0] = 1e10
         
         return dG0_prime, dG0_std
 
