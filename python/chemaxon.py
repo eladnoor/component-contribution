@@ -1,5 +1,6 @@
-import logging, itertools, os
+import logging, itertools, os, csv
 import numpy as np
+import StringIO
 from subprocess import Popen, PIPE
 
 CXCALC_BIN = "cxcalc"
@@ -110,6 +111,28 @@ def GetDissociationConstants(molstring, n_acidic=N_PKAS, n_basic=N_PKAS,
     major_ms = smiles_list[0]
     return all_pKas, major_ms
 
+def GetFormulaAndCharge(molstring):
+    """
+        Arguments:
+            molstring - a text description of the molecule (SMILES or InChI)
+
+        Returns:
+            chemical formula of the molecule
+    """
+    args = ['formula', 'formalcharge']
+    output = RunCxcalc(molstring, args)
+    # the output is a tab separated table whose columns are:
+    # id, Formula, Formal charge
+    f = StringIO.StringIO(output)
+    tsv_output = csv.reader(f, delimiter='\t')
+    headers = tsv_output.next()
+    if headers != ['id', 'Formula', 'Formal charge']:
+        raise ChemAxonError('cannot get the formula and charge for: ' + molstring)
+    _, formula, formal_charge = tsv_output.next()
+    
+    return formula, int(formal_charge)
+    
+
 if __name__ == "__main__":
     
     from molecule import Molecule
@@ -119,6 +142,7 @@ if __name__ == "__main__":
                      ('3-Ketoarabinitol', 'OCC(O)C(C(O)CO)=O')]
     
     for name, smiles in compound_list:
+        print GetFormulaAndCharge(smiles)
         diss_table, major_ms = GetDissociationConstants(smiles)
         m = Molecule.FromSmiles(major_ms)
         print name, m.ToInChI(), str(diss_table)

@@ -1,5 +1,5 @@
 import openbabel, urllib, re, string, json, logging
-from chemaxon import GetDissociationConstants, ChemAxonError
+from chemaxon import GetDissociationConstants, GetFormulaAndCharge, ChemAxonError
 import numpy as np
 from thermodynamic_constants import R, debye_huckel
 from scipy.misc import logsumexp
@@ -29,7 +29,7 @@ class Compound(object):
         # 1) for H+, in order to eliminate its effect on the Legendre transform
         # 2) for S, which is the elemental form of Sulfur (no hydrogens or charges)
         # 3) if the compound has no explicit structure, so we have no choice
-        if (cid in [80, 87]) or (inchi is None):
+        if (cid in [80]) or (inchi is None):
             pKas = []
             majorMSpH7 = 0
             nHs = [0]
@@ -117,35 +117,9 @@ class Compound(object):
 
     @staticmethod
     def get_atom_bag_and_charge_from_inchi(inchi):
-        if inchi is None:
-            return {}, 0
-        
-        fixed_charge = 0
-        for q in re.findall('/q([0-9\+\-\;]+)', inchi):
-            for s in q.split(';'): 
-                if s:
-                    fixed_charge += int(s)
+        formula, formal_charge = GetFormulaAndCharge(inchi)
 
         atom_bag = {}
-        # the /f field gives the fixed-H structure
-        tokens = re.findall('/f([0-9A-Za-z\.]+/)', inchi)
-
-        # if /f is not given, use the main formula and 
-        # adjust the number of protons according to the /p field
-        if len(tokens) == 0:
-            tokens = re.findall('InChI=1S?/([0-9A-Za-z\.]+)', inchi)
-            for p in re.findall('/p([0-9\+\-\;]+)', inchi):
-                for s in p.split(';'):
-                    if s:
-                        atom_bag['H'] = atom_bag.get('H', 0) + int(s)
-
-        if len(tokens) == 1:
-            formula = tokens[0]
-        elif len(tokens) > 1:
-            raise ValueError('Bad InChI: ' + inchi)
-        else:
-            formula = ''
-
         for mol_formula_times in formula.split('.'):
             for times, mol_formula in re.findall('^(\d+)?(\w+)', mol_formula_times):
                 if not times:
@@ -159,7 +133,7 @@ class Compound(object):
                         count = int(count)
                     atom_bag[atom] = atom_bag.get(atom, 0) + count * times
         
-        return atom_bag, fixed_charge
+        return atom_bag, formal_charge
     
     @staticmethod
     def get_species_pka(molstring, moltype='inchi'):
@@ -264,7 +238,9 @@ class Compound(object):
         return -R * T * logsumexp(dG0_prime_vector / (-R * T))
 
 if __name__ == '__main__':
-    comp = Compound.from_kegg(87)
-    print comp.pKas
-    print comp.nHs
-    print comp.zs
+    logger = logging.getLogger('')
+    logger.setLevel(logging.DEBUG)
+
+    for cid in [87, 32, 1137, 2191, 15670, 15672]:
+        comp = Compound.from_kegg(cid)
+        print 'C%05d' % cid, comp.nHs, comp.zs
