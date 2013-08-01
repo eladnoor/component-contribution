@@ -98,7 +98,7 @@ class KeggModel(object):
         cids = sorted(cids)
         S = np.zeros((len(cids), len(reactions)))
         for i, reaction in enumerate(reactions):
-            S[:, i] = reaction.dense(cids)
+            S[:, i] = reaction.dense(cids).T
                 
         return KeggModel(S, cids, rids)
 
