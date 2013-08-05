@@ -13,38 +13,37 @@ function [formula, nH, charge] = getFormulaAndChargeFromInChI(inchi)
 % nH.........The number of hydrogen atoms in formula
 % charge.....The charge on the input pseudoisomer
 
-[s,r] = system(['cxcalc formula "' inchi '"']);
-pat1 = 'id\tFormula\n\d+\t(?<formula>.+)';
-if s == 0 && regexp(r,pat1) == 1
-    formula = regexp(r,pat1,'names');
-    formula = formula.formula;
+formula = '';
+charge = nan;
+nH = nan;
+
+cxcalc_cmd = 'cxcalc';
+if ispc
+    cmd = [cxcalc_cmd ' formula formalcharge "' inchi '"'];
 else
-    formula = '';
+    cmd = ['echo "' inchi '" | ' cxcalc_cmd ' formula formalcharge'];
+end
+[s,r] = system(cmd);
+
+pat1 = 'id\tFormula\tFormal charge\n\d+\t(?<formula>[^\t]+)\t(?<charge>[\d\-]+)';
+if s == 0 && ~isempty(regexp(r, pat1, 'once'))
+    fields = regexp(r, pat1, 'names');
+    formula = fields.formula;
+    charge = str2double(fields.charge);
 end
 
 if ~isempty(formula)
-    pat2 = '(?<u>[A-Z][a-z]*\d*)';
-    u = regexp(formula,pat2,'names');
-    u = {u.u}';
-    e = regexprep(u,'\d*','');
-    n = regexprep(u,'[A-Z_a-z]*','');
-    n(cellfun('isempty',n)) = {'1'};
-    n = str2double(n);
-    if any(strcmp(e,'H'))
-        nH = n(strcmp(e,'H'));
+    pat2 = '(?<e>[A-Z][a-z]*)(?<n>\d*)';
+    u = regexp(formula, pat2, 'names');
+    u = {u.e;u.n};
+    ind = find(strcmp(u(1,:), 'H'));
+    if ~isempty(ind)
+        if ~isempty(u{2,ind})
+            nH = str2double(u(2,ind));
+        else
+            nH = 1;
+        end
     else
         nH = 0;
     end
-else
-    nH = nan;
-end
-
-[s,r] = system(['cxcalc formalcharge "' inchi '"']);
-pat3 = 'id\tFormal charge\n\d+\t(?<charge>-?\d+)';
-if s == 0 && regexp(r,pat3) == 1
-    charge = regexp(r,pat3,'names');
-    charge = charge.charge;
-    charge = str2double(charge);
-else
-    charge = nan;
 end

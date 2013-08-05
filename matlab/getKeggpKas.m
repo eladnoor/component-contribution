@@ -49,18 +49,8 @@ for i_cid = 1:length(target_cids)
         continue;
     elseif target_cids(i_cid) == 237 % C00237 is carbon monoxide (CO)
         structure = '[C-]#[O+]';
-    else % for all other compounds, use babel to convert them to SMILES
-        if ispc
-            [success, smiles] = system(['echo ' inchi ' | ' babel_cmd ' -iinchi -osmi -w']);
-        else
-            [success, smiles] = system(['echo "' inchi '" | ' babel_cmd ' -iinchi -osmi -w']);
-        end
-        if success == 0
-            smiles = strtok(smiles);
-            structure = smiles;
-        else
-            structure = inchi;
-        end
+    else % for all other compounds, use the provided InChI as the structure
+        structure = inchi;
     end
     
     fprintf('Using cxcalc on C%05d: %s\n', KeggSpeciespKa(i_cid).cid, structure);
