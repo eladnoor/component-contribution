@@ -56,7 +56,8 @@ for i_cid = 1:length(target_cids)
     fprintf('Using cxcalc on C%05d: %s\n', KeggSpeciespKa(i_cid).cid, structure);
 
     if ispc
-        cmd = [cxcalc_cmd ' "' structure '" pka -a ' num2str(n_pkas) ' -b ' num2str(n_pkas) ' majorms -M true --pH 7'];
+        %cmd = [cxcalc_cmd ' "' structure '" pka -a ' num2str(n_pkas) ' -b ' num2str(n_pkas) ' majorms -M true --pH 7'];
+        cmd = ['echo ' structure '|' cxcalc_cmd ' pka -a ' num2str(n_pkas) ' -b ' num2str(n_pkas) ' majorms -M true --pH 7'];
     else
         cmd = ['echo "' structure '" | ' cxcalc_cmd ' pka -a ' num2str(n_pkas) ' -b ' num2str(n_pkas) ' majorms -M true --pH 7'];
     end
