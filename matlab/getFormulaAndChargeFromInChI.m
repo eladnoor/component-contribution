@@ -19,7 +19,7 @@ nH = nan;
 
 cxcalc_cmd = 'cxcalc';
 if ispc
-    cmd = [cxcalc_cmd ' formula formalcharge "' inchi '"'];
+    cmd = ['echo ' inchi '|' cxcalc_cmd ' formula formalcharge'];
 else
     cmd = ['echo "' inchi '" | ' cxcalc_cmd ' formula formalcharge'];
 end
