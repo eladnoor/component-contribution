@@ -7,6 +7,7 @@ fprintf('If you do not see a "success" message\nin the end of the script,\nit me
 
 tempd = pwd();
 cd('../matlab');
+[babel_bin, cxcalc_bin] = getBinaryPath();
 
 % Test KEGG related functions
 fprintf('\n1) Testing getInchi() directly from KEGG online database\n')
@@ -24,9 +25,9 @@ assert(strcmp(res_inchis.nstd_inchi{1}, 'InChI=1/H2O/h1H2'));
 assert(strcmp(res_inchis.nstd_inchi{2}, 'InChI=1/H3O4P/c1-5(2,3)4/h(H3,1,2,3,4)/f/h1-3H'));
 
 fprintf('\n3) Testing cxcalc using command line\n')
-[success, ~] = system('cxcalc');
+[success, ~] = system(cxcalc_bin);
 assert(success == 0);
-[success, cxcalc_stdout] = system('cxcalc pka "C(=O)O" -a 1 -b 0');
+[success, cxcalc_stdout] = system([cxcalc_bin ' "InChI=1/H2O/h1H2" pka -a 1 -b 0']);
 assert(success == 0);
 assert(strcmp(cxcalc_stdout, sprintf('id\tapKa1\tatoms\n1\t4.27\t3\n')));
 

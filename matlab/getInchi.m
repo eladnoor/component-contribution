@@ -1,8 +1,8 @@
 function [std_inchi, std_inchi_stereo, std_inchi_stereo_charge, nstd_inchi] = getInchi(cid, inchi)
 
-babel_cmd = 'babel';
+[babel_bin, cxcalc_bin] = getBinaryPath();
 
-[success, ~] = system([babel_cmd, ' -H']);
+[success, ~] = system([babel_bin, ' -H']);
 if success ~= 0
     error('Please make sure the command line program "babel" is installed and in PATH');
 end
@@ -28,20 +28,20 @@ if nargin < 2
         fid = fopen([tempdir 'mol.mol'],'w+');
         fprintf(fid,'%s',mol);
         fclose(fid);
-        cmd = [babel_cmd ' -imol ' tempdir 'mol.mol -oinchi ---errorlevel 0 -w'];
+        cmd = [babel_bin ' -imol ' tempdir 'mol.mol -oinchi ---errorlevel 0 -w'];
     else
         mol = regexprep(mol,'^"|"$',''); % replaces " but only if it is at the beginning/end
-        cmd = ['echo "' mol '" | ' babel_cmd ' -imol -oinchi ---errorlevel 0 -w'];
+        cmd = ['echo "' mol '" | ' babel_bin ' -imol -oinchi ---errorlevel 0 -w'];
     end
 else
     if isempty(inchi) % happens when a compound was added to KEGG but doesn't have an inchi
         return
     end
     if ispc
-        cmd = ['echo ' inchi ' | ' babel_cmd ' -iinchi -oinchi ---errorlevel 0 -w'];
+        cmd = ['echo ' inchi ' | ' babel_bin ' -iinchi -oinchi ---errorlevel 0 -w'];
     else
         inchi = regexprep(inchi,'^"|"$',''); % replaces " but only if at the beginning/end
-        cmd = ['echo "' inchi '" | ' babel_cmd ' -iinchi -oinchi ---errorlevel 0 -w'];
+        cmd = ['echo "' inchi '" | ' babel_bin ' -iinchi -oinchi ---errorlevel 0 -w'];
     end
     
 end

@@ -3,15 +3,14 @@ if nargin < 3
     n_pkas = 20;
 end
 
-cxcalc_cmd = 'cxcalc';
-babel_cmd = 'babel';
+[babel_bin, cxcalc_bin] = getBinaryPath();
 
-[success, ~] = system(cxcalc_cmd);
+[success, ~] = system(cxcalc_bin);
 if success ~= 0
     error('Please make sure the command line program "cxcalc" is installed and in PATH');
 end
 
-[success, ~] = system([babel_cmd ' -H']);
+[success, ~] = system([babel_bin ' -H']);
 if success ~= 0
     error('Please make sure the command line program "babel" is installed and in PATH');
 end
@@ -56,9 +55,14 @@ for i_cid = 1:length(target_cids)
     fprintf('Using cxcalc on C%05d: %s\n', KeggSpeciespKa(i_cid).cid, structure);
 
     if ispc
-        cmd = [cxcalc_cmd ' "' structure '" pka -a ' num2str(n_pkas) ' -b ' num2str(n_pkas) ' majorms -M true --pH 7'];
+<<<<<<< HEAD
+        cmd = [cxcalc_bin ' "' structure '" pka -a ' num2str(n_pkas) ' -b ' num2str(n_pkas) ' majorms -M true --pH 7'];
+=======
+        %cmd = [cxcalc_cmd ' "' structure '" pka -a ' num2str(n_pkas) ' -b ' num2str(n_pkas) ' majorms -M true --pH 7'];
+        cmd = ['echo ' structure '|' cxcalc_cmd ' pka -a ' num2str(n_pkas) ' -b ' num2str(n_pkas) ' majorms -M true --pH 7'];
+>>>>>>> e4b55b353dda47462691825a92ad60a955d7439e
     else
-        cmd = ['echo "' structure '" | ' cxcalc_cmd ' pka -a ' num2str(n_pkas) ' -b ' num2str(n_pkas) ' majorms -M true --pH 7'];
+        cmd = ['echo "' structure '" | ' cxcalc_bin ' pka -a ' num2str(n_pkas) ' -b ' num2str(n_pkas) ' majorms -M true --pH 7'];
     end
     [success, cxcalc_stdout] = system(cmd);
     
@@ -105,7 +109,7 @@ for i_cid = 1:length(target_cids)
         end
 
         if ispc
-            cmd = ['echo ' majorms_smiles ' | babel -ismiles -oinchi ---errorlevel 0 -xFT/noiso'];
+            cmd = ['echo ' majorms_smiles '|babel -ismiles -oinchi ---errorlevel 0 -xFT/noiso'];
         else
             cmd = ['echo "' majorms_smiles '" | babel -ismiles -oinchi ---errorlevel 0 -xFT/noiso'];
         end        
