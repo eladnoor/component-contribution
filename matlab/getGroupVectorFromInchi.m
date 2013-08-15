@@ -9,16 +9,18 @@ if isempty(inchi)
     return;
 end
 
+[~, ~, python_bin] = getBinaryPath()
+
 if silent
-    cmd = ['python ' getBasePath() 'python/inchi2gv.py -s -i '];
+    cmd = [python_bin ' ' getBasePath() 'python/inchi2gv.py -s -i '];
 else
-    cmd = ['python ' getBasePath() 'python/inchi2gv.py -i '];
+    cmd = [python_bin ' ' getBasePath() 'python/inchi2gv.py -i '];
 end
 
 if ~ispc
-    [rval, group_def] = system([cmd, '"', inchi, '"']);
+    [rval, group_def] = system([cmd '"' inchi '"']);
 else
-    [rval, group_def] = system([cmd, inchi]);
+    [rval, group_def] = system([cmd inchi]);
 end
 
 if rval == 0 && ~strcmp('Traceback', group_def(1:9))

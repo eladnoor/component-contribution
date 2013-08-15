@@ -3,7 +3,7 @@ if nargin < 3
     n_pkas = 20;
 end
 
-[babel_bin, cxcalc_bin] = getBinaryPath();
+[babel_bin, cxcalc_bin, ~] = getBinaryPath();
 
 [success, ~] = system(cxcalc_bin);
 if success ~= 0

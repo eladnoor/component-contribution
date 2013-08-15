@@ -1,6 +1,6 @@
 function [std_inchi, std_inchi_stereo, std_inchi_stereo_charge, nstd_inchi] = getInchi(cid, inchi)
 
-[babel_bin, cxcalc_bin] = getBinaryPath();
+[babel_bin, cxcalc_bin, ~] = getBinaryPath();
 
 [success, ~] = system([babel_bin, ' -H']);
 if success ~= 0
