@@ -104,9 +104,9 @@ for i_cid = 1:length(target_cids)
         end
 
         if ispc
-            cmd = ['echo ' majorms_smiles '|babel -ismiles -oinchi ---errorlevel 0 -xFT/noiso'];
+            cmd = ['echo ' majorms_smiles '|' babel_bin ' -ismiles -oinchi ---errorlevel 0 -xFT/noiso'];
         else
-            cmd = ['echo "' majorms_smiles '" | babel -ismiles -oinchi ---errorlevel 0 -xFT/noiso'];
+            cmd = ['echo "' majorms_smiles '" | ' babel_bin ' -ismiles -oinchi ---errorlevel 0 -xFT/noiso'];
         end        
         [success, babel_stdout] = system(cmd);
         if success == 0 && ~isempty(babel_stdout) && strcmp('InChI=',babel_stdout(1:6))

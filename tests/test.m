@@ -31,9 +31,9 @@ fprintf('\n3) Testing cxcalc using command line\n')
 [success, ~] = system(cxcalc_bin);
 assert(success == 0);
 if ispc
-    [success, cxcalc_stdout] = system(['echo InChI=1/H2O/h1H2|' cxcalc_bin ' pka -a 1 -b 0']);
+    [success, cxcalc_stdout] = system(['echo ' target_inchis{1} '|' cxcalc_bin ' pka -a 1 -b 0']);
 else
-    [success, cxcalc_stdout] = system(['echo "InChI=1/H2O/h1H2" | ' cxcalc_bin ' pka -a 1 -b 0']);
+    [success, cxcalc_stdout] = system(['echo "' target_inchis{1} '" | ' cxcalc_bin ' pka -a 1 -b 0']);
 end
 assert(success == 0);
 assert(strcmp(cxcalc_stdout, sprintf('id\tapKa1\tatoms\n1\t15.70\t1\n')));

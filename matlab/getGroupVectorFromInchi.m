@@ -9,7 +9,7 @@ if isempty(inchi)
     return;
 end
 
-[~, ~, python_bin] = getBinaryPath()
+[~, ~, python_bin] = getBinaryPath();
 
 if silent
     cmd = [python_bin ' ' getBasePath() 'python/inchi2gv.py -s -i '];
