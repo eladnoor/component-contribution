@@ -17,11 +17,12 @@ formula = '';
 charge = nan;
 nH = nan;
 
-cxcalc_cmd = 'cxcalc';
+[~, cxcalc_bin, ~] = getBinaryPath();
+
 if ispc
-    cmd = ['echo ' inchi '|' cxcalc_cmd ' formula formalcharge'];
+    cmd = ['echo ' inchi '|' cxcalc_bin ' formula formalcharge'];
 else
-    cmd = ['echo "' inchi '" | ' cxcalc_cmd ' formula formalcharge'];
+    cmd = ['echo "' inchi '" | ' cxcalc_bin ' formula formalcharge'];
 end
 [s,r] = system(cmd);
 
