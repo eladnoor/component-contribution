@@ -2,6 +2,7 @@ import types
 import re
 import kegg_errors
 import numpy as np
+import logging
 from compound_cacher import CompoundCacher
 
 class KeggReaction(object):
@@ -10,11 +11,12 @@ class KeggReaction(object):
         for cid, coeff in sparse.iteritems():
             if type(cid) != types.IntType:
                 raise ValueError('All keys in KeggReaction must be integers')
-            if type(coeff) not in [types.FloatType, types.IntType]:
+            if not (isinstance(coeff, float) or isinstance(coeff, int)):
                 raise ValueError('All values in KeggReaction must be integers or floats')
         self.sparse = sparse
         self.arrow = arrow
         self.rid = rid
+        self.ccache = CompoundCacher()
 
     def keys(self):
         return self.sparse.keys()
@@ -70,9 +72,11 @@ class KeggReaction(object):
         """
         tokens = formula.split(arrow)
         if len(tokens) < 2:
-            raise ValueError('Reaction does not contain the arrow sign: ' + formula)
+            raise ValueError('Reaction does not contain the arrow sign (%s): %s'
+                             % (arrow, formula))
         if len(tokens) > 2:
-            raise ValueError('Reaction contains more than one arrow sign: ' + formula)
+            raise ValueError('Reaction contains more than one arrow sign (%s): %s'
+                             % (arrow, formula))
         
         left = tokens[0].strip()
         right = tokens[1].strip()
@@ -109,7 +113,7 @@ class KeggReaction(object):
         cids = list(self.keys())
         coeffs = np.array([self.sparse[cid] for cid in cids], ndmin=2).T
     
-        elements, Ematrix = CompoundCacher.getInstance().get_kegg_ematrix(cids)
+        elements, Ematrix = self.ccache.get_kegg_ematrix(cids)
         conserved = Ematrix.T * coeffs
         
         if np.any(np.isnan(conserved), 0):

@@ -1135,13 +1135,13 @@ class GroupDecomposer(object):
         
         return decomposition
 
-class InChI2GroupVector(object):
+class InChIDecomposer(object):
     
     def __init__(self, groups_data):
         self.RT = R * default_T
         self.group_decomposer = GroupDecomposer(groups_data)
     
-    def InChI2GroupVector(self, inchi):
+    def inchi_to_groupvec(self, inchi):
         try:
             mol = Molecule.FromInChI(str(inchi))
         except OpenBabelError as e:
@@ -1187,9 +1187,9 @@ if __name__ == "__main__":
     
     groups_data = init_groups_data()
     if options.inchi:
-        inchi2gv_converter = InChI2GroupVector(groups_data)
+        decomposer = InChIDecomposer(groups_data)
         try:
-            groupvec = inchi2gv_converter.InChI2GroupVector(options.inchi)
+            groupvec = decomposer.inchi_to_groupvec(options.inchi)
         except GroupDecompositionError as e:
             if not options.silent:
                 sys.stderr.write(str(e) + '\n')

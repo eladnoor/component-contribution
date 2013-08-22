@@ -1,10 +1,10 @@
 import sys
 import numpy as np
 from scipy.io import savemat
-from inchi2gv import GroupsData, InChI2GroupVector, init_groups_data, GroupDecompositionError
 from training_data import TrainingData
 from kegg_model import KeggModel
 from compound_cacher import CompoundCacher
+import inchi2gv
 
 class ComponentContribution(object):
     
@@ -13,12 +13,6 @@ class ComponentContribution(object):
             Initialize G matrix, and then use the python script "inchi2gv.py" to decompose each of the 
             compounds that has an InChI and save the decomposition as a row in the G matrix.
         """
-        self.ccache = CompoundCacher.getInstance()
-        
-        self.groups_data = init_groups_data()
-        self.inchi2gv = InChI2GroupVector(self.groups_data)
-        self.group_names = self.groups_data.GetGroupNames()
-        
         self.train_cids = training_data.cids
         self.train_S = training_data.S
         self.train_b = np.matrix(training_data.dG0).T
@@ -44,7 +38,7 @@ class ComponentContribution(object):
         self.train_S_joined = ComponentContribution._zero_pad_S(
             self.train_S, self.train_cids, self.cids_joined)
 
-        self.train_G = self.create_group_incidence_matrix(self.cids_joined)
+        self.train_G = ComponentContribution.create_group_incidence_matrix(self.cids_joined)
         self.train()
         
         dG0_cc = self.params['dG0_cc']
@@ -70,23 +64,29 @@ class ComponentContribution(object):
         
         return np.matrix(full_S)
         
-    def create_group_incidence_matrix(self, cids):
+    @staticmethod
+    def create_group_incidence_matrix(cids):
         """
             create the group incidence matrix
         """
+        ccache = CompoundCacher()
+        groups_data = inchi2gv.init_groups_data()
+        decomposer = inchi2gv.InChIDecomposer(groups_data)
+        group_names = groups_data.GetGroupNames()
+        
         Nc = len(cids)
-        Ng = len(self.group_names)
+        Ng = len(group_names)
         G = np.zeros((Nc, Ng))
         cpd_inds_without_gv = []
         
         # decompose the compounds in the training_data and add to G
         for i, cid in enumerate(cids):
-            inchi = self.ccache.get_kegg_compound(cid).inchi
+            inchi = ccache.get_kegg_compound(cid).inchi
             try:
-                group_def = self.inchi2gv.InChI2GroupVector(inchi)
-                for j in xrange(len(self.group_names)):
+                group_def = decomposer.inchi_to_groupvec(inchi)
+                for j in xrange(len(group_names)):
                     G[i, j] = group_def[j]
-            except GroupDecompositionError as e:
+            except inchi2gv.GroupDecompositionError as e:
                 # for compounds that have no InChI or are not decomposable
                 # add a unique 1 in a new column
                 cpd_inds_without_gv.append(i)

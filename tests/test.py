@@ -31,8 +31,8 @@ try:
     sys.path.append('../python')
     import inchi2gv
     groups_data = inchi2gv.init_groups_data()
-    inchi2gv_converter = inchi2gv.InChI2GroupVector(groups_data)
-    groupvec = inchi2gv_converter.InChI2GroupVector(inchi_ATP)
+    decomposer = inchi2gv.InChIDecomposer(groups_data)
+    groupvec = decomposer.inchi_to_groupvec(inchi_ATP)
     for group_ind, group_count in enumerate(groupvec.Flatten()):
         assert(ATP_group_dict.get(group_ind, 0) == group_count)
         

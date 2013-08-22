@@ -15,7 +15,7 @@ class KeggModel(object):
         assert len(self.cids) == self.S.shape[0]
         if self.rids is not None:
             assert len(self.rids) == self.S.shape[1]
-        self.ccache = CompoundCacher.getInstance()
+        self.ccache = CompoundCacher()
     
     @staticmethod
     def from_file(fname, arrow='<=>', format='kegg', has_reaction_ids=False):
@@ -81,6 +81,7 @@ class KeggModel(object):
         else:
             rids = None
         reactions = []
+        not_balanced_count = 0
         for line in reaction_strings:
             if has_reaction_ids:
                 tokens = re.split('(\w+)\s+(.*)', line, maxsplit=1)
@@ -88,9 +89,12 @@ class KeggModel(object):
                 line = tokens[1]
             reaction = KeggReaction.parse_formula(line, arrow)
             if not reaction.is_balanced():
-                raise ValueError('Model contains unbalanced reactions')
+                not_balanced_count += 1
+                logging.warning('Model contains an unbalanced reaction: ' + line)
+                reaction = KeggReaction({})
             cids = cids.union(reaction.keys())
             reactions.append(reaction)
+            logging.info('Adding reaction: ' + reaction.write_formula())
         
         # convert the list of reactions in sparse notation into a full
         # stoichiometric matrix, where the rows (compounds) are according to the
@@ -99,7 +103,12 @@ class KeggModel(object):
         S = np.zeros((len(cids), len(reactions)))
         for i, reaction in enumerate(reactions):
             S[:, i] = reaction.dense(cids).T
-                
+        
+        logging.info('Successfully loaded %d reactions (involving %d unique compounds)' %
+                     (S.shape[1], S.shape[0]))
+        if not_balanced_count > 0:
+            logging.warning('%d out of the %d reactions are not chemically balanced' %
+                            (not_balanced_count, S.shape[1]))
         return KeggModel(S, cids, rids)
 
     def add_thermo(self, cc):
@@ -155,3 +164,13 @@ class KeggModel(object):
                     
             self.S[:, unbalanced_ind] = 0
         return self
+
+    def write_reaction_by_index(self, r):
+        sparse = dict([(cid, self.S[i, r]) for i, cid in enumerate(self.cids)
+                       if self.S[i, r] != 0])
+        if self.rids is not None:
+            reaction = KeggReaction(sparse, rid=self.rids[r])
+        else:
+            reaction = KeggReaction(sparse)
+        return reaction.write_formula()
+        
