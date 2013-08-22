@@ -3,7 +3,7 @@ from compound_cacher import CompoundCacher
 import csv, sys, re
 
 def main(fname, pH, I, T):
-    ccache = CompoundCacher.getInstance()
+    ccache = CompoundCacher()
     for row in csv.reader(open(fname, 'r'), delimiter='\t'):
         cid = re.findall('C([0-9]+)_10', row[0])[0]
         cid = int(cid)

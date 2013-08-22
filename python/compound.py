@@ -1,5 +1,5 @@
 import openbabel, urllib, re, string, json, logging
-from chemaxon import GetDissociationConstants, GetFormulaAndCharge, ChemAxonError
+import chemaxon
 import numpy as np
 from thermodynamic_constants import R, debye_huckel
 from scipy.misc import logsumexp
@@ -11,10 +11,11 @@ class Compound(object):
     
     _obElements = openbabel.OBElementTable()
 
-    def __init__(self, database, compound_id, inchi, pKas, majorMSpH7, nHs, zs):
+    def __init__(self, database, compound_id, inchi, atom_bag, pKas, majorMSpH7, nHs, zs):
         self.database = database
         self.compound_id = compound_id
         self.inchi = inchi
+        self.atom_bag = atom_bag
         self.pKas = pKas
         self.majorMSpH7 = majorMSpH7
         self.nHs = nHs
@@ -30,6 +31,7 @@ class Compound(object):
         # 2) for S, which is the elemental form of Sulfur (no hydrogens or charges)
         # 3) if the compound has no explicit structure, so we have no choice
         if (cid in [80]) or (inchi is None):
+            atom_bag = {'H' : 1}
             pKas = []
             majorMSpH7 = 0
             nHs = [0]
@@ -37,14 +39,15 @@ class Compound(object):
         else:
             # otherwise, we use ChemAxon's software to get the pKas and the 
             # properties of all microspecies
-            pKas, majorMSpH7, nHs, zs = Compound.get_species_pka(inchi)
-        return Compound('KEGG', 'C%05d' % cid, inchi,
+            atom_bag, pKas, majorMSpH7, nHs, zs = Compound.get_species_pka(inchi)
+        return Compound('KEGG', 'C%05d' % cid, inchi, atom_bag,
                         pKas, majorMSpH7, nHs, zs)
 
     def to_json_dict(self):
         return {'database' : self.database,
                 'id' : self.compound_id,
                 'inchi' : self.inchi,
+                'atom_bag' : self.atom_bag,
                 'pKas' : self.pKas,
                 'majorMSpH7' : self.majorMSpH7,
                 'nHs' : self.nHs,
@@ -52,7 +55,7 @@ class Compound(object):
     
     @staticmethod
     def from_json_dict(d):
-        return Compound(d['database'], d['id'], d['inchi'],
+        return Compound(d['database'], d['id'], d['inchi'], d['atom_bag'],
                         d['pKas'], d['majorMSpH7'], d['nHs'], d['zs'])
 
     @staticmethod
@@ -117,7 +120,7 @@ class Compound(object):
 
     @staticmethod
     def get_atom_bag_and_charge_from_inchi(inchi):
-        formula, formal_charge = GetFormulaAndCharge(inchi)
+        formula, formal_charge = chemaxon.GetFormulaAndCharge(inchi)
 
         atom_bag = {}
         for mol_formula_times in formula.split('.'):
@@ -133,6 +136,10 @@ class Compound(object):
                         count = int(count)
                     atom_bag[atom] = atom_bag.get(atom, 0) + count * times
         
+        n_protons = sum([count * Compound._obElements.GetAtomicNum(str(elem))
+                         for (elem, count) in atom_bag.iteritems()])
+        atom_bag['e-'] = n_protons - formal_charge
+
         return atom_bag, formal_charge
     
     @staticmethod
@@ -141,10 +148,10 @@ class Compound(object):
             return [], -1, [], []
 
         try:
-            pKas, major_ms = GetDissociationConstants(molstring)
+            pKas, major_ms = chemaxon.GetDissociationConstants(molstring)
             pKas = sorted([pka for pka in pKas if pka > MIN_PH and pka < MAX_PH], reverse=True)
             major_ms_inchi = Compound.smiles2inchi(major_ms)
-        except ChemAxonError:
+        except chemaxon.ChemAxonError:
             logging.warning('chemaxon failed to find pKas for this molecule: ' + molstring)
             pKas = []
             if moltype == 'inchi':
@@ -170,7 +177,7 @@ class Compound(object):
             zs.append((i - majorMSpH7) + major_ms_charge)
             nHs.append((i - majorMSpH7) + major_ms_nH)
         
-        return pKas, majorMSpH7, nHs, zs
+        return atom_bag, pKas, majorMSpH7, nHs, zs
     
     def __str__(self):
         return "%s\nInChI: %s\npKas: %s\nmajor MS: nH = %d, charge = %d" % \
@@ -185,10 +192,7 @@ class Compound(object):
         """
         if self.inchi is None:
             return None
-        atom_bag, charge = Compound.get_atom_bag_and_charge_from_inchi(self.inchi)
-        n_protons = sum([count * Compound._obElements.GetAtomicNum(str(elem))
-                         for (elem, count) in atom_bag.iteritems()])
-        atom_bag['e-'] = n_protons - charge
+        atom_bag, _ = Compound.get_atom_bag_and_charge_from_inchi(self.inchi)
         return atom_bag
         
     def transform(self, pH, I, T):

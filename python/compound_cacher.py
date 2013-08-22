@@ -1,5 +1,5 @@
 import json, os, logging, csv
-from singletonmixin import Singleton
+#from singletonmixin import Singleton
 from compound import Compound
 import numpy as np
 
@@ -12,7 +12,16 @@ class CompoundEncoder(json.JSONEncoder):
             return obj.to_json_dict()
         return json.JSONEncoder.default(self, obj)
 
-class CompoundCacher(Singleton):
+class Singleton(type):
+    def __init__(cls,name,bases,dic):
+        super(Singleton,cls).__init__(name,bases,dic)
+        cls.instance=None
+    def __call__(cls,*args,**kw):
+        if cls.instance is None:
+            cls.instance=super(Singleton,cls).__call__(*args,**kw)
+        return cls.instance
+    
+class CompoundCacher(object):
     """
         CompoundCacher is a singleton that handles caching of Compound objects
         for the component-contribution package. The Compounds are retrieved by
@@ -25,6 +34,8 @@ class CompoundCacher(Singleton):
         the cache. When the method dump() is called, all cached data is written
         to a file that will be loaded in future python sessions.
     """
+    __metaclass__ = Singleton
+    
     def __init__(self, cache_fname=None):
         base_path = os.path.split(os.path.realpath(__file__))[0]
         self.cache_fname = cache_fname
@@ -65,8 +76,8 @@ class CompoundCacher(Singleton):
             if (compound_id not in self.compound_dict) or \
                (inchi != self.compound_dict[compound_id].inchi):
                 logging.info('Calculating pKa for additional compound: ' + compound_id)
-                pKas, majorMSpH7, nHs, zs = Compound.get_species_pka(inchi)
-                comp = Compound('KEGG', compound_id, inchi,
+                atom_bag, pKas, majorMSpH7, nHs, zs = Compound.get_species_pka(inchi)
+                comp = Compound('KEGG', compound_id, inchi, atom_bag,
                                 pKas, majorMSpH7, nHs, zs)
                 self.compound_dict[comp.compound_id] = comp
                 self.need_to_update_cache_file = True
@@ -88,7 +99,7 @@ class CompoundCacher(Singleton):
         atom_bag_list = []
         for cid in cids:
             comp = self.get_kegg_compound(cid)
-            atom_bag = comp.get_atom_bag_with_electrons()
+            atom_bag = comp.atom_bag
             if atom_bag is not None:
                 elements = elements.union(atom_bag.keys())
             atom_bag_list.append(atom_bag)
@@ -109,6 +120,6 @@ class CompoundCacher(Singleton):
 if __name__ == '__main__':
     logger = logging.getLogger('')
     logger.setLevel(logging.INFO)
-    ccache = CompoundCacher.getInstance()
+    ccache = CompoundCacher(cache_fname=None)
     ccache.get_kegg_compound(125)
     ccache.dump()

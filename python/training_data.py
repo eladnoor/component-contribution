@@ -17,7 +17,7 @@ class TrainingData(object):
         self.ccache.dump()
 
     def __init__(self):
-        self.ccache = CompoundCacher.getInstance()
+        self.ccache = CompoundCacher()
         
         base_path = os.path.split(os.path.realpath(__file__))[0]
     
