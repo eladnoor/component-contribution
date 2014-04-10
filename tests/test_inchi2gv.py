@@ -10,7 +10,16 @@ from molecule import Molecule
 ccache = CompoundCacher('../cache/compounds.json')
 groups_data = inchi2gv.init_groups_data()
 group_list = groups_data.GetGroupNames()
+group_names = groups_data.GetGroupNames()
 decomposer = inchi2gv.InChIDecomposer(groups_data)
+
+# test the decomposition of ATP into groups
+ATP_inchi = ccache.get_kegg_compound(2).inchi
+group_def = decomposer.inchi_to_groupvec(inchi)
+for j, group_name in enumerate(group_names):
+    if group_def[j] != 0:
+        print group_name, ' x %d' % group_def[j]
+
 
 patterns = ['c~[O;+0]', 'c~[O;+1]', 'c~[n;+1]~c', 'c~[n;+0]~c', 'c~[n;-1]~c']
 

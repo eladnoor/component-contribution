@@ -1,9 +1,8 @@
-import csv, logging, types, re, json, itertools, sys
+import csv, logging, types, json, itertools, sys
 import numpy as np
-import openbabel
 from StringIO import StringIO
 from optparse import OptionParser
-from thermodynamic_constants import R, default_T, default_pH
+from thermodynamic_constants import R, default_T
 from molecule import Molecule, OpenBabelError
 
 GROUP_CSV = StringIO(""""NAME","PROTONS","CHARGE","MAGNESIUMS","SMARTS","FOCAL_ATOMS","REMARK","SKIP"
@@ -547,7 +546,7 @@ class GroupsData(object):
                 mgs = int(row['MAGNESIUMS'])
                 smarts = row['SMARTS']
                 focal_atoms = FocalSet(row['FOCAL_ATOMS'])
-                _remark = row['REMARK']
+                #remark = row['REMARK']
                 
                 # Check that the smarts are good.
                 if not Molecule.VerifySmarts(smarts):
@@ -1144,7 +1143,7 @@ class InChIDecomposer(object):
     def inchi_to_groupvec(self, inchi):
         try:
             mol = Molecule.FromInChI(str(inchi))
-        except OpenBabelError as e:
+        except OpenBabelError:
             raise GroupDecompositionError('cannot convert InChI to Molecule')
         
         #mol.RemoveHydrogens()
