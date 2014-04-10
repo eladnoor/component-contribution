@@ -86,7 +86,7 @@ class ComponentContribution(object):
                 group_def = decomposer.inchi_to_groupvec(inchi)
                 for j in xrange(len(group_names)):
                     G[i, j] = group_def[j]
-            except inchi2gv.GroupDecompositionError as e:
+            except inchi2gv.GroupDecompositionError:
                 # for compounds that have no InChI or are not decomposable
                 # add a unique 1 in a new column
                 cpd_inds_without_gv.append(i)

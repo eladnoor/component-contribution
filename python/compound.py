@@ -1,4 +1,4 @@
-import openbabel, urllib, re, string, json, logging
+import openbabel, urllib, re, logging
 import chemaxon
 import numpy as np
 from thermodynamic_constants import R, debye_huckel
@@ -28,18 +28,16 @@ class Compound(object):
         # There are two cases where we say there is only one microspecies with zero 
         # hydrogens and no charge:
         # 1) for H+, in order to eliminate its effect on the Legendre transform
-        # 2) for S, which is the elemental form of Sulfur (no hydrogens or charges)
-        # 3) if the compound has no explicit structure, so we have no choice
-        if (cid in [80]) or (inchi is None):
-            atom_bag = {'H' : 1}
-            pKas = []
-            majorMSpH7 = 0
-            nHs = [0]
-            zs = [0]
-        else:
+        # 2) if the compound has no explicit structure, so we have no choice
+        if cid == 80:
+            atom_bag, pKas, majorMSpH7, nHs, zs = {'H' : 1}, [], 0, [0], [0]
+        elif inchi is None:
+            atom_bag, pKas, majorMSpH7, nHs, zs = {}, [], 0, [0], [0]
+        else:  
             # otherwise, we use ChemAxon's software to get the pKas and the 
             # properties of all microspecies
-            atom_bag, pKas, majorMSpH7, nHs, zs = Compound.get_species_pka(inchi)
+            atom_bag, pKas, inchi, majorMSpH7, nHs, zs = Compound.get_species_pka(inchi)
+        
         return Compound('KEGG', 'C%05d' % cid, inchi, atom_bag,
                         pKas, majorMSpH7, nHs, zs)
 
@@ -177,7 +175,7 @@ class Compound(object):
             zs.append((i - majorMSpH7) + major_ms_charge)
             nHs.append((i - majorMSpH7) + major_ms_nH)
         
-        return atom_bag, pKas, majorMSpH7, nHs, zs
+        return atom_bag, pKas, major_ms_inchi, majorMSpH7, nHs, zs
     
     def __str__(self):
         return "%s\nInChI: %s\npKas: %s\nmajor MS: nH = %d, charge = %d" % \

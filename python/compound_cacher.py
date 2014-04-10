@@ -76,8 +76,8 @@ class CompoundCacher(object):
             if (compound_id not in self.compound_dict) or \
                (inchi != self.compound_dict[compound_id].inchi):
                 logging.info('Calculating pKa for additional compound: ' + compound_id)
-                atom_bag, pKas, majorMSpH7, nHs, zs = Compound.get_species_pka(inchi)
-                comp = Compound('KEGG', compound_id, inchi, atom_bag,
+                atom_bag, pKas, major_ms_inchi, majorMSpH7, nHs, zs = Compound.get_species_pka(inchi)
+                comp = Compound('KEGG', compound_id, major_ms_inchi, atom_bag,
                                 pKas, majorMSpH7, nHs, zs)
                 self.compound_dict[comp.compound_id] = comp
                 self.need_to_update_cache_file = True
