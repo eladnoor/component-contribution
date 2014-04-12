@@ -224,12 +224,12 @@ class TrainingData(object):
         rxn_inds_to_keep = sorted(rxn_inds_to_keep)
         
         self.S = self.S[:, rxn_inds_to_keep]
-        self.dG0_prime = self.dG0_prime[:, rxn_inds_to_keep]
-        self.T = self.T[:, rxn_inds_to_keep]
-        self.I = self.I[:, rxn_inds_to_keep]
-        self.pH = self.pH[:, rxn_inds_to_keep]
-        self.pMg = self.pMg[:, rxn_inds_to_keep]
-        self.weight = self.weight[:, rxn_inds_to_keep]
+        self.dG0_prime = self.dG0_prime[rxn_inds_to_keep]
+        self.T = self.T[rxn_inds_to_keep]
+        self.I = self.I[rxn_inds_to_keep]
+        self.pH = self.pH[rxn_inds_to_keep]
+        self.pMg = self.pMg[rxn_inds_to_keep]
+        self.weight = self.weight[rxn_inds_to_keep]
 
         logging.info('After removing %d unbalanced reactions, the stoichiometric '
                      'matrix contains: '
