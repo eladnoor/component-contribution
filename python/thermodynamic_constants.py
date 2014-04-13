@@ -34,30 +34,3 @@ DH_beta = 1.6
 # Debye-Huckel
 debye_huckel = lambda (I, T) : DH_alpha(T) * I**(0.5) / (1.0 + DH_beta * I**(0.5))
 
-def correction_function(nH, z, nMg, pH, pMg, I, T):
-    """
-        nH and z - are the species parameters (can be vectors)
-        pH and I - are the conditions, must be scalars
-        returns the correction element used in the transform function
-        
-    Returns:
-        The correction, in units of kJ/mol.
-    """
-    DH = debye_huckel(I)
-    return nMg * (R*T*np.log(10)*pMg - dG0_f_Mg) + nH * (R*T*np.log(10)*pH + DH) - (z**2) * DH
-
-def transform(dG0, nH, z, nMg, pH, pMg, I, T):
-    return dG0 + correction_function(nH, z, nMg, pH, pMg, I, T)
-
-def array_transform(dG0, nH, z, nMg, pH, pMg, I, T):
-    """
-        dG0, nH and z - are the species parameters (can be vectors)
-        pH and I - are the conditions, must be scalars
-        returns the transformed gibbs energy: dG0'
-    """
-    from toolbox.util import log_sum_exp
-    ddG0 = correction_function(nH, z, nMg, pH, pMg, I, T)
-    dG0_tag = dG0 + ddG0
-    return -R * T * log_sum_exp(dG0_tag / (-R*T))
-
-

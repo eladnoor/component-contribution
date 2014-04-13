@@ -76,18 +76,20 @@ class CompoundCacher(object):
             if (compound_id not in self.compound_dict) or \
                (inchi != self.compound_dict[compound_id].inchi):
                 logging.info('Calculating pKa for additional compound: ' + compound_id)
-                atom_bag, pKas, major_ms_inchi, majorMSpH7, nHs, zs = Compound.get_species_pka(inchi)
-                comp = Compound('KEGG', compound_id, major_ms_inchi, atom_bag,
-                                pKas, majorMSpH7, nHs, zs)
+                atom_bag, pKas, inchi_pH7, majorMSpH7, nHs, zs = \
+                    Compound.get_species_pka(inchi)
+                comp = Compound('KEGG', compound_id, inchi, atom_bag,
+                                pKas, inchi_pH7, majorMSpH7, nHs, zs)
                 self.compound_dict[comp.compound_id] = comp
                 self.need_to_update_cache_file = True
 
     def get_kegg_compound(self, cid):
         compound_id = 'C%05d' % cid
         if compound_id in self.compound_dict:
+            logging.info('Cache hit: %s' % compound_id)
             return self.compound_dict[compound_id]
         else:
-            logging.info('Downloading structure and calculating pKa for: ' + compound_id)
+            logging.info('Cache miss: %s' % compound_id)
             comp = Compound.from_kegg(cid)
             self.compound_dict[comp.compound_id] = comp
             self.need_to_update_cache_file = True

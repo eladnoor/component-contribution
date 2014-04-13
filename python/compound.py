@@ -11,12 +11,14 @@ class Compound(object):
     
     _obElements = openbabel.OBElementTable()
 
-    def __init__(self, database, compound_id, inchi, atom_bag, pKas, majorMSpH7, nHs, zs):
+    def __init__(self, database, compound_id, inchi, atom_bag, 
+                 pKas, inchi_pH7, majorMSpH7, nHs, zs):
         self.database = database
         self.compound_id = compound_id
         self.inchi = inchi
         self.atom_bag = atom_bag
         self.pKas = pKas
+        self.inchi_pH7 = inchi_pH7
         self.majorMSpH7 = majorMSpH7
         self.nHs = nHs
         self.zs = zs
@@ -31,15 +33,18 @@ class Compound(object):
         # 2) if the compound has no explicit structure, so we have no choice
         if cid == 80:
             atom_bag, pKas, majorMSpH7, nHs, zs = {'H' : 1}, [], 0, [0], [0]
+            inchi_pH7 = inchi
         elif inchi is None:
             atom_bag, pKas, majorMSpH7, nHs, zs = {}, [], 0, [0], [0]
+            inchi_pH7 = inchi
         else:  
             # otherwise, we use ChemAxon's software to get the pKas and the 
             # properties of all microspecies
-            atom_bag, pKas, inchi, majorMSpH7, nHs, zs = Compound.get_species_pka(inchi)
+            atom_bag, pKas, inchi_pH7, majorMSpH7, nHs, zs = \
+                Compound.get_species_pka(inchi)
         
         return Compound('KEGG', 'C%05d' % cid, inchi, atom_bag,
-                        pKas, majorMSpH7, nHs, zs)
+                        pKas, inchi_pH7, majorMSpH7, nHs, zs)
 
     def to_json_dict(self):
         return {'database' : self.database,
@@ -47,6 +52,7 @@ class Compound(object):
                 'inchi' : self.inchi,
                 'atom_bag' : self.atom_bag,
                 'pKas' : self.pKas,
+                'inchi_pH7' : self.inchi_pH7,
                 'majorMSpH7' : self.majorMSpH7,
                 'nHs' : self.nHs,
                 'zs' : self.zs}
@@ -54,7 +60,8 @@ class Compound(object):
     @staticmethod
     def from_json_dict(d):
         return Compound(d['database'], d['id'], d['inchi'], d['atom_bag'],
-                        d['pKas'], d['majorMSpH7'], d['nHs'], d['zs'])
+                        d['pKas'], d['inchi_pH7'], d['majorMSpH7'],
+                        d['nHs'], d['zs'])
 
     @staticmethod
     def get_inchi(cid):
