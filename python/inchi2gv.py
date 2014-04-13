@@ -5,7 +5,7 @@ from optparse import OptionParser
 from thermodynamic_constants import R, default_T
 from molecule import Molecule, OpenBabelError
 
-GROUP_CSV = StringIO(""""NAME","PROTONS","CHARGE","MAGNESIUMS","SMARTS","FOCAL_ATOMS","REMARK","SKIP"
+GROUP_CSV = """"NAME","PROTONS","CHARGE","MAGNESIUMS","SMARTS","FOCAL_ATOMS","REMARK","SKIP"
 "primary -Cl3",0,0,0,"Cl[CH0](Cl)Cl",0,"chlorine (attached to a primary carbon with 2 other chlorine atoms attached)",
 "primary -Cl2",0,0,0,"Cl[CH1]Cl",0,"chlorine (attached to a primary carbon with 1 other chlorine atom attached)",
 "secondary -Cl2",0,0,0,"Cl[CH0]Cl",0,"chlorine (attached to a secondary carbon with 1 other chlorine atom attached)",
@@ -145,7 +145,7 @@ GROUP_CSV = StringIO(""""NAME","PROTONS","CHARGE","MAGNESIUMS","SMARTS","FOCAL_A
 "ring -C-",2,0,0,"*[C;H2;R1]*","1","secondary carbon (participating in one aliphatic ring)",
 "-C-",2,0,0,"*[C;H2;R0]*","1","secondary carbon",
 "-C",3,0,0,"*[C;H3]","1","primary carbon",
-""")
+"""
 
 
 class GroupVector(list):
@@ -535,6 +535,7 @@ class GroupsData(object):
         
         gid = 0
         for line_num, row in enumerate(csv.DictReader(fp)):
+            logging.debug('Reading group definition for ' + row['NAME'])
             if row.get('SKIP', False):
                 logging.debug('Skipping group %s', row.get('NAME'))
                 continue
@@ -1175,7 +1176,7 @@ def MakeOpts():
     return opt_parser
 
 def init_groups_data():
-    return GroupsData.FromGroupsFile(GROUP_CSV, transformed=False)
+    return GroupsData.FromGroupsFile(StringIO(GROUP_CSV), transformed=False)
 
 if __name__ == "__main__":
     parser = MakeOpts()

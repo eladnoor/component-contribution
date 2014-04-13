@@ -86,10 +86,10 @@ class CompoundCacher(object):
     def get_kegg_compound(self, cid):
         compound_id = 'C%05d' % cid
         if compound_id in self.compound_dict:
-            logging.info('Cache hit: %s' % compound_id)
+            logging.debug('Cache hit: %s' % compound_id)
             return self.compound_dict[compound_id]
         else:
-            logging.info('Cache miss: %s' % compound_id)
+            logging.debug('Cache miss: %s' % compound_id)
             comp = Compound.from_kegg(cid)
             self.compound_dict[comp.compound_id] = comp
             self.need_to_update_cache_file = True

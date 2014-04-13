@@ -2,38 +2,31 @@
 import sys
 import numpy as np
 import logging
-from time import time
-
-formatter = logging.Formatter('%(asctime)s %(filename)s %(lineno)s %(levelname)s  %(message)s')
-
-stdout_handler = logging.StreamHandler(sys.stdout)
-stderr_handler = logging.StreamHandler(sys.stderr)
-file_handler = logging.FileHandler('/tmp/component_contribution_%f.log'%time())
-stdout_handler.setFormatter(formatter)
-stderr_handler.setFormatter(formatter)
-file_handler.setFormatter(formatter)
 
 logger = logging.getLogger('')
-logger.addHandler(stdout_handler)
-logger.addHandler(file_handler)
-logger.setLevel(logging.INFO)
-
+logger.setLevel(logging.DEBUG)
 sys.path.append('../python')
-import inchi2gv
 from training_data import TrainingData
 from component_contribution import ComponentContribution
 from kegg_model import KeggModel
+import inchi2gv
 
-reaction_strings = open('../tests/report_gc_reactions.txt', 'r').readlines()
+REACTION_FNAME = 'report_gc_reactions.txt'
+PYTHON_BIN = 'python'
+PYTHON_SCRIPT_FNAME = '../python/component_contribution.py'
+
+reaction_strings = open(REACTION_FNAME, 'r').readlines()
 model = KeggModel.from_formulas(reaction_strings)    
 
 td = TrainingData()
 cc = ComponentContribution(td)
-G = ComponentContribution.create_group_incidence_matrix(cc.train_cids)
+model.add_thermo(cc)
+
+dG0_prime, dG0_std = model.get_transformed_dG0(pH=7.5, I=0.2, T=298.15)
+
+G = cc.params['G']
 
 groups_data = inchi2gv.init_groups_data()
-decomposer = inchi2gv.InChIDecomposer(groups_data)
 group_names = groups_data.GetGroupNames()
-
 for i, group_name in enumerate(group_names):
-    print '%s - %d examples\n' % (group_name, np.sum(G[:, i] != 0))
+    print '%s - %d examples' % (group_name, np.sum(G[:, i] != 0))

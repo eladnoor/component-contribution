@@ -1,20 +1,13 @@
-import sys
-from subprocess import Popen, PIPE
-import numpy as np
+import sys, logging
 
 REACTION_FNAME = 'wolf_reactions.txt'
 PYTHON_BIN = 'python'
 PYTHON_SCRIPT_FNAME = '../python/component_contribution.py'
 
-def cmd_main():
-    p1 = Popen(['cat', REACTION_FNAME], stdout=PIPE)
-    p2 = Popen([PYTHON_BIN, PYTHON_SCRIPT_FNAME], stdin=p1.stdout,
-               executable=PYTHON_BIN, stdout=PIPE)
-    res = p2.communicate()[0]
-    model_dG0 = np.array(res)
-    print str(model_dG0)
-    
+
 def python_main():
+    logger = logging.getLogger('')
+    logger.setLevel(logging.INFO)
     sys.path.append('../python')
     from training_data import TrainingData
     from component_contribution import ComponentContribution
@@ -30,9 +23,11 @@ def python_main():
     dG0_prime, dG0_std = model.get_transformed_dG0(pH=7.5, I=0.2, T=298.15)
     
     sys.stdout.write('[' + 
-                     ', '.join([str(x) for x in model.dG0.flat]) + '; ' + 
-                     ', '.join([str(x) for x in dG0_prime.flat]) + 
-                     ']')    
+                     ', '.join(['%.1f' % x for x in model.dG0.flat]) + '; ' + 
+                     ', '.join(['%.1f' % x for x in dG0_prime.flat]) + 
+                     ']' + '\n')   
+                     
+    return cc.params
 
 if __name__ == '__main__':
-    python_main()
+    params = python_main()
