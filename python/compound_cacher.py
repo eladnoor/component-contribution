@@ -1,9 +1,8 @@
-import json, os, logging, csv
-#from singletonmixin import Singleton
+import json, os, logging, csv, gzip
 from compound import Compound
 import numpy as np
 
-DEFAULT_CACHE_FNAME = '../cache/compounds.json'
+DEFAULT_CACHE_FNAME = '../cache/compounds.json.gz'
 KEGG_ADDITIONS_TSV_FNAME = '../data/kegg_additions.tsv'
 
 class CompoundEncoder(json.JSONEncoder):
@@ -52,13 +51,13 @@ class CompoundCacher(object):
         self.compound_dict = {}
         self.compound_ids = []
         if os.path.exists(self.cache_fname):
-            for d in json.load(open(self.cache_fname, 'r')):
+            for d in json.load(gzip.open(self.cache_fname, 'r')):
                 self.compound_ids.append(d['id'])
                 self.compound_dict[d['id']] = Compound.from_json_dict(d)
 
     def dump(self):
         if self.need_to_update_cache_file:
-            fp = open(self.cache_fname, 'w')
+            fp = gzip.open(self.cache_fname, 'w')
             data = sorted(self.compound_dict.values(), key=lambda d:d.compound_id)
             json.dump(data, fp, cls=CompoundEncoder, 
                       sort_keys=True, indent=4,  separators=(',', ': '))
