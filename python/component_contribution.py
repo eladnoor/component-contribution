@@ -81,9 +81,9 @@ class ComponentContribution(object):
         
         # decompose the compounds in the training_data and add to G
         for i, cid in enumerate(cids):
-            inchi_pH7 = ccache.get_kegg_compound(cid).inchi_pH7
+            smiles_pH7 = ccache.get_kegg_compound(cid).smiles_pH7
             try:
-                group_def = decomposer.inchi_to_groupvec(inchi_pH7)
+                group_def = decomposer.smiles_to_groupvec(smiles_pH7)
                 for j in xrange(len(group_names)):
                     G[i, j] = group_def[j]
             except inchi2gv.GroupDecompositionError:

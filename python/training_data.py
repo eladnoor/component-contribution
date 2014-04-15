@@ -19,21 +19,7 @@ class TrainingData(object):
     def __init__(self):
         self.ccache = CompoundCacher()
         
-        base_path = os.path.split(os.path.realpath(__file__))[0]
-    
-        fname, weight = TrainingData.FNAME_DICT['TECRDB']
-        fname = os.path.join(base_path, fname)
-        tecrdb_params = TrainingData.read_tecrdb(fname, weight)
-        
-        fname, weight = TrainingData.FNAME_DICT['FORMATION']
-        fname = os.path.join(base_path, fname)
-        formation_params, cids_that_dont_decompose = TrainingData.read_formations(fname, weight)
-        
-        fname, weight = TrainingData.FNAME_DICT['REDOX']
-        fname = os.path.join(base_path, fname)
-        redox_params = TrainingData.read_redox(fname, weight)
-        
-        thermo_params = tecrdb_params + formation_params + redox_params
+        thermo_params, self.cids_that_dont_decompose = TrainingData.get_all_thermo_params()
         
         cids = set()
         for d in thermo_params:
@@ -49,7 +35,6 @@ class TrainingData(object):
                 self.S[cids.index(cid), k] = coeff
             
         self.cids = cids
-        self.cids_that_dont_decompose = cids_that_dont_decompose
 
         self.dG0_prime = np.array([d['dG\'0'] for d in thermo_params])
         self.T = np.array([d['T'] for d in thermo_params])
@@ -178,6 +163,25 @@ class TrainingData(object):
 
         logging.info('Successfully added %d redox potentials' % len(thermo_params))
         return thermo_params
+    
+    @staticmethod
+    def get_all_thermo_params():
+        base_path = os.path.split(os.path.realpath(__file__))[0]
+    
+        fname, weight = TrainingData.FNAME_DICT['TECRDB']
+        fname = os.path.join(base_path, fname)
+        tecrdb_params = TrainingData.read_tecrdb(fname, weight)
+        
+        fname, weight = TrainingData.FNAME_DICT['FORMATION']
+        fname = os.path.join(base_path, fname)
+        formation_params, cids_that_dont_decompose = TrainingData.read_formations(fname, weight)
+        
+        fname, weight = TrainingData.FNAME_DICT['REDOX']
+        fname = os.path.join(base_path, fname)
+        redox_params = TrainingData.read_redox(fname, weight)
+        
+        thermo_params = tecrdb_params + formation_params + redox_params
+        return thermo_params, cids_that_dont_decompose
     
     def balance_reactions(self, rxn_inds_to_balance):
         """

@@ -1156,6 +1156,21 @@ class InChIDecomposer(object):
         #nMg = decomposition.Magnesiums()
         return decomposition.AsVector()
 
+    def smiles_to_groupvec(self, smiles):
+        try:
+            mol = Molecule.FromSmiles(str(smiles))
+        except OpenBabelError:
+            raise GroupDecompositionError('cannot convert InChI to Molecule')
+        
+        #mol.RemoveHydrogens()
+        decomposition = self.group_decomposer.Decompose(mol, 
+                            ignore_protonations=False, strict=True)
+
+        #nH = decomposition.Hydrogens()
+        #charge = decomposition.NetCharge()
+        #nMg = decomposition.Magnesiums()
+        return decomposition.AsVector()
+
 def MakeOpts():
     """Returns an OptionParser object with all the default options."""
     opt_parser = OptionParser()

@@ -76,11 +76,7 @@ class CompoundCacher(object):
             if (compound_id not in self.compound_dict) or \
                (inchi != self.compound_dict[compound_id].inchi):
                 logging.info('Calculating pKa for additional compound: ' + compound_id)
-                atom_bag, pKas, inchi_pH7, majorMSpH7, nHs, zs = \
-                    Compound.get_species_pka(inchi)
-                comp = Compound('KEGG', compound_id, inchi, atom_bag,
-                                pKas, inchi_pH7, majorMSpH7, nHs, zs)
-                self.compound_dict[comp.compound_id] = comp
+                self.compound_dict[compound_id] = Compound.from_inchi(inchi, compound_id)
                 self.need_to_update_cache_file = True
 
     def get_kegg_compound(self, cid):
@@ -91,7 +87,7 @@ class CompoundCacher(object):
         else:
             logging.debug('Cache miss: %s' % compound_id)
             comp = Compound.from_kegg(cid)
-            self.compound_dict[comp.compound_id] = comp
+            self.compound_dict[compound_id] = comp
             self.need_to_update_cache_file = True
             return comp
             
@@ -120,8 +116,22 @@ class CompoundCacher(object):
         return elements, Ematrix
         
 if __name__ == '__main__':
+    from training_data import TrainingData
     logger = logging.getLogger('')
-    logger.setLevel(logging.INFO)
+    logger.setLevel(logging.DEBUG)
     ccache = CompoundCacher(cache_fname=None)
-    ccache.get_kegg_compound(125)
+
+    thermo_params, _ = TrainingData.get_all_thermo_params()
+    
+    cids = set()
+    for d in thermo_params:
+        cids = cids.union(d['reaction'].keys())
+    cids = sorted(cids)
+
+    for i, cid in enumerate(cids):
+        logging.info('Caching C%05d' % cid)
+        ccache.get_kegg_compound(cid)
+        if i % 10 == 0:
+            ccache.dump()
+
     ccache.dump()
