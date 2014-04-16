@@ -1,9 +1,9 @@
-import json, os, logging, csv, gzip
+import json, os, logging, csv, gzip, sys
 from compound import Compound
 import numpy as np
 
 DEFAULT_CACHE_FNAME = '../cache/compounds.json.gz'
-KEGG_ADDITIONS_TSV_FNAME = '../data/kegg_additions.tsv'
+COMPOUND_TSV_FNAME = 'data/compounds.tsv'
 
 class CompoundEncoder(json.JSONEncoder):
     def default(self, obj):
@@ -40,11 +40,14 @@ class CompoundCacher(object):
         self.cache_fname = cache_fname
         if self.cache_fname is None:
             self.cache_fname = os.path.join(base_path, DEFAULT_CACHE_FNAME)
-        self.additions_fname = os.path.join(base_path, KEGG_ADDITIONS_TSV_FNAME)
+        
+        compound_csv = csv.DictReader(open(COMPOUND_TSV_FNAME, 'r'), delimiter='\t')        
+        self.compound_id2inchi = { d['compound_id']: d['inchi'] for d in compound_csv }
         self.need_to_update_cache_file = False
         self.load()
-        self.get_kegg_additions()
-        self.dump()
+    
+    def get_all_compound_ids(self):
+        return sorted(self.compound_id2inchi.keys())
     
     def load(self):
         # parse the JSON cache file and store in a dictionary 'compound_dict'
@@ -52,55 +55,44 @@ class CompoundCacher(object):
         self.compound_ids = []
         if os.path.exists(self.cache_fname):
             for d in json.load(gzip.open(self.cache_fname, 'r')):
-                self.compound_ids.append(d['id'])
-                self.compound_dict[d['id']] = Compound.from_json_dict(d)
+                self.compound_ids.append(d['compound_id'])
+                self.compound_dict[d['compound_id']] = Compound.from_json_dict(d)
 
     def dump(self):
         if self.need_to_update_cache_file:
             fp = gzip.open(self.cache_fname, 'w')
-            data = sorted(self.compound_dict.values(), key=lambda d:d.compound_id)
+            data = sorted(self.compound_dict.values(),
+                          key=lambda d:d.compound_id)
             json.dump(data, fp, cls=CompoundEncoder, 
                       sort_keys=True, indent=4,  separators=(',', ': '))
             fp.close()
             self.need_to_update_cache_file = False
         
-    def get_kegg_additions(self):
-        # fields are: name, cid, inchi
-        for row in csv.DictReader(open(self.additions_fname, 'r'), delimiter='\t'):
-            cid = int(row['cid'])
-            compound_id = 'C%05d' % cid
-            inchi = row['inchi']
-            # if the compound_id is not in the cache, or its InChI has changed,
-            # recalculate the Compound() and add/replace in cache
-            if (compound_id not in self.compound_dict) or \
-               (inchi != self.compound_dict[compound_id].inchi):
-                logging.info('Calculating pKa for additional compound: ' + compound_id)
-                self.compound_dict[compound_id] = Compound.from_inchi(inchi, compound_id)
-                self.need_to_update_cache_file = True
-
-    def get_kegg_compound(self, cid):
-        compound_id = 'C%05d' % cid
-        if compound_id in self.compound_dict:
-            logging.debug('Cache hit: %s' % compound_id)
-            return self.compound_dict[compound_id]
-        else:
+    def get_compound(self, compound_id):
+        if compound_id not in self.compound_dict:
             logging.debug('Cache miss: %s' % compound_id)
-            comp = Compound.from_kegg(cid)
-            self.compound_dict[compound_id] = comp
-            self.need_to_update_cache_file = True
-            return comp
+            inchi = self.compound_id2inchi[compound_id]
+            comp = Compound.from_inchi('KEGG', compound_id, inchi)
+            self.add(comp)
+
+        logging.debug('Cache hit: %s' % compound_id)
+        return self.compound_dict[compound_id]
             
-    def get_kegg_ematrix(self, cids):
+    def add(self, comp):
+        self.compound_dict[comp.compound_id] = comp
+        self.need_to_update_cache_file = True
+            
+    def get_element_matrix(self, compound_ids):
         # gather the "atom bags" of all compounds in a list 'atom_bag_list'
         elements = set()
         atom_bag_list = []
-        for cid in cids:
-            comp = self.get_kegg_compound(cid)
+        for compound_id in compound_ids:
+            comp = self.get_compound(compound_id)
             atom_bag = comp.atom_bag
             if atom_bag is not None:
                 elements = elements.union(atom_bag.keys())
             atom_bag_list.append(atom_bag)
-        elements.discard('H') # no need to balance H atoms (balancing electrons is sufficient)
+        elements.discard('H') # don't balance H (it's enough to balance e-)
         elements = sorted(elements)
         
         # create the elemental matrix, where each row is a compound and each
@@ -113,24 +105,44 @@ class CompoundCacher(object):
                 for j, elem in enumerate(elements):
                     Ematrix[i, j] = atom_bag.get(elem, 0)
         return elements, Ematrix
+
+###############################################################################
         
 if __name__ == '__main__':
-    from training_data import TrainingData
     logger = logging.getLogger('')
-    logger.setLevel(logging.DEBUG)
-    ccache = CompoundCacher(cache_fname=None)
-
-    thermo_params, _ = TrainingData.get_all_thermo_params()
+    logger.setLevel(logging.INFO)
     
-    cids = set()
-    for d in thermo_params:
-        cids = cids.union(d['reaction'].keys())
-    cids = sorted(cids)
-
-    for i, cid in enumerate(cids):
-        logging.info('Caching C%05d' % cid)
-        ccache.get_kegg_compound(cid)
-        if i % 10 == 0:
+    if False:
+        # this is legacy code which was used for creating the compound.tsv
+        # file.
+    
+        COMPOUND_JSON_FNAME = 'data/kegg_compounds.json.gz'
+        KEGG_ADDITIONS_TSV_FNAME = 'data/kegg_additions.tsv'
+    
+        kegg_dict = {}
+        for d in json.load(gzip.open(COMPOUND_JSON_FNAME, 'r')):
+            kegg_dict[d['CID']] = (d['name'], d['InChI'])
+        
+        for d in csv.DictReader(open(KEGG_ADDITIONS_TSV_FNAME, 'r'), delimiter='\t'):
+            kegg_dict[d['cid']] = (d['name'], d['inchi'])
+        
+        kegg_csv = csv.writer(open(COMPOUND_TSV_FNAME, 'w'), delimiter='\t')
+        kegg_csv.writerow(['compound_id', 'name', 'inchi'])
+        for compound_id in sorted(kegg_dict.keys()):
+            name, inchi = kegg_dict[compound_id]
+            kegg_csv.writerow([compound_id, name, inchi])
+        sys.exit(0)
+    
+    ccache = CompoundCacher(cache_fname=None)
+    
+    i = 0
+    for d in csv.DictReader(open(COMPOUND_TSV_FNAME, 'r'), delimiter='\t'):
+        logging.info('Caching %s' % d['compound_id'])    
+        comp = ccache.get_compound(d['compound_id'])
+        logging.info(str(comp))
+        i += 1
+        if i % 100 == 0:
+            logging.info('Dumping Cache ...')
             ccache.dump()
-
+    
     ccache.dump()

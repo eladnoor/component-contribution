@@ -50,12 +50,8 @@ class KeggReaction(object):
                         "Non-specific reaction: %s" % s)
                 key = tokens[1]
                 
-            if key[0] != 'C':
-                raise kegg_errors.KeggNonCompoundException(
-                    "Compound ID doesn't start with C: %s" % key)
             try:
-                cid = int(key[1:])
-                compound_bag[cid] = compound_bag.get(cid, 0) + amount
+                compound_bag[key] = compound_bag.get(key, 0) + amount
             except ValueError:
                 raise kegg_errors.KeggParseException(
                     "Non-specific reaction: %s" % s)
@@ -91,12 +87,11 @@ class KeggReaction(object):
         return KeggReaction(sparse_reaction, arrow)
 
     @staticmethod
-    def write_compound_and_coeff(cid, coeff):
-        comp = "C%05d" % cid
+    def write_compound_and_coeff(compound_id, coeff):
         if coeff == 1:
-            return comp
+            return compound_id
         else:
-            return "%g %s" % (coeff, comp)
+            return "%g %s" % (coeff, compound_id)
 
     def write_formula(self):
         """String representation."""
@@ -113,7 +108,7 @@ class KeggReaction(object):
         cids = list(self.keys())
         coeffs = np.array([self.sparse[cid] for cid in cids], ndmin=2).T
     
-        elements, Ematrix = self.ccache.get_kegg_ematrix(cids)
+        elements, Ematrix = self.ccache.get_element_matrix(cids)
         conserved = Ematrix.T * coeffs
         
         if np.any(np.isnan(conserved), 0):

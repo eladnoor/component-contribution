@@ -118,11 +118,11 @@ class TrainingData(object):
         # fields are: cid, name, dG'0, pH, I, pMg, T, decompose?,
         #             compound_ref, remark
         for row in csv.DictReader(open(fname, 'r'), delimiter='\t'):
-            cid = int(row['cid'])
             if int(row['decompose']) == 0:
-                cids_that_dont_decompose.add(cid)
+                cids_that_dont_decompose.add(row['cid'])
             if row['dG\'0'] != '':
-                thermo_params.append({'reaction': KeggReaction({cid : 1}),
+                rxn = KeggReaction({row['cid'] : 1})
+                thermo_params.append({'reaction': rxn,
                                       'dG\'0' : TrainingData.str2double(row['dG\'0']),
                                       'T': TrainingData.str2double(row['T']), 
                                       'I': TrainingData.str2double(row['I']),
@@ -143,16 +143,14 @@ class TrainingData(object):
         # fields are: name, CID_ox, nH_ox, charge_ox, CID_red,
         #             nH_red, charge_red, E'0, pH, I, pMg, T, ref
         for row in csv.DictReader(open(fname, 'r'), delimiter='\t'):
-            cid_ox = int(row['CID_ox'])
-            cid_red = int(row['CID_red'])
             delta_nH = TrainingData.str2double(row['nH_red']) - \
                        TrainingData.str2double(row['nH_ox'])
             delta_charge = TrainingData.str2double(row['charge_red']) - \
                            TrainingData.str2double(row['charge_ox'])
             delta_e = delta_nH - delta_charge
             dG0_prime = -F * TrainingData.str2double(row['E\'0']) * delta_e
-            
-            thermo_params.append({'reaction': KeggReaction({cid_ox : -1, cid_red : 1}),
+            rxn = KeggReaction({row['CID_ox'] : -1, row['CID_red'] : 1})
+            thermo_params.append({'reaction': rxn,
                                   'dG\'0' : dG0_prime,
                                   'T': TrainingData.str2double(row['T']), 
                                   'I': TrainingData.str2double(row['I']),
@@ -188,7 +186,7 @@ class TrainingData(object):
             use the chemical formulas from the InChIs to verify that each and every
             reaction is balanced
         """
-        elements, Ematrix = self.ccache.get_kegg_ematrix(self.cids)
+        elements, Ematrix = self.ccache.get_element_matrix(self.cids)
         cpd_inds_without_formula = list(np.nonzero(np.any(np.isnan(Ematrix), 1))[0].flat)
         Ematrix[np.isnan(Ematrix)] = 0
 
@@ -251,9 +249,9 @@ class TrainingData(object):
         for i in xrange(n_rxns):
             for j in np.nonzero(self.S[:, i])[0]:
                 cid = self.cids[j]
-                if cid == 80: # H+ should be ignored in the Legendre transform
+                if cid == 'C00080': # H+ should be ignored in the Legendre transform
                     continue
-                comp = self.ccache.get_kegg_compound(cid)
+                comp = self.ccache.get_compound(cid)
                 ddG0 = comp.transform(self.pH[i], self.I[i], self.T[i])
                 reverse_ddG0[i] = reverse_ddG0[i] + ddG0 * self.S[j, i]
 

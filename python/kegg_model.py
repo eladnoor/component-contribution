@@ -143,14 +143,14 @@ class KeggModel(object):
         """
         ddG0_compounds = np.zeros((self.S.shape[0], 1))
         for i, cid in enumerate(self.cids):
-            comp = self.ccache.get_kegg_compound(cid)
+            comp = self.ccache.get_compound(cid)
             ddG0_compounds[i, 0] = comp.transform(pH, I, T)
         
         ddG0_forward = np.dot(self.S.T, ddG0_compounds)
         return ddG0_forward
         
     def check_S_balance(self):
-        elements, Ematrix = self.ccache.get_kegg_ematrix(self.cids)
+        elements, Ematrix = self.ccache.get_element_matrix(self.cids)
         conserved = Ematrix.T * self.S
         rxnFil = np.any(conserved[:,range(self.S.shape[1])],axis=0)
         unbalanced_ind = np.nonzero(rxnFil)[1]

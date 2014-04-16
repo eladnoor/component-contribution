@@ -1,6 +1,5 @@
-import sys, logging
+import sys
 sys.path.append('../python')
-from compound import Compound
 import inchi2gv
 from compound_cacher import CompoundCacher
 from molecule import Molecule
@@ -14,8 +13,8 @@ group_names = groups_data.GetGroupNames()
 decomposer = inchi2gv.InChIDecomposer(groups_data)
 
 # test the decomposition of ATP into groups
-ATP_inchi = ccache.get_kegg_compound(2).inchi
-group_def = decomposer.inchi_to_groupvec(inchi)
+ATP_inchi = ccache.get_compound('C00002').inchi
+group_def = decomposer.inchi_to_groupvec(ATP_inchi)
 for j, group_name in enumerate(group_names):
     if group_def[j] != 0:
         print group_name, ' x %d' % group_def[j]
@@ -23,9 +22,9 @@ for j, group_name in enumerate(group_names):
 
 patterns = ['c~[O;+0]', 'c~[O;+1]', 'c~[n;+1]~c', 'c~[n;+0]~c', 'c~[n;-1]~c']
 
-for cid in [255, 1007]:
-    comp = ccache.get_kegg_compound(cid)
-    print "-"*50, '\nC%05d' % cid
+for cid in ['C00255', 'C01007']:
+    comp = ccache.get_compound(cid)
+    print "-"*50, '\n%s' % cid
     inchi = comp.inchi
     mol = Molecule.FromInChI(inchi)
     print mol.ToSmiles()

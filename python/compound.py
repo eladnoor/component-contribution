@@ -1,4 +1,4 @@
-import openbabel, urllib, re, logging
+import openbabel, urllib, logging
 import chemaxon
 import numpy as np
 from thermodynamic_constants import R, debye_huckel
@@ -24,16 +24,18 @@ class Compound(object):
         self.zs = zs
     
     @staticmethod
-    def from_kegg(cid):
-        inchi = Compound.get_inchi(cid)
-        database = 'KEGG'
-        compound_id = 'C%05d' % cid
-        if cid == 80:
+    def from_kegg(compound_id):
+        return Compound.from_inchi('KEGG', compound_id,
+                                   Compound.get_inchi(compound_id))
+
+    @staticmethod
+    def from_inchi(database, compound_id, inchi):
+        if compound_id == 'C00080':
             # We add an exception for H+ (and put nH = 0) in order to eliminate
             # its effect of the Legendre transform
             return Compound(database, compound_id, inchi,
                             {'H' : 1}, [], None, 0, [0], [0])
-        elif cid == 237:
+        elif compound_id == 'C00237':
             # ChemAxon gets confused with the structure of carbon monoxide
             # (returns a protonated form, [CH]#[O+] at pH 7).
             # So we implement it manually here.
@@ -44,13 +46,10 @@ class Compound(object):
             # no proton dissociations in the relevant pH range
             return Compound(database, compound_id, inchi,
                             {}, [], None, 0, [0], [0])
-        else:
-            # Otherwise, we use ChemAxon's software to get the pKas and the 
-            # properties of all microspecies
-            return Compound.from_inchi(database, compound_id, inchi)
+        
+        # Otherwise, we use ChemAxon's software to get the pKas and the 
+        # properties of all microspecies
 
-    @staticmethod
-    def from_inchi(database, compound_id, inchi):
         try:
             pKas, major_ms_smiles = chemaxon.GetDissociationConstants(inchi)
             pKas = sorted([pka for pka in pKas if pka > MIN_PH and pka < MAX_PH], reverse=True)
@@ -83,7 +82,7 @@ class Compound(object):
 
     def to_json_dict(self):
         return {'database' : self.database,
-                'id' : self.compound_id,
+                'compound_id' : self.compound_id,
                 'inchi' : self.inchi,
                 'atom_bag' : self.atom_bag,
                 'pKas' : self.pKas,
@@ -94,13 +93,13 @@ class Compound(object):
     
     @staticmethod
     def from_json_dict(d):
-        return Compound(d['database'], d['id'], d['inchi'], d['atom_bag'],
+        return Compound(d['database'], d['compound_id'], d['inchi'], d['atom_bag'],
                         d['pKas'], d['smiles_pH7'], d['majorMSpH7'],
                         d['nHs'], d['zs'])
 
     @staticmethod
-    def get_inchi(cid):
-        s_mol = urllib.urlopen('http://rest.kegg.jp/get/cpd:C%05d/mol' % cid).read()
+    def get_inchi(compound_id):
+        s_mol = urllib.urlopen('http://rest.kegg.jp/get/cpd:%s/mol' % compound_id).read()
         return Compound.mol2inchi(s_mol)
 
     @staticmethod
@@ -214,7 +213,8 @@ if __name__ == '__main__':
     logger = logging.getLogger('')
     logger.setLevel(logging.DEBUG)
 
-    for cid in [138, 282, 237, 87, 32, 1137, 2191, 15670, 15672]:
-        comp = Compound.from_kegg(cid)
-        sys.stderr.write('\ncompound id = C%05d, nH = %s, z = %s\n\n\n' % 
-                         (cid, str(comp.nHs), str(comp.zs)))
+    for compound_id in ['C00138', 'C00282', 'C00237', 'C00087', 'C00032',
+                        'C01137', 'C02191', 'C15670', 'C15672']:
+        comp = Compound.from_kegg(compound_id)
+        sys.stderr.write('\ncompound id = %s, nH = %s, z = %s\n\n\n' % 
+                         (compound_id, str(comp.nHs), str(comp.zs)))
