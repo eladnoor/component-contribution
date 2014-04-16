@@ -38,7 +38,7 @@ for i = 1:length(training_data.cids)
     else
         fprintf('InChI = %s\n', inchi);
         fprintf('*************\n%s\n', getGroupVectorFromInchi(inchi, false));
-        error('ERROR: while trying to decompose compound C%05d', training_data.cids(i));
+        error('ERROR: while trying to decompose compound C%05d', training_data.cids{i});
     end
 end
 

@@ -197,7 +197,7 @@ class TrainingData(object):
         # need to check that all elements are balanced (except H, but including e-)
         # if only O is not balanced, add water molecules
         if 'O' in elements:
-            i_H2O = self.cids.index(1)
+            i_H2O = self.cids.index('C00001')
             j_O = elements.index('O')
             conserved = np.dot(Ematrix.T, self.S)
             for k in rxn_inds_to_balance:

@@ -3,7 +3,7 @@ from compound import Compound
 import numpy as np
 
 DEFAULT_CACHE_FNAME = '../cache/compounds.json.gz'
-COMPOUND_TSV_FNAME = 'data/compounds.tsv'
+COMPOUND_TSV_FNAME = '../data/compounds.tsv'
 
 class CompoundEncoder(json.JSONEncoder):
     def default(self, obj):
@@ -41,8 +41,12 @@ class CompoundCacher(object):
         if self.cache_fname is None:
             self.cache_fname = os.path.join(base_path, DEFAULT_CACHE_FNAME)
         
-        compound_csv = csv.DictReader(open(COMPOUND_TSV_FNAME, 'r'), delimiter='\t')        
-        self.compound_id2inchi = { d['compound_id']: d['inchi'] for d in compound_csv }
+        compound_tsv_fname = os.path.join(base_path, COMPOUND_TSV_FNAME)
+        
+        compound_csv = csv.DictReader(open(compound_tsv_fname, 'r'),
+                                      delimiter='\t')        
+        self.compound_id2inchi = { d['compound_id']: d['inchi'] 
+                                   for d in compound_csv }
         self.need_to_update_cache_file = False
         self.load()
     
@@ -123,7 +127,8 @@ if __name__ == '__main__':
         for d in json.load(gzip.open(COMPOUND_JSON_FNAME, 'r')):
             kegg_dict[d['CID']] = (d['name'], d['InChI'])
         
-        for d in csv.DictReader(open(KEGG_ADDITIONS_TSV_FNAME, 'r'), delimiter='\t'):
+        for d in csv.DictReader(open(KEGG_ADDITIONS_TSV_FNAME, 'r'),
+                                delimiter='\t'):
             kegg_dict[d['cid']] = (d['name'], d['inchi'])
         
         kegg_csv = csv.writer(open(COMPOUND_TSV_FNAME, 'w'), delimiter='\t')

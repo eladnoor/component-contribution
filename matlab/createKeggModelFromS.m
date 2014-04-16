@@ -9,13 +9,11 @@
 function model = createKeggModelFromS(S, cids)
 
 model.S = S;
-model.cids = reshape(cids, 1, length(cids));
-model.mets = cell(length(model.cids),1);
+model.cids = cids;
+model.mets = cell(size(model.cids));
 for i = 1:length(model.cids)
-    model.mets{i} = sprintf('C%05d[c]', model.cids(i));
+    model.mets{i} = [model.cids{i} '[c]'];
 end
-
-fprintf('Loaded a KEGG model with %d compounds and %d reactions\n', size(model.S, 1), size(model.S, 2));
 
 %%
 % get the InChIs for all the compounds in the training data

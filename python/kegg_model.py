@@ -53,7 +53,7 @@ class KeggModel(object):
         S = []
         cids = []
         for i, row in enumerate(csv_reader):
-            cids.append(int(row[0]))
+            cids.append(row[0])
             S.append([float(x) for x in row[1:]])
         S = np.array(S)
         return KeggModel(S, cids, rids)

@@ -14,7 +14,7 @@ if ~isfield(training_data, 'Ematrix') || isempty(training_data.Ematrix)
     inds = find(~isnan(conserved(1,:)) .* training_data.balance');
     
     % first add water molecules to reactions that need it
-    i_h2o = find(training_data.cids == 1);
+    i_h2o = find(ismember('C00001', training_data.cids));
     training_data.S(i_h2o, inds) = training_data.S(i_h2o, inds) - conserved(3, inds);
     
     % recalculate conservation matrix

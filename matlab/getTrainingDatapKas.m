@@ -8,11 +8,15 @@ CACHED_KEGG_PKA_MAT_FNAME = [getBasePath() 'cache/kegg_pkas.mat'];
 
 % Load pKas from cache if required
 if use_cache && exist(CACHED_KEGG_PKA_MAT_FNAME, 'file')
-    fprintf('Loading the pKa values for the training data from: %s\n', CACHED_KEGG_PKA_MAT_FNAME);
+    fprintf('Loading the pKa values for the training data from: %s\n', ...
+            CACHED_KEGG_PKA_MAT_FNAME);
     load(CACHED_KEGG_PKA_MAT_FNAME);
-    [~, I] = setdiff(target_cids, cell2mat({kegg_pKa.cid}));
-    target_cids = target_cids(I);
-    target_inchies = target_inchies(I);
+    
+    % find only the CIDs of the targets that are not in kegg_pKa
+    % and calculate the pKa only for them
+    [~, idx] = setdiff(target_cids, {kegg_pKa.cid});
+    target_cids = target_cids(idx);
+    target_inchies = target_inchies(idx);
 else
     kegg_pKa = [];
 end

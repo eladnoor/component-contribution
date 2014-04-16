@@ -9,8 +9,6 @@ class KeggReaction(object):
 
     def __init__(self, sparse, arrow='<=>', rid=None):
         for cid, coeff in sparse.iteritems():
-            if type(cid) != types.IntType:
-                raise ValueError('All keys in KeggReaction must be integers')
             if not (isinstance(coeff, float) or isinstance(coeff, int)):
                 raise ValueError('All values in KeggReaction must be integers or floats')
         self.sparse = sparse
