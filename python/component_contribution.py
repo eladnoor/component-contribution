@@ -28,6 +28,16 @@ class ComponentContribution(object):
 
         savemat(fname, self.params, oned_as='row')
     
+    def train_without_model(self):
+        self.cids_joined = self.train_cids
+        self.model_S_joined = ComponentContribution._zero_pad_S(
+            self.train_S, self.train_cids, self.cids_joined)
+        self.train_S_joined = ComponentContribution._zero_pad_S(
+            self.train_S, self.train_cids, self.cids_joined)
+        self.train_G = ComponentContribution.create_group_incidence_matrix(self.train_cids)
+        self.train()
+        return self.params
+    
     def estimate_kegg_model(self, model_S, model_cids):
         # standardize the CID list of the training data and the model
         # and create new (larger) matrices for each one

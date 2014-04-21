@@ -252,7 +252,7 @@ class TrainingData(object):
                 if cid == 'C00080': # H+ should be ignored in the Legendre transform
                     continue
                 comp = self.ccache.get_compound(cid)
-                ddG0 = comp.transform(self.pH[i], self.I[i], self.T[i])
+                ddG0 = comp.transform_pH7(self.pH[i], self.I[i], self.T[i])
                 reverse_ddG0[i] = reverse_ddG0[i] + ddG0 * self.S[j, i]
 
         self.dG0 = self.dG0_prime - reverse_ddG0

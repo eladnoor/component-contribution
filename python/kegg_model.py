@@ -144,7 +144,7 @@ class KeggModel(object):
         ddG0_compounds = np.zeros((self.S.shape[0], 1))
         for i, cid in enumerate(self.cids):
             comp = self.ccache.get_compound(cid)
-            ddG0_compounds[i, 0] = comp.transform(pH, I, T)
+            ddG0_compounds[i, 0] = comp.transform_pH7(pH, I, T)
         
         ddG0_forward = np.dot(self.S.T, ddG0_compounds)
         return ddG0_forward

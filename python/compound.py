@@ -52,17 +52,22 @@ class Compound(object):
 
         try:
             pKas, major_ms_smiles = chemaxon.GetDissociationConstants(inchi)
+            major_ms_smiles = Compound.smiles2smiles(major_ms_smiles)
             pKas = sorted([pka for pka in pKas if pka > MIN_PH and pka < MAX_PH], reverse=True)
-            atom_bag, major_ms_charge = chemaxon.GetAtomBagAndCharge(major_ms_smiles)
         except chemaxon.ChemAxonError:
             logging.warning('chemaxon failed to find pKas for this molecule: ' + inchi)
             # use the original InChI to get the parameters (i.e. assume it 
             # represents the major microspecies at pH 7)
             major_ms_smiles = Compound.inchi2smiles(inchi)
             pKas = []
-            atom_bag, major_ms_charge = chemaxon.GetAtomBagAndCharge(inchi)
-
-        major_ms_nH = atom_bag.get('H', 0)
+        
+        if major_ms_smiles:
+            atom_bag, major_ms_charge = chemaxon.GetAtomBagAndCharge(major_ms_smiles)
+            major_ms_nH = atom_bag.get('H', 0)
+        else:
+            atom_bag = {}
+            major_ms_charge = 0
+            major_ms_nH = 0
 
         n_species = len(pKas) + 1
         if pKas == []:
@@ -138,7 +143,24 @@ class Compound(object):
             return None
         else:
             return smiles
-
+            
+    @staticmethod
+    def smiles2smiles(smiles_in):
+        openbabel.obErrorLog.SetOutputLevel(-1)
+        
+        conv = openbabel.OBConversion()
+        conv.SetInAndOutFormats('smiles', 'smiles')
+        #conv.AddOption("F", conv.OUTOPTIONS)
+        #conv.AddOption("T", conv.OUTOPTIONS)
+        #conv.AddOption("x", conv.OUTOPTIONS, "noiso")
+        #conv.AddOption("w", conv.OUTOPTIONS)
+        obmol = openbabel.OBMol()
+        conv.ReadString(obmol, smiles_in)
+        smiles_out = conv.WriteString(obmol, True) # second argument is trimWhitespace
+        if smiles_out == '':
+            return None
+        else:
+            return smiles_out
     @staticmethod
     def smiles2inchi(smiles):
         openbabel.obErrorLog.SetOutputLevel(-1)
@@ -161,35 +183,14 @@ class Compound(object):
         return "%s\nInChI: %s\npKas: %s\nmajor MS: nH = %d, charge = %d" % \
             (self.compound_id, self.inchi, ', '.join(['%.2f' % p for p in self.pKas]),
              self.nHs[self.majorMSpH7], self.zs[self.majorMSpH7])
-    
-    def transform(self, pH, I, T):
-        """
-            Returns the difference between the dG0 of the major microspecies at pH 7
-            and the transformed dG0' (in kJ/mol)
-        """
-        ddG0 = sum(self.pKas[:self.majorMSpH7]) * R * T * np.log(10)
-        return self._transform(pH, I, T) + ddG0
-
-    def transform_neutral(self, pH, I, T):
-        """
-            Returns the difference between the dG0 of microspecies with the 0 charge
-            and the transformed dG0' (in kJ/mol)
-        """
-        try:
-            MS_ind = self.zs.index(0)
-        except ValueError:
-            raise ValueError("The compound (%s) does not have a microspecies with 0 charge"
-                             % self.compound_id)
-        
-        # calculate the difference between the microspecies with the least hydrogens
-        # and the microspecies with 0 charge 
-        ddG0 = sum(self.pKas[:MS_ind]) * R * T * np.log(10)
-        return self._transform(pH, I, T) + ddG0
 
     def _transform(self, pH, I, T):
         """
-            Returns the difference between the dG0 of microspecies with the least hydrogens
-            and the transformed dG0' (in kJ/mol)
+            Calculates the difference in kJ/mol between dG'0 and 
+            the dG0 of the MS with the least hydrogens (dG0[0])
+            
+            Returns:
+                dG'0 - dG0[0]
         """
         if self.inchi is None:
             return 0
@@ -208,6 +209,64 @@ class Compound(object):
 
         return -R * T * logsumexp(dG0_prime_vector / (-R * T))
 
+    def _ddG(self, i_from, i_to, T):
+        """
+            Calculates the difference in kJ/mol between two MSs.
+            
+            Returns:
+                dG0[i_to] - dG0[i_from]
+        """
+        if not (0 <= i_from <= len(self.pKas)):
+            raise ValueError('MS index is out of bounds: 0 <= %d <= %d' % (i_from, len(self.pKas)))
+
+        if not (0 <= i_to <= len(self.pKas)):
+            raise ValueError('MS index is out of bounds: 0 <= %d <= %d' % (i_to, len(self.pKas)))
+
+        if i_from == i_to:
+            return 0
+        elif i_from < i_to:
+            return sum(self.pKas[i_from:i_to]) * R * T * np.log(10)
+        else:
+            return -sum(self.pKas[i_to:i_from]) * R * T * np.log(10)
+
+    def transform(self, i, pH, I, T):
+        """
+            Returns the difference in kJ/mol between dG'0 and the dG0 of the 
+            MS with index 'i'.
+            
+            Returns:
+                (dG'0 - dG0[0]) + (dG0[0] - dG0[i])  = dG'0 - dG0[i]
+        """
+        return self._transform(pH, I, T) + self._ddG(0, i, T)
+
+    def transform_pH7(self, pH, I, T):
+        """
+            Returns the transform for the major MS in pH 7
+        """
+        return self.transform(self.majorMSpH7, pH, I, T)
+
+    def transform_neutral(self, pH, I, T):
+        """
+            Returns the transform for the MS with no charge
+        """
+        try:
+            return self.transform(pH, I, T, self.zs.index(0))
+        except ValueError:
+            raise ValueError("The compound (%s) does not have a microspecies with 0 charge"
+                             % self.compound_id)
+
+    def get_species(self, major_ms_dG0_f, T):
+        """
+            Given the chemical formation energy of the major microspecies,
+            uses the pKa values to calculate the chemical formation energies
+            of all other species, and returns a list of dictionaries with
+            all the relevant data: dG0_f, nH, nMg, z (charge)
+        """
+        for i, (nH, z) in enumerate(zip(self.nHs, self.zs)):
+            dG0_f = major_ms_dG0_f + self._ddG(i, self.majorMSpH7, T)
+            d = {'dG0_f': dG0_f, 'nH': nH, 'z': z, 'nMg': 0, 'ref': ''}
+            yield d
+        
 if __name__ == '__main__':
     import sys
     logger = logging.getLogger('')
