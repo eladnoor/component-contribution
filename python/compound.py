@@ -118,7 +118,7 @@ class Compound(object):
         conv.AddOption("x", conv.OUTOPTIONS, "noiso")
         conv.AddOption("w", conv.OUTOPTIONS)
         obmol = openbabel.OBMol()
-        if not conv.ReadString(obmol, s):
+        if not conv.ReadString(obmol, str(s)):
             return None
         inchi = conv.WriteString(obmol, True) # second argument is trimWhitespace
         if inchi == '':
@@ -137,7 +137,7 @@ class Compound(object):
         #conv.AddOption("x", conv.OUTOPTIONS, "noiso")
         #conv.AddOption("w", conv.OUTOPTIONS)
         obmol = openbabel.OBMol()
-        conv.ReadString(obmol, inchi)
+        conv.ReadString(obmol, str(inchi))
         smiles = conv.WriteString(obmol, True) # second argument is trimWhitespace
         if smiles == '':
             return None
@@ -155,7 +155,7 @@ class Compound(object):
         #conv.AddOption("x", conv.OUTOPTIONS, "noiso")
         #conv.AddOption("w", conv.OUTOPTIONS)
         obmol = openbabel.OBMol()
-        conv.ReadString(obmol, smiles_in)
+        conv.ReadString(obmol, str(smiles_in))
         smiles_out = conv.WriteString(obmol, True) # second argument is trimWhitespace
         if smiles_out == '':
             return None
@@ -172,7 +172,7 @@ class Compound(object):
         conv.AddOption("x", conv.OUTOPTIONS, "noiso")
         conv.AddOption("w", conv.OUTOPTIONS)
         obmol = openbabel.OBMol()
-        conv.ReadString(obmol, smiles)
+        conv.ReadString(obmol, str(smiles))
         inchi = conv.WriteString(obmol, True) # second argument is trimWhitespace
         if inchi == '':
             return None

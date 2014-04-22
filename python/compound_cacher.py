@@ -1,9 +1,8 @@
-import json, os, logging, csv, gzip, sys
-from compound import Compound
-import numpy as np
-
-DEFAULT_CACHE_FNAME = '../cache/compounds.json.gz'
-COMPOUND_TSV_FNAME = '../data/compounds.tsv'
+import json, os, logging, csv, gzip, sys, numpy
+from python.compound import Compound
+base_path = os.path.split(os.path.realpath(__file__))[0]
+KEGG_COMPOUND_JSON_FNAME = os.path.join(base_path, '../data/kegg_compounds.json.gz') # names and InChIs only
+DEFAULT_CACHE_FNAME = os.path.join(base_path, '../cache/compounds.json.gz') # names, InChIs and pKa data
 
 class CompoundEncoder(json.JSONEncoder):
     def default(self, obj):
@@ -36,17 +35,15 @@ class CompoundCacher(object):
     __metaclass__ = Singleton
     
     def __init__(self, cache_fname=None):
-        base_path = os.path.split(os.path.realpath(__file__))[0]
         self.cache_fname = cache_fname
         if self.cache_fname is None:
-            self.cache_fname = os.path.join(base_path, DEFAULT_CACHE_FNAME)
+            self.cache_fname = DEFAULT_CACHE_FNAME
         
-        compound_tsv_fname = os.path.join(base_path, COMPOUND_TSV_FNAME)
+        compound_json_fname = KEGG_COMPOUND_JSON_FNAME
         
-        compound_csv = csv.DictReader(open(compound_tsv_fname, 'r'),
-                                      delimiter='\t')        
+        compounds = json.load(gzip.open(compound_json_fname, 'r'))
         self.compound_id2inchi = { d['compound_id']: d['inchi'] 
-                                   for d in compound_csv }
+                                   for d in compounds }
         self.need_to_update_cache_file = False
         self.load()
     
@@ -101,10 +98,10 @@ class CompoundCacher(object):
         
         # create the elemental matrix, where each row is a compound and each
         # column is an element (or e-)
-        Ematrix = np.matrix(np.zeros((len(atom_bag_list), len(elements))))
+        Ematrix = numpy.matrix(numpy.zeros((len(atom_bag_list), len(elements))))
         for i, atom_bag in enumerate(atom_bag_list):
             if atom_bag is None:
-                Ematrix[i, :] = np.nan
+                Ematrix[i, :] = numpy.nan
             else:
                 for j, elem in enumerate(elements):
                     Ematrix[i, j] = atom_bag.get(elem, 0)
@@ -117,33 +114,43 @@ if __name__ == '__main__':
     logger.setLevel(logging.INFO)
     
     if False:
-        # this is legacy code which was used for creating the compound.tsv
+        # this is legacy code which was used for creating the kegg_compounds.json.gz
         # file.
     
-        COMPOUND_JSON_FNAME = 'data/kegg_compounds.json.gz'
-        KEGG_ADDITIONS_TSV_FNAME = 'data/kegg_additions.tsv'
+        OLD_COMPOUND_JSON_FNAME = os.path.join(base_path, '../data/equilibrator_compounds.json.gz')
+        KEGG_ADDITIONS_TSV_FNAME = os.path.join(base_path, '../data/kegg_additions.tsv')
     
         kegg_dict = {}
-        for d in json.load(gzip.open(COMPOUND_JSON_FNAME, 'r')):
-            kegg_dict[d['CID']] = (d['name'], d['InChI'])
+        for d in json.load(gzip.open(OLD_COMPOUND_JSON_FNAME, 'r')):
+            cid = d['CID']
+            kegg_dict[cid] = {'compound_id': cid,
+                              'name': d['name'],
+                              'names': d['names'],
+                              'inchi': d['InChI']}
         
+        # override some of the compounds or add new ones with 'fake' IDs,
+        # i.e. C80000 or higher.
         for d in csv.DictReader(open(KEGG_ADDITIONS_TSV_FNAME, 'r'),
                                 delimiter='\t'):
-            kegg_dict[d['cid']] = (d['name'], d['inchi'])
+            cid = 'C%05d' % int(d['cid'])
+            kegg_dict[cid] = {'compound_id': cid,
+                              'name': d['name'],
+                              'names': [d['name']],
+                              'inchi': d['inchi']}
         
-        kegg_csv = csv.writer(open(COMPOUND_TSV_FNAME, 'w'), delimiter='\t')
-        kegg_csv.writerow(['compound_id', 'name', 'inchi'])
-        for compound_id in sorted(kegg_dict.keys()):
-            name, inchi = kegg_dict[compound_id]
-            kegg_csv.writerow([compound_id, name, inchi])
+        compound_json = [kegg_dict[compound_id] for compound_id in sorted(kegg_dict.keys())]
+
+        new_json = gzip.open(KEGG_COMPOUND_JSON_FNAME, 'w')
+        json.dump(compound_json, new_json, sort_keys=True, indent=4)
+        new_json.close()
         sys.exit(0)
     
     ccache = CompoundCacher(cache_fname=None)
     
     i = 0
-    for d in csv.DictReader(open(COMPOUND_TSV_FNAME, 'r'), delimiter='\t'):
-        logging.info('Caching %s' % d['compound_id'])    
-        comp = ccache.get_compound(d['compound_id'])
+    for compound_id in ccache.get_all_compound_ids():
+        logging.info('Caching %s' % compound_id)
+        comp = ccache.get_compound(compound_id)
         logging.info(str(comp))
         i += 1
         if i % 100 == 0:
