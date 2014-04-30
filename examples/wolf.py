@@ -1,17 +1,16 @@
-import sys, logging
+import sys, logging, os
 
-REACTION_FNAME = 'wolf_reactions.txt'
+REACTION_FNAME = 'examples/wolf_reactions.txt'
 PYTHON_BIN = 'python'
-PYTHON_SCRIPT_FNAME = '../python/component_contribution.py'
+PYTHON_SCRIPT_FNAME = 'python/component_contribution.py'
 
 
 def python_main():
     logger = logging.getLogger('')
     logger.setLevel(logging.INFO)
-    sys.path.append('../python')
-    from training_data import TrainingData
-    from component_contribution import ComponentContribution
-    from kegg_model import KeggModel
+    from python.training_data import TrainingData
+    from python.component_contribution import ComponentContribution
+    from python.kegg_model import KeggModel
 
     reaction_strings = open(REACTION_FNAME, 'r').readlines()
     model = KeggModel.from_formulas(reaction_strings)    
@@ -30,4 +29,10 @@ def python_main():
     return cc.params
 
 if __name__ == '__main__':
+    pwd = os.path.realpath(os.path.curdir)
+    _, directory = os.path.split(pwd)
+    if directory == 'examples':
+        sys.path.append(os.path.abspath('..'))
+        os.chdir('..')
+        
     params = python_main()

@@ -130,8 +130,13 @@ def GetFormulaAndCharge(molstring):
     if headers != ['id', 'Formula', 'Formal charge']:
         raise ChemAxonError('cannot get the formula and charge for: ' + molstring)
     _, formula, formal_charge = tsv_output.next()
+
+    try:
+        formal_charge = int(formal_charge)
+    except ValueError:
+        formal_charge = 0
     
-    return formula, int(formal_charge)
+    return formula, formal_charge
 
 def GetAtomBagAndCharge(molstring):
     formula, formal_charge = GetFormulaAndCharge(molstring)
