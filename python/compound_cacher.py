@@ -71,12 +71,12 @@ class CompoundCacher(object):
         
     def get_compound(self, compound_id):
         if compound_id not in self.compound_dict:
-            logging.debug('Cache miss: %s' % compound_id)
+            logging.debug('Cache miss: %s' % str(compound_id))
             inchi = self.compound_id2inchi[compound_id]
             comp = Compound.from_inchi('KEGG', compound_id, inchi)
             self.add(comp)
 
-        logging.debug('Cache hit: %s' % compound_id)
+        logging.debug('Cache hit: %s' % str(compound_id))
         return self.compound_dict[compound_id]
             
     def add(self, comp):
@@ -113,7 +113,7 @@ if __name__ == '__main__':
     logger = logging.getLogger('')
     logger.setLevel(logging.INFO)
     
-    if False:
+    if not os.path.exists(KEGG_COMPOUND_JSON_FNAME):
         # this is legacy code which was used for creating the kegg_compounds.json.gz
         # file.
     
@@ -143,7 +143,6 @@ if __name__ == '__main__':
         new_json = gzip.open(KEGG_COMPOUND_JSON_FNAME, 'w')
         json.dump(compound_json, new_json, sort_keys=True, indent=4)
         new_json.close()
-        sys.exit(0)
     
     ccache = CompoundCacher(cache_fname=None)
     
