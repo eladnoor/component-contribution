@@ -9,8 +9,6 @@ MAX_PH = 14.0
 
 class Compound(object):
     
-    _obElements = openbabel.OBElementTable()
-
     def __init__(self, database, compound_id, inchi,
                  atom_bag, pKas, smiles_pH7, majorMSpH7, nHs, zs):
         self.database = database
@@ -264,7 +262,8 @@ class Compound(object):
         """
         for i, (nH, z) in enumerate(zip(self.nHs, self.zs)):
             dG0_f = major_ms_dG0_f + self._ddG(i, self.majorMSpH7, T)
-            d = {'dG0_f': dG0_f, 'nH': nH, 'z': z, 'nMg': 0, 'ref': ''}
+            d = {'phase': 'aqueous', 'dG0_f': np.round(dG0_f, 2),
+                 'nH': nH, 'z': z, 'nMg': 0}
             yield d
         
 if __name__ == '__main__':

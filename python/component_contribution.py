@@ -5,6 +5,8 @@ from training_data import TrainingData
 from kegg_model import KeggModel
 from compound_cacher import CompoundCacher
 import inchi2gv
+from thermodynamic_constants import default_T
+from molecule import Molecule, OpenBabelError
 
 class ComponentContribution(object):
     
@@ -31,6 +33,7 @@ class ComponentContribution(object):
         
         self.Nc = len(self.cids_joined)
         self.Ng = len(self.group_names)
+        self.N_non_decomposable = 0
 
     def savemat(self, fname):
         if self.params is None:
@@ -68,9 +71,69 @@ class ComponentContribution(object):
                 group_vec = self.decomposer.smiles_to_groupvec(comp.smiles_pH7)
                 g = np.matrix(group_vec.ToArray())
                 dG0_gc = self.params['dG0_gc'][0:self.Ng, 0]
-                return g * dG0_gc
+                return float(g * dG0_gc)
             except inchi2gv.GroupDecompositionError:
                 return np.nan
+
+    def get_compound_json(self, compound_id):
+        """
+            adds the component-contribution estimation to the JSON
+        """
+        if compound_id is None:
+            raise ValueError('given compound ID is None')
+        if self.params is None:
+            raise Exception('One cannot call get_formation_energy() '
+                            'before calling train() or train_wihtout_model()')
+
+        d = {'CID': compound_id}
+        comp = self.ccache.get_compound(compound_id)
+        gv = None
+        
+        if compound_id in self.cids_joined:
+            i = self.cids_joined.index(compound_id)
+            gv = self.params['G'][i, :]
+            major_ms_dG0_f = self.params['dG0_cc'][i, 0]
+        elif comp.smiles_pH7 is not None:
+            # decompose the compounds in the training_data and add to G
+            try:
+                group_def = self.decomposer.smiles_to_groupvec(comp.smiles_pH7)
+                gv = np.matrix(group_def.ToArray())
+                # we need to pad the group vector with zeros to account for
+                # the added columns corresponding to compound that we could
+                # not decompose in the training set.
+                gv = np.hstack([gv, np.zeros((1, self.N_non_decomposable))])
+                
+                major_ms_dG0_f = float(gv * self.params['dG0_gc'])
+            except inchi2gv.GroupDecompositionError:
+                d['error'] = 'We cannot estimate the formation energy of this compound ' +\
+                             'because its structure is too complex to decompose to groups'
+                major_ms_dG0_f = np.nan
+        else:
+            d['error'] = 'We cannot estimate the formation energy of this compound ' +\
+                         'because it has no defined structure'
+            major_ms_dG0_f = np.nan
+
+        if gv is not None:
+            sparse_gv = filter(lambda x: x[1] != 0, enumerate(gv.flat))
+            d['group_vector'] = sparse_gv
+
+        if not np.isnan(major_ms_dG0_f):
+            d['pmap'] = {'source': 'Component Contribution (2013)',
+                         'species': list(comp.get_species(major_ms_dG0_f, default_T))}
+
+        if comp.inchi is not None:
+            d['InChI'] = comp.inchi
+            try:
+                mol = Molecule.FromInChI(str(comp.inchi))
+                d['mass'] = mol.GetExactMass()
+                d['formula'] = mol.GetFormula()
+                d['num_electrons'] = mol.GetNumElectrons()
+            except OpenBabelError:
+                d['mass'] = 0
+                d['formula'] = ''
+                d['num_electrons'] = 0
+            
+        return d
     
     def estimate_kegg_model(self, model_S, model_cids):
         # standardize the CID list of the training data and the model
@@ -105,8 +168,8 @@ class ComponentContribution(object):
         cpd_inds_without_gv = []
         
         # decompose the compounds in the training_data and add to G
-        for i, cid in enumerate(self.cids_joined):
-            smiles_pH7 = self.ccache.get_compound(cid).smiles_pH7
+        for i, compound_id in enumerate(self.cids_joined):
+            smiles_pH7 = self.ccache.get_compound(compound_id).smiles_pH7
             try:
                 group_def = self.decomposer.smiles_to_groupvec(smiles_pH7)
                 for j in xrange(len(self.group_names)):
@@ -116,7 +179,8 @@ class ComponentContribution(object):
                 # add a unique 1 in a new column
                 cpd_inds_without_gv.append(i)
 
-        add_G = np.zeros((self.Nc, len(cpd_inds_without_gv)))
+        self.N_non_decomposable = len(cpd_inds_without_gv)
+        add_G = np.zeros((self.Nc, self.N_non_decomposable))
         for j, i in enumerate(cpd_inds_without_gv):
             add_G[i, j] = 1
         return np.matrix(np.hstack([G, add_G]))

@@ -1,38 +1,25 @@
-import json, gzip, logging
+import json, gzip, logging, os
 from python.component_contribution import ComponentContribution
-from python.thermodynamic_constants import default_T
 
-INPUT_JSON = 'data/equilibrator_compounds.json.gz'
-OUTPUT_JSON = 'data/cc_compounds.json.gz'
+if not os.path.isdir('res'):
+    os.mkdir('res')
 
-def update_json_data(d, cc):
-    """
-        adds the component-contribution estimation to the JSON
-    """
-    compound_id = d['CID']
-    
-    # decompose the compound and calculate the 'formation energy'
-    # using the group contributions
-    major_ms_dG0_f = cc.get_major_ms_dG0_f(compound_id)
-    comp = cc.ccache.get_compound(compound_id)
-
-    pmap = {'priority': 3,
-            'source': 'New Component Contribution (2014)',
-            'species': list(comp.get_species(major_ms_dG0_f, default_T))}
-    d['pmaps'] = d.setdefault('pmaps', []) + [pmap]
-        
-    return d
+OUTPUT_JSON = 'res/cc_compounds.json.gz'
 
 if __name__ == '__main__':
     cc = ComponentContribution()
     cc.train()
     compound_json = []
 
-    for i, d in enumerate(json.load(gzip.open(INPUT_JSON,'r'))):
-        compound_id = d['CID']
+    for i, compound_id in enumerate(cc.ccache.get_all_compound_ids()):
         logging.info("exporting " + compound_id)
-        update_json_data(d, cc)
-        compound_json.append(d)
+
+        # skip compounds that cause a segmentation fault in openbabel
+        if compound_id in ['C09078', 'C09093', 'C09145', 'C09246',
+                           'C10282', 'C10286', 'C10356', 'C10359',
+                           'C10396', 'C16818', 'C16839', 'C16857']: 
+            continue
+        compound_json.append(cc.get_compound_json(compound_id))
     new_json = gzip.open(OUTPUT_JSON, 'w')
     json.dump(compound_json, new_json, sort_keys=True, indent=4)
     new_json.close()

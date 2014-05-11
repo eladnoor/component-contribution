@@ -1,12 +1,13 @@
-import sys, csv, os
+import csv, os
 import numpy as np
 import matplotlib.pyplot as plt
 from python.component_contribution import ComponentContribution
 from python.kegg_model import KeggModel
 
+REPORT_CACHE_FNAME = 'cache/report_gc.csv'
 cid2dG0 = {}
-if not os.path.exists(sys.argv[1]):
-    fp = open(sys.argv[1], 'w')
+if not os.path.exists(REPORT_CACHE_FNAME):
+    fp = open(REPORT_CACHE_FNAME, 'w')
     cc = ComponentContribution()
     cc.train()
     csv_out = csv.writer(fp)
@@ -16,7 +17,7 @@ if not os.path.exists(sys.argv[1]):
         csv_out.writerow([compound_id, '%8.2f' % dG0_f])
         cid2dG0[compound_id] = dG0_f
 else:
-    for row in csv.DictReader(open(sys.argv[1], 'r')):
+    for row in csv.DictReader(open(REPORT_CACHE_FNAME, 'r')):
         cid2dG0[row['cid']] = float(row['dG0_f'])
 
 REACTION_FNAME = 'tests/report_gc_reactions.txt'
