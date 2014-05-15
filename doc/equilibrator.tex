@@ -112,7 +112,7 @@ If we look again at equation \ref{eq:c_rc}, it's obvious that $\bar{C}_{rc} = C_
 	\left( \begin{array}{c|c} \Gmat^\top \PNmat{S^\top} & \Gmat'^\top \end{array} \right) 
 \\
 &=&
-\left( \begin{array}{c|c} C_{gr} & \PNmat{S^\top} \Gmat \left(\Gmat^{\top}SS^{\top}\Gmat\right)^{+} \Gmat'^\top \\ \hline \Gmat \left(\Gmat^{\top}SS^{\top}\Gmat\right)^{+} \Gmat^\top \PNmat{S^\top} & \Gmat'\left(\Gmat^{\top}SS^{\top}\Gmat\right)^{+} \Gmat'^\top \end{array} \right)
+\left( \begin{array}{c|c} C_{gc} & \PNmat{S^\top} \Gmat \left(\Gmat^{\top}SS^{\top}\Gmat\right)^{+} \Gmat'^\top \\ \hline \Gmat' \left(\Gmat^{\top}SS^{\top}\Gmat\right)^{+} \Gmat^\top \PNmat{S^\top} & \Gmat'\left(\Gmat^{\top}SS^{\top}\Gmat\right)^{+} \Gmat'^\top \end{array} \right)
 \end{eqnarray}
 and the third term will change to:
 \begin{eqnarray}
@@ -122,12 +122,72 @@ and the third term will change to:
 		\left(\begin{array}{c|c} \Gmat^\top & \Gmat'^\top \end{array}\right)
 \\ &=&
 	\left(\begin{array}{c|c}
-		\Gmat \PNmat{S^\top\Gmat} \Gmat^\top &
+		C_\infty &
 		\Gmat \PNmat{S^\top\Gmat} \Gmat'^\top \\ \hline
 		\Gmat' \PNmat{S^\top\Gmat} \Gmat^\top &
 		\Gmat' \PNmat{S^\top\Gmat} \Gmat'^\top
  \end{array}\right)
 \end{eqnarray}
+
+Finally, we can rewrite the formula for the standard error for $\bar{x}$ as:
+\begin{eqnarray}
+{s_{cc,\bar{x}}}^2
+&=& 
+\bar{x}^{\top} \left[ \alpha_{rc}\cdot \bar{C}_{rc} + \alpha_{gc}\cdot \bar{C}_{gc} + \infty\cdot \bar{C}_{\infty}  \right] \bar{x}
+\nonumber\\ &=&
+\alpha_{rc} \cdot x^{\top} C_{rc} x + \alpha_{gc} \cdot \bar{x}^{\top} \bar{C}_{gc} \bar{x} + \infty \cdot \bar{x}^{\top} \bar{C}_{\infty} \bar{x}
+\nonumber\\ &=&
+\alpha_{rc} \cdot x^{\top} C_{rc} x ~~+
+\nonumber\\ &&
+\alpha_{gc} \cdot \left( \begin{array}{c|c} x^\top & x'^\top \end{array} \right)
+\left( \begin{array}{c|c}
+		C_{gc} &
+		\PNmat{S^\top} \Gmat \left(\Gmat^{\top}SS^{\top}\Gmat\right)^{+} \Gmat'^\top \\ \hline
+		\Gmat' \left(\Gmat^{\top}SS^{\top}\Gmat\right)^{+} \Gmat^\top \PNmat{S^\top} &
+		\Gmat'\left(\Gmat^{\top}SS^{\top}\Gmat\right)^{+} \Gmat'^\top
+	\end{array} \right)
+ \left( \begin{array}{c} x \\ \hline x' \end{array} \right)
+\nonumber\\ &&+~
+\infty \cdot \left( \begin{array}{c|c} x^\top & x'^\top \end{array} \right)
+\left( \begin{array}{c|c}
+		C_\infty &
+		\Gmat \PNmat{S^\top\Gmat} \Gmat'^\top \\ \hline
+		\Gmat' \PNmat{S^\top\Gmat} \Gmat^\top &
+		\Gmat' \PNmat{S^\top\Gmat} \Gmat'^\top
+ \end{array}\right) \left( \begin{array}{c} x \\ \hline x' \end{array} \right)
+\nonumber\\ &=&
+\alpha_{rc} \cdot x^{\top} C_{rc} x ~~+
+\nonumber\\ &&
+\alpha_{gc} \cdot \left(
+	x^\top C_{gc} x +
+	2 x^\top \PNmat{S^\top} \Gmat \left(\Gmat^{\top}SS^{\top}\Gmat\right)^{+} \Gmat'^\top x' +
+	x'^\top \Gmat'\left(\Gmat^{\top}SS^{\top}\Gmat\right)^{+} \Gmat'^\top x'
+\right)
+\nonumber\\ &&+~
+\infty \cdot \left(
+	x^\top C_{\infty} x +
+	2 x^\top \Gmat \PNmat{S^\top\Gmat} \Gmat'^\top x' +
+	x'^\top \Gmat' \PNmat{S^\top\Gmat} \Gmat'^\top x'
+\right)
+\end{eqnarray}
+
+So, as a pre-processing step, we can calculate the following matrices:
+\begin{eqnarray}
+	C_1 &=& \alpha_{rc} C_{rc} + \alpha_{gc} C_{gc} + \infty C_\infty \\
+	C_2 &=& 2 \PNmat{S^\top} \Gmat \left(\Gmat^{\top}SS^{\top}\Gmat\right)^{+} + 2 \Gmat \PNmat{S^\top\Gmat} \\
+	C_3 &=& \left(\Gmat^{\top}SS^{\top}\Gmat\right)^{+} + \PNmat{S^\top\Gmat} 
+\end{eqnarray}
+And therefore the on-the-fly calculation of the standard error will be:
+\begin{eqnarray}
+	{s_{cc,\bar{x}}}^2 &=& x^\top C_1 x + x^\top C_2 g + g^\top C_3 g
+\end{eqnarray}
+where $g \equiv \Gmat'^\top x'$. Note that the sizes of the $C$ matrices are:
+\begin{eqnarray}
+	C_1 \in \mathbb{R}^{N_c \times N_c} \\
+	C_2 \in \mathbb{R}^{N_c \times N_g} \\
+	C_3 \in \mathbb{R}^{N_g \times N_g}
+\end{eqnarray}
+Assuming $N_c = 600$ and $N_g = 200$, we'll need to store 520,000 floats which is only about 2MB.
 
 
 \end{document}
