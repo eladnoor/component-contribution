@@ -1,4 +1,3 @@
-import types
 import re
 import kegg_errors
 import numpy as np

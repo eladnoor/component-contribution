@@ -129,9 +129,14 @@ class ComponentContribution(object):
                 d['formula'] = mol.GetFormula()
                 d['num_electrons'] = mol.GetNumElectrons()
             except OpenBabelError:
-                d['mass'] = 0
-                d['formula'] = ''
-                d['num_electrons'] = 0
+                if compound_id == 'C00282': # an exception for hydrogen
+                    d['mass'] = 2.0157
+                    d['formula'] = 'H2'
+                    d['num_electrons'] = 2
+                else:
+                    d['mass'] = 0
+                    d['formula'] = ''
+                    d['num_electrons'] = 0
             
         return d
     
@@ -337,8 +342,7 @@ class ComponentContribution(object):
 
 if __name__ == '__main__':
     reaction_strings = sys.stdin.readlines()
-    td = TrainingData()
-    cc = ComponentContribution(td)
+    cc = ComponentContribution()
     model = KeggModel.from_formulas(reaction_strings)
     model.add_thermo(cc)
     
