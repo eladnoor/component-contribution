@@ -1,4 +1,5 @@
 import json, gzip, logging, os
+import numpy as np
 from python.component_contribution import ComponentContribution
 
 if not os.path.isdir('res'):
@@ -23,3 +24,7 @@ if __name__ == '__main__':
     new_json = gzip.open(OUTPUT_JSON, 'w')
     json.dump(compound_json, new_json, sort_keys=True, indent=4)
     new_json.close()
+    
+    v_r, v_g, C1, C2, C3 = cc.params['preprocess']
+
+    np.savez_compressed('res/cc_preprocess', v_r=v_r, v_g=v_g, C1=C1, C2=C2, C3=C3)

@@ -101,6 +101,9 @@ class KeggReaction(object):
                 right.append(KeggReaction.write_compound_and_coeff(cid, coeff))
         return "%s %s %s" % (' + '.join(left), self.arrow, ' + '.join(right))
 
+    def __str__(self):
+        return self.write_formula()
+    
     def is_balanced(self):
         cids = list(self.keys())
         coeffs = np.array([self.sparse[cid] for cid in cids], ndmin=2).T
@@ -127,3 +130,20 @@ class KeggReaction(object):
         for cid, coeff in self.iteritems():
             s[cids.index(cid), 0] = coeff
         return s
+
+    def get_transform_ddG0(self, pH, I, T):
+        """
+        needed in order to calculate the transformed Gibbs energies of
+        reactions.
+        
+        Returns:
+            The difference between DrG0_prime and DrG0 for this reaction.
+            Therefore, this value must be added to the chemical Gibbs
+            energy of reaction (DrG0) to get the transformed value.
+        """
+        ddG0_forward = 0
+        for compound_id, coeff in self.iteritems():
+            comp = self.ccache.get_compound(compound_id)
+            ddG0_forward += coeff * comp.transform_pH7(pH, I, T)
+        return ddG0_forward
+        

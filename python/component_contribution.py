@@ -75,6 +75,52 @@ class ComponentContribution(object):
             except inchi2gv.GroupDecompositionError:
                 return np.nan
 
+    def get_dG0_r(self, reaction):
+        """
+            Arguments:
+                reaction - a KeggReaction object
+            
+            Returns:
+                the CC estimation for this reaction's untransformed dG0 (i.e.
+                using the major MS at pH 7 for each of the reactants)
+        """
+        if self.params is None:
+            raise Exception('One cannot call get_formation_energy() '
+                            'before calling train() or train_wihtout_model()')
+        
+        # calculate the reaction stoichiometric vector and the group incidence
+        # vector (x and g)
+        x = np.zeros((self.Nc, 1))
+        g = np.zeros((self.Ng + self.N_non_decomposable, 1))
+
+        for compound_id, coeff in reaction.iteritems():
+            if compound_id in self.cids_joined:
+                i = self.cids_joined.index(compound_id)
+                x[i, 0] = coeff
+            else:
+                # Decompose the compound and calculate the 'formation energy'
+                # using the group contributions.
+                # Note that the length of the group contribution vector we get 
+                # from CC is longer than the number of groups in "groups_data" 
+                # since we artifically added fictive groups to represent all the 
+                # non-decomposable compounds. Therefore, we truncate the 
+                # dG0_gc vector since here we only use GC for compounds which
+                # are not in cids_joined anyway.
+                comp = self.ccache.get_compound(compound_id)
+                try:
+                    group_vec = self.decomposer.smiles_to_groupvec(comp.smiles_pH7)
+                    g_add = np.matrix(group_vec.ToArray())
+                    g[0:self.Ng, 0] += g_add
+                except inchi2gv.GroupDecompositionError:
+                    return np.nan
+        
+        x = np.matrix(x)
+        g = np.matrix(g)
+        v_r, v_g, C1, C2, C3 = self.params['preprocess']
+        dG0_cc = float(x.T * v_r + g.T * v_g)
+        s_cc = float(np.sqrt(x.T * C1 * x + x.T * C2 * g + g.T * C3 * g))
+        return dG0_cc, s_cc
+
     def get_compound_json(self, compound_id):
         """
             adds the component-contribution estimation to the JSON
@@ -93,6 +139,7 @@ class ComponentContribution(object):
             i = self.cids_joined.index(compound_id)
             gv = self.params['G'][i, :]
             major_ms_dG0_f = self.params['dG0_cc'][i, 0]
+            d['compound_index'] = i
         elif comp.smiles_pH7 is not None:
             # decompose the compounds in the training_data and add to G
             try:
@@ -260,6 +307,11 @@ class ComponentContribution(object):
         # Calculate the total of the contributions and covariances
         cov_dG0 = V_rc * MSE_rc + V_gc * MSE_gc + V_inf * MSE_inf
 
+        # preprocessing matrices (for quick calculation of uncertainty)
+        C1 = cov_dG0
+        C2 = 2 * P_N_rc * G * inv_GSWGS + 2 * G * P_N_gc
+        C3 = inv_GSWGS + P_N_gc
+
         # Put all the calculated data in 'params' for the sake of debugging
         self.params = {'b':           self.train_b,
                        'train_S':     self.train_S_joined,
@@ -284,7 +336,8 @@ class ComponentContribution(object):
                        'inv_S':       inv_S,
                        'inv_GS':      inv_GS,
                        'inv_SWS':     inv_SWS,
-                       'inv_GSWGS':   inv_GSWGS}
+                       'inv_GSWGS':   inv_GSWGS,
+                       'preprocess':  (dG0_cc, dG0_gc, C1, C2, C3)}
 
     @staticmethod
     def _zero_pad_S(S, cids_orig, cids_joined):
@@ -339,7 +392,6 @@ class ComponentContribution(object):
 
         return inv_A, r, P_R, P_N
         
-
 if __name__ == '__main__':
     reaction_strings = sys.stdin.readlines()
     cc = ComponentContribution()
