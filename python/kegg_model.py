@@ -100,9 +100,9 @@ class KeggModel(object):
         # stoichiometric matrix, where the rows (compounds) are according to the
         # CID list 'cids'.
         cids = sorted(cids)
-        S = np.zeros((len(cids), len(reactions)))
+        S = np.matrix(np.zeros((len(cids), len(reactions))))
         for i, reaction in enumerate(reactions):
-            S[:, i] = reaction.dense(cids).T
+            S[:, i] = np.matrix(reaction.dense(cids))
         
         logging.info('Successfully loaded %d reactions (involving %d unique compounds)' %
                      (S.shape[1], S.shape[0]))
@@ -141,7 +141,7 @@ class KeggModel(object):
             to the chemical Gibbs energies of reaction (DrG0) to get the 
             transformed values
         """
-        ddG0_compounds = np.zeros((self.S.shape[0], 1))
+        ddG0_compounds = np.matrix(np.zeros((self.S.shape[0], 1)))
         for i, cid in enumerate(self.cids):
             comp = self.ccache.get_compound(cid)
             ddG0_compounds[i, 0] = comp.transform_pH7(pH, I, T)

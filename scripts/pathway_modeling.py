@@ -6,7 +6,7 @@ Created on Wed May 28 13:22:51 2014
 """
 import numpy as np
 import types
-#import cvxpy
+import cvxpy
 import matplotlib.pyplot as plt
 from matplotlib.font_manager import FontProperties
 
@@ -114,8 +114,8 @@ class Pathway(object):
     def _MakeLnConcentratonBounds(self, ln_conc, bounds=None, c_range=None):
         """Make bounds on logarithmic concentrations."""
         c_lower, c_upper = c_range or self.DEFAULT_C_RANGE
-        ln_conc_lb = np.ones((1, self.Nc)) * np.log(c_lower)
-        ln_conc_ub = np.ones((1, self.Nc)) * np.log(c_upper)
+        ln_conc_lb = np.matrix(np.ones((1, self.Nc))) * np.log(c_lower)
+        ln_conc_ub = np.matrix(np.ones((1, self.Nc))) * np.log(c_upper)
         
         if bounds:
             for i, bound in enumerate(bounds):
@@ -184,9 +184,9 @@ class Pathway(object):
         
         return ln_conc, constraints, total_g
             
-    def _MakeMtdfProblem(self, c_range=(1e-6, 1e-2), bounds=None):
+    def _MakeMDFProblem(self, c_range=(1e-6, 1e-2), bounds=None):
         """Create a CVXOPT problem for finding the Maximal Thermodynamic
-        Driving Force (MTDF).
+        Driving Force (MDF).
         
         Does not set the objective function... leaves that to the caller.
         
@@ -210,9 +210,9 @@ class Pathway(object):
         constraints += self._MakeDrivingForceConstraints(ln_conc, driving_force_lb)
         return ln_conc, driving_force_lb, constraints
 
-    def _FindMtdf(self, c_range=(1e-6, 1e-2), bounds=None,
+    def _FindMDF(self, c_range=(1e-6, 1e-2), bounds=None,
                   normalization=DeltaGNormalization.DEFAULT):
-        """Find the MTDF (Maximal Thermodynamic Driving Force).
+        """Find the MDF (Maximal Thermodynamic Driving Force).
         
         Args:
             c_range: a tuple (min, max) for concentrations (in M).
@@ -220,19 +220,19 @@ class Pathway(object):
                 concentrations.
         
         Returns:
-            A 3 tuple (optimal dGfs, optimal concentrations, optimal mtdf).
+            A 3 tuple (optimal dGfs, optimal concentrations, optimal mdf).
         """
-        ln_conc, motive_force_lb, constraints = self._MakeMtdfProblem(
+        ln_conc, motive_force_lb, constraints = self._MakeMDFProblem(
                                                 c_range, bounds)
         program = cvxpy.program(cvxpy.maximize(motive_force_lb), constraints)
         program.solve(quiet=True)
         return ln_conc.value, program.objective.value
 
-    def FindMtdf_Regularized(self, c_range=(1e-6, 1e-2), bounds=None,
-                             c_mid=1e-3,
-                             min_mtdf=None,
-                             max_mtdf=None):
-        """Find the MTDF (Maximal Thermodynamic Driving Force).
+    def FindMDF_Regularized(self, c_range=(1e-6, 1e-2), bounds=None,
+                            c_mid=1e-3,
+                            min_mdf=None,
+                            max_mdf=None):
+        """Find the MDF (Max-min Driving Force).
         
         Uses l2 regularization to minimize the log difference of 
         concentrations from c_mid.
@@ -242,24 +242,24 @@ class Pathway(object):
             bounds: a list of (lower bound, upper bound) tuples for compound
                 concentrations.
             c_mid: the defined midpoint concentration.
-            max_mtdf: the maximum value for the motive force.
+            max_mdf: the maximum value for the motive force.
         
         Returns:
-            A 3 tuple (optimal dGfs, optimal concentrations, optimal mtdf).
+            A 3 tuple (optimal dGfs, optimal concentrations, optimal mdf).
         """
-        ln_conc, motive_force_lb, constraints = self._MakeMtdfProblem(c_range, bounds)
+        ln_conc, motive_force_lb, constraints = self._MakeMDFProblem(c_range, bounds)
         
         # Set the objective and solve.
         norm2_resid = cvxpy.norm2(ln_conc - np.log(c_mid))
-        if max_mtdf is not None and min_mtdf is not None:
-            constraints.append(cvxpy.leq(motive_force_lb, max_mtdf))
-            constraints.append(cvxpy.geq(motive_force_lb, min_mtdf))
+        if max_mdf is not None and min_mdf is not None:
+            constraints.append(cvxpy.leq(motive_force_lb, max_mdf))
+            constraints.append(cvxpy.geq(motive_force_lb, min_mdf))
             objective = cvxpy.minimize(norm2_resid)
-        elif max_mtdf is not None:
-            constraints.append(cvxpy.leq(motive_force_lb, max_mtdf))
+        elif max_mdf is not None:
+            constraints.append(cvxpy.leq(motive_force_lb, max_mdf))
             objective = cvxpy.minimize(norm2_resid)
-        elif min_mtdf is not None:
-            constraints.append(cvxpy.geq(motive_force_lb, min_mtdf))
+        elif min_mdf is not None:
+            constraints.append(cvxpy.geq(motive_force_lb, min_mdf))
             objective = cvxpy.minimize(norm2_resid)
         else:
             objective = cvxpy.minimize(motive_force_lb + norm2_resid)
@@ -268,14 +268,14 @@ class Pathway(object):
         program.solve(quiet=True)
         return ln_conc.value, program.objective.value
 
-    def FindMTDF_OptimizeConcentrations(self, c_range=1e-3,
-                                        bounds=None, c_mid=1e-3):
+    def FindMDF_OptimizeConcentrations(self, c_range=1e-3,
+                                       bounds=None, c_mid=1e-3):
         """Optimize concentrations at optimal pCr.
         
         Runs two rounds of optimization to find "optimal" concentrations
-        at the optimal MTDF. First finds the globally optimal MTDF.
+        at the optimal MDF. First finds the globally optimal MDF.
         Then minimizes the l2 norm of deviations of log concentrations
-        from c_mid given the optimal MTDF.
+        from c_mid given the optimal MDF.
 
         Args:
             c_range: a tuple (min, max) for concentrations (in M).
@@ -284,11 +284,11 @@ class Pathway(object):
             c_mid: the median concentration.
  
         Returns:
-            A 3 tuple (dGfs, concentrations, MTDF value).
+            A 3 tuple (dGfs, concentrations, MDF value).
         """
-        _, opt_mtdf = self._FindMtdf(c_range, bounds)
-        return self.FindMtdf_Regularized(c_range, bounds, c_mid,
-                                         max_mtdf=opt_mtdf)
+        _, opt_mdf = self._FindMDF(c_range, bounds)
+        return self.FindMDF_Regularized(c_range, bounds, c_mid,
+                                        max_mdf=opt_mdf)
 
     def _MakeMinimalFeasbileConcentrationProblem(self, bounds=None, c_range=(1e-6, 1e-2)):
         # Define and apply the constraints on the concentrations
@@ -452,17 +452,17 @@ class KeggPathway(Pathway):
         else:
             direction = '<='
         reaction = KeggReaction(sparse, arrow=direction, rid=rid)
-        return reaction.to_hypertext(show_cids=show_cids)
+        return str(reaction)
 
     def GetTotalReactionString(self, show_cids=False):
         total_S = self.S * self.fluxes.T
         sparse = dict([(self.cids[c], total_S[c, 0])
                        for c in total_S.nonzero()[0].flat])
         reaction = KeggReaction(sparse, arrow='=>')
-        return reaction.to_hypertext(show_cids=show_cids)
+        return str(reaction)
 
-    def FindMtdf(self, normalization=DeltaGNormalization.DEFAULT):
-        """Find the MTDF (Maximal Thermodynamic Driving Force).
+    def FindMDF(self, normalization=DeltaGNormalization.DEFAULT):
+        """Find the MDF (Maximal Thermodynamic Driving Force).
         
         Args:
             c_range: a tuple (min, max) for concentrations (in M).
@@ -470,9 +470,9 @@ class KeggPathway(Pathway):
                 concentrations.
         
         Returns:
-            A 3 tuple (optimal dGfs, optimal concentrations, optimal mtdf).
+            A 3 tuple (optimal dGfs, optimal concentrations, optimal mdf).
         """
-        return self._FindMtdf(self.c_range, self.bounds, normalization)
+        return self._FindMDF(self.c_range, self.bounds, normalization)
 
     def GetTotalReactionEnergy(self, min_driving_force=0, maximize=True):
         """
@@ -481,7 +481,7 @@ class KeggPathway(Pathway):
                 min_driving_force - the lower limit on each reaction's driving force
                                     (it is common to provide the optimize driving force
                                     in order to find the concentrations that minimize the
-                                    cost, without affecting the MTDF).
+                                    cost, without affecting the MDF).
                 maximize          - if True then finds the maximal total dG.
                                     if False then finds the minimal total dG.
         """
@@ -538,7 +538,7 @@ class KeggPathway(Pathway):
         nonzero_fluxes = self.fluxes[0, nonzero_reactions]
         
         plt.xticks(np.arange(0, len(nonzero_reactions)) + 1,
-                   [self.kegg.rid2string(self.rids[i]) for i in nonzero_reactions],
+                   [self.rids[i] for i in nonzero_reactions],
                    fontproperties=FontProperties(size=10), rotation=30)
 
         if np.isnan(self.dG0_r_prime).any():
@@ -565,9 +565,7 @@ class KeggPathway(Pathway):
         plt.xscale('log', figure=figure)
         plt.ylabel('Compound KEGG ID', figure=figure)
         plt.xlabel('Concentration [M]', figure=figure)
-        plt.yticks(range(self.Nc, 0, -1),
-                     ["C%05d" % cid for cid in self.cids],
-                     fontproperties=FontProperties(size=8))
+        plt.yticks(range(self.Nc, 0, -1), self.cids, fontproperties=FontProperties(size=8))
         plt.plot(concentrations.T, range(self.Nc, 0, -1), '*b', figure=figure)
 
         x_min = concentrations.min() / 10
@@ -576,7 +574,7 @@ class KeggPathway(Pathway):
         y_max = self.Nc + 1
         
         for c, cid in enumerate(self.cids):
-            plt.text(concentrations[0, c] * 1.1, self.Nc - c, self.kegg.cid2name(cid), \
+            plt.text(concentrations[0, c] * 1.1, self.Nc - c, cid, \
                        figure=figure, fontsize=6, rotation=0)
             b_low, b_up = self.GetConcentrationBounds(cid)
             plt.plot([b_low, b_up], [self.Nc - c, self.Nc - c], '-k', linewidth=0.4)
@@ -596,8 +594,7 @@ class KeggPathway(Pathway):
         dict_list = []
         for c, cid in enumerate(self.cids):
             d = {}
-            d['KEGG CID'] = '<a href="%s">C%05d</a>' % (self.kegg.cid2link(cid), cid)
-            d['Compound Name'] = self.kegg.cid2name(cid)
+            d['KEGG CID'] = cid
             lb, ub = self.GetConcentrationBounds(cid)
             d['Concentration LB [M]'] = '%.2e' % lb
             if concentrations is not None:
@@ -605,17 +602,17 @@ class KeggPathway(Pathway):
             d['Concentration UB [M]'] = '%.2e' % ub
             dict_list.append(d)
         if concentrations is not None:
-            headers = ['KEGG CID', 'Compound Name', 'Concentration LB [M]',
+            headers = ['KEGG CID', 'Concentration LB [M]',
                          'Concentration [M]', 'Concentration UB [M]']
         else:
-            headers = ['KEGG CID', 'Compound Name', 'Concentration LB [M]',
+            headers = ['KEGG CID', 'Concentration LB [M]',
                        'Concentration UB [M]']
         
         html_writer.write_table(dict_list, headers=headers)
     
     def WriteProfileToHtmlTable(self, html_writer, concentrations=None):
         #html_writer.write('<b>Biochemical Reaction Energies</b></br>\n')
-        phys_concentrations = np.ones((1, len(self.cids))) * self.DEFAULT_PHYSIOLOGICAL_CONC
+        phys_concentrations = np.matrix(np.ones((1, len(self.cids)))) * self.DEFAULT_PHYSIOLOGICAL_CONC
         if 1 in self.cids:
             # C00001 (water) is an exception, its concentration is always set to 1
             phys_concentrations[0, self.cids.index(1)] = 1
@@ -636,13 +633,7 @@ class KeggPathway(Pathway):
         dict_list = []
         for r, rid in enumerate(self.rids):
             d = {}
-            if type(rid) == types.IntType:
-                d['reaction'] = '<a href="%s" title="%s">%s</a>' % \
-                            (self.kegg.rid2link(rid),
-                             self.kegg.rid2name(rid),
-                             self.kegg.rid2string(rid))
-            else:
-                d['reaction'] = self.kegg.rid2string(rid)
+            d['reaction'] = rid
             d['flux'] = "%g" % abs(self.fluxes[0, r])
             d['formula'] = self.GetReactionString(r, show_cids=False)
 
@@ -683,7 +674,7 @@ if __name__ == '__main__':
     #print 'sum(concs): ', sum(concentrations), 'M'
     
     keggpath = KeggPathway(S, rids, fluxes, cids, dGs, c_range=(1e-6, 1e-3))
-    concentrations, mtdf = keggpath.FindMtdf()
-    print 'MDTF: %g' % mtdf
+    concentrations, mdf = keggpath.FindMDF()
+    print 'MDF: %g' % mdf
     print 'concentrations:', concentrations
     

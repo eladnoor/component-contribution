@@ -11,6 +11,24 @@ import types
 import numpy as np
 import xml.dom.minidom
 
+def _mkdir(newdir):
+    """works the way a good mkdir should :)
+        - already exists, silently complete
+        - regular file in the way, raise an exception
+        - parent directory(ies) does not exist, make them as well
+    """
+    if os.path.isdir(newdir):
+        pass
+    elif os.path.isfile(newdir):
+        raise OSError("a file with the same name as the desired " \
+                      "dir, '%s', already exists." % newdir)
+    else:
+        head, tail = os.path.split(newdir)
+        if head and not os.path.isdir(head):
+            _mkdir(head)
+        if tail:
+            os.mkdir(newdir)
+            
 class BaseHtmlWriter:
     def __init__(self):
         self.div_counter = 0
@@ -32,11 +50,6 @@ class BaseHtmlWriter:
         now = datetime.datetime.now()
         self.write('<div>Written at %s</div>' % now)
         
-        from toolbox.util import get_current_svn_revision
-        r = get_current_svn_revision()
-        if r:
-            self.write('<a href=https://code.google.com/p/milo-lab/source/browse/trunk/?r=%d>milo-lab SVN r%d</a></br>' % (r,r))
-
     def write_js(self, path):
         if os.path.exists(path + '/expandCollapse.js'):
             return
@@ -233,7 +246,6 @@ class NullHtmlWriter(BaseHtmlWriter):
 class HtmlWriter(BaseHtmlWriter):
     
     def __init__(self, filename, force_path_creation=True, flush_always=True):
-        from toolbox.util import _mkdir
         BaseHtmlWriter.__init__(self)
         self.filename = filename
         self.filepath = os.path.dirname(filename)
