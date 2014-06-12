@@ -286,3 +286,39 @@ class ParsedKeggFile(dict):
             entry = re.split('\s\s+', field_map['ENTRY'])[0]
             parsed_file._AddEntry(entry, field_map)
         return parsed_file
+        
+
+    @staticmethod
+    def ParseKeggReactionLine(line):
+        rexp = '([a-zA-Z0-9,_]+)\s+([C\s\+\d\.]+)\s+(<?[-=]>?)\s+([C\s\+\d\.]+)(.*)'
+        try:
+            rid, left_clause, dir_clause, right_clause, remainder = re.findall(rexp, line)[0]
+        except Exception, e:
+            raise Exception(str(e) + ': ' + line)
+        
+        if dir_clause in ['=>', '->', '<=>', '<->', '=', '-']:
+            reaction = left_clause + " <=> " + right_clause
+        elif dir_clause in ['<=', '<-']:
+            reaction = right_clause + " <=> " + left_clause
+        else:
+            raise ValueError("unclear reaction direction symbol: " + dir_clause)
+    
+        flux = 1
+        if remainder != "":
+            for (f) in re.findall('\(x([0-9\.\-\s]+)\)', remainder):
+                flux = float(f)
+        
+        return reaction, rid, flux
+    
+    @staticmethod
+    def ParseReactionModule(field_map):
+        rids = []
+        fluxes = []
+        reactions = []
+        for line in field_map["REACTION"].split('\t'):
+            reaction, rid, flux = ParsedKeggFile.ParseKeggReactionLine(line)
+            reactions.append(reaction)
+            rids.append(rid)
+            fluxes.append(flux)
+        
+        return rids, fluxes, reactions

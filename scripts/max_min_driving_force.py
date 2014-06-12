@@ -14,6 +14,7 @@ from python.kegg_model import KeggModel
 
 from scripts.mdf_dual import KeggPathway
 from scripts.html_writer import HtmlWriter
+from scripts.kegg_parser import ParsedKeggFile
     
 class ConcentrationConstraints(object):
     pass
@@ -81,8 +82,29 @@ class MaxMinDrivingForce(object):
                "Total &Delta;<sub>r</sub>G' = %.1f kJ/mol, " % total_dG_prime + \
                "no. steps = %g" % np.sum(fluxes)
 
+def KeggFile2ModelList(pathway_file):
+    kegg_file = ParsedKeggFile.FromKeggFile(pathway_file)
+    entries = kegg_file.entries()
+    pathways = []
+    for entry in entries:
+        fields = kegg_file[entry]
+        rids, fluxes, reactions = ParsedKeggFile.ParseReactionModule(fields)
+        model = KeggModel.from_formulas(reactions)
+        model.rids = rids
+        pH = fields.GetFloatField('PH', 7.5)
+        I = fields.GetFloatField('I', 0.2)
+        T = fields.GetFloatField('T', 298.15)
+        # TODO: get also the list of bounds 
+        pathways.append({'model': model, 'fluxes': fluxes, 'pH': pH, 'I': I, 'T': T})
+    return pathways
+
 if __name__ == '__main__':
-    REACTION_FNAME = 'examples/wolf_reactions.txt'
+    pathways = KeggFile2ModelList('scripts/formate_pathways_arren.txt')
+    for p in pathways:
+        print 'pH = %f' % p['pH']
+        print zip(p['model'].rids, p['fluxes'])
+    sys.exit(0)
+
     reaction_strings = open(REACTION_FNAME, 'r').readlines()
     model = KeggModel.from_formulas(reaction_strings)
     if model is None:
