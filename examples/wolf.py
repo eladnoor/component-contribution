@@ -13,17 +13,18 @@ def python_main():
 
     reaction_strings = open(REACTION_FNAME, 'r').readlines()
 
-    cc = ComponentContribution()
-    cc.train()
-    for s in reaction_strings:
-        reaction = KeggReaction.parse_formula(s)
-        ddG0 = reaction.get_transform_ddG0(pH=7.5, I=0.2, T=298.15)
-        dG0_cc, s_cc = cc.get_dG0_r(reaction)
-        dG0_prime_cc = dG0_cc + ddG0
-        print "dG0 = %8.1f +- %5.1f, dG0' = %8.1f +- %5.1f" % \
-            (dG0_cc, s_cc, dG0_prime_cc, s_cc)
+    if True:
+        cc = ComponentContribution()
+        cc.train()
+        for s in reaction_strings:
+            reaction = KeggReaction.parse_formula(s)
+            ddG0 = reaction.get_transform_ddG0(pH=7.5, I=0.2, T=298.15)
+            dG0_cc, s_cc = cc.get_dG0_r(reaction)
+            dG0_prime_cc = dG0_cc + ddG0
+            print "dG0 = %8.1f +- %5.1f, dG0' = %8.1f +- %5.1f" % \
+                (dG0_cc, s_cc * 1.96, dG0_prime_cc, s_cc * 1.96)
 
-    if False: # old piece of code left here for debugging purposes
+    if True: # old piece of code left here for debugging purposes
         cc2 = ComponentContribution()
         model = KeggModel.from_formulas(reaction_strings)    
         model.add_thermo(cc2)
@@ -35,7 +36,7 @@ def python_main():
             dG0_prime_cc = dG0_prime[i, 0]
             s_cc = dG0_std[i, 0]
             print "dG0 = %8.1f +- %5.1f, dG0' = %8.1f +- %5.1f" % \
-                (dG0_cc, s_cc, dG0_prime_cc, s_cc)
+                (dG0_cc, s_cc * 1.96, dG0_prime_cc, s_cc * 1.96)
 
 if __name__ == '__main__':
     pwd = os.path.realpath(os.path.curdir)

@@ -94,7 +94,7 @@ class KeggModel(object):
                 reaction = KeggReaction({})
             cids = cids.union(reaction.keys())
             reactions.append(reaction)
-            logging.info('Adding reaction: ' + reaction.write_formula())
+            logging.debug('Adding reaction: ' + reaction.write_formula())
         
         # convert the list of reactions in sparse notation into a full
         # stoichiometric matrix, where the rows (compounds) are according to the

@@ -14,8 +14,8 @@ class ComponentContribution(object):
         if training_data is None:
             training_data = TrainingData()
 
-        self.train_cids = training_data.cids
-        self.cids_joined = training_data.cids
+        self.train_cids = list(training_data.cids)
+        self.cids_joined = list(training_data.cids)
 
         self.train_S = training_data.S
         self.model_S_joined = np.matrix(self.train_S)
@@ -90,8 +90,9 @@ class ComponentContribution(object):
         
         # calculate the reaction stoichiometric vector and the group incidence
         # vector (x and g)
-        x = np.zeros((self.Nc, 1))
-        g = np.zeros((self.Ng + self.N_non_decomposable, 1))
+        x = np.matrix(np.zeros((self.Nc, 1)))
+        x_prime = []
+        G_prime = []
 
         for compound_id, coeff in reaction.iteritems():
             if compound_id in self.cids_joined:
@@ -106,20 +107,24 @@ class ComponentContribution(object):
                 # non-decomposable compounds. Therefore, we truncate the 
                 # dG0_gc vector since here we only use GC for compounds which
                 # are not in cids_joined anyway.
-                comp = self.ccache.get_compound(compound_id)
                 try:
+                    x_prime.append(coeff)
+                    comp = self.ccache.get_compound(compound_id)
                     group_vec = self.decomposer.smiles_to_groupvec(comp.smiles_pH7)
-                    g_add = np.matrix(group_vec.ToArray())
-                    g[0:self.Ng, 0] += g_add
+                    G_prime.append(group_vec.ToArray())
                 except inchi2gv.GroupDecompositionError:
                     return np.nan
         
-        x = np.matrix(x)
-        g = np.matrix(g)
         v_r, v_g, C1, C2, C3 = self.params['preprocess']
-        dG0_cc = float(x.T * v_r + g.T * v_g)
-        s_cc = float(np.sqrt(x.T * C1 * x + x.T * C2 * g + g.T * C3 * g))
-        return dG0_cc, s_cc
+
+        dG0_cc = float(x.T * v_r)
+        s_cc_sqr = float(x.T * C1 * x)
+        if x_prime != []:
+            g = np.matrix(x_prime) * np.vstack(G_prime)
+            g.resize(v_g.shape)
+            dG0_cc += float(g.T * v_g)
+            s_cc_sqr += float(x.T * C2 * g + g.T * C3 * g)
+        return dG0_cc, np.sqrt(s_cc_sqr)
 
     def get_compound_json(self, compound_id):
         """
@@ -188,13 +193,17 @@ class ComponentContribution(object):
         return d
     
     def estimate_kegg_model(self, model_S, model_cids):
+    
         # standardize the CID list of the training data and the model
         # and create new (larger) matrices for each one
         cids_new = [cid for cid in model_cids if cid not in self.train_cids]
+
         self.cids_joined += cids_new
         self.Nc = len(self.cids_joined)
+                
         self.model_S_joined = ComponentContribution._zero_pad_S(
             model_S, model_cids, self.cids_joined)
+
         self.train_S_joined = ComponentContribution._zero_pad_S(
             self.train_S, self.train_cids, self.cids_joined)
 
@@ -347,9 +356,11 @@ class ComponentContribution(object):
         """
         if not set(cids_orig).issubset(cids_joined):
             raise Exception('The full list is missing some IDs in "cids"')
+    
         full_S = np.zeros((len(cids_joined), S.shape[1]))
         for i, cid in enumerate(cids_orig):
-            full_S[cids_joined.index(cid), :] = S[i, :]
+            S_row = S[i, :]
+            full_S[cids_joined.index(cid), :] = S_row
         
         return np.matrix(full_S)
         
