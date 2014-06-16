@@ -24,6 +24,9 @@ class KeggReaction(object):
     def iteritems(self):
         return self.sparse.iteritems()
 
+    def __str__(self):
+        return self.write_formula()
+
     @staticmethod
     def parse_reaction_formula_side(s):
         """ 
@@ -39,6 +42,8 @@ class KeggReaction(object):
         compound_bag = {}
         for member in re.split('\s+\+\s+', s):
             tokens = member.split(None, 1)
+            if len(tokens) == 0:
+                continue
             if len(tokens) == 1:
                 amount = 1
                 key = member
