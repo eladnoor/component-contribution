@@ -1,12 +1,11 @@
-import csv, logging, types, re, json, itertools, sys
+import csv, logging, types, json, itertools, sys
 import numpy as np
-import openbabel
 from StringIO import StringIO
 from optparse import OptionParser
-from thermodynamic_constants import R, default_T, default_pH
+from thermodynamic_constants import R, default_T
 from molecule import Molecule, OpenBabelError
 
-GROUP_CSV = StringIO(""""NAME","PROTONS","CHARGE","MAGNESIUMS","SMARTS","FOCAL_ATOMS","REMARK","SKIP"
+GROUP_CSV = """"NAME","PROTONS","CHARGE","MAGNESIUMS","SMARTS","FOCAL_ATOMS","REMARK","SKIP"
 "primary -Cl3",0,0,0,"Cl[CH0](Cl)Cl",0,"chlorine (attached to a primary carbon with 2 other chlorine atoms attached)",
 "primary -Cl2",0,0,0,"Cl[CH1]Cl",0,"chlorine (attached to a primary carbon with 1 other chlorine atom attached)",
 "secondary -Cl2",0,0,0,"Cl[CH0]Cl",0,"chlorine (attached to a secondary carbon with 1 other chlorine atom attached)",
@@ -146,7 +145,7 @@ GROUP_CSV = StringIO(""""NAME","PROTONS","CHARGE","MAGNESIUMS","SMARTS","FOCAL_A
 "ring -C-",2,0,0,"*[C;H2;R1]*","1","secondary carbon (participating in one aliphatic ring)",
 "-C-",2,0,0,"*[C;H2;R0]*","1","secondary carbon",
 "-C",3,0,0,"*[C;H3]","1","primary carbon",
-""")
+"""
 
 
 class GroupVector(list):
@@ -536,6 +535,7 @@ class GroupsData(object):
         
         gid = 0
         for line_num, row in enumerate(csv.DictReader(fp)):
+            logging.debug('Reading group definition for ' + row['NAME'])
             if row.get('SKIP', False):
                 logging.debug('Skipping group %s', row.get('NAME'))
                 continue
@@ -547,7 +547,7 @@ class GroupsData(object):
                 mgs = int(row['MAGNESIUMS'])
                 smarts = row['SMARTS']
                 focal_atoms = FocalSet(row['FOCAL_ATOMS'])
-                _remark = row['REMARK']
+                #remark = row['REMARK']
                 
                 # Check that the smarts are good.
                 if not Molecule.VerifySmarts(smarts):
@@ -1144,7 +1144,22 @@ class InChIDecomposer(object):
     def inchi_to_groupvec(self, inchi):
         try:
             mol = Molecule.FromInChI(str(inchi))
-        except OpenBabelError as e:
+        except OpenBabelError:
+            raise GroupDecompositionError('cannot convert InChI to Molecule')
+        
+        #mol.RemoveHydrogens()
+        decomposition = self.group_decomposer.Decompose(mol, 
+                            ignore_protonations=False, strict=True)
+
+        #nH = decomposition.Hydrogens()
+        #charge = decomposition.NetCharge()
+        #nMg = decomposition.Magnesiums()
+        return decomposition.AsVector()
+
+    def smiles_to_groupvec(self, smiles):
+        try:
+            mol = Molecule.FromSmiles(str(smiles))
+        except OpenBabelError:
             raise GroupDecompositionError('cannot convert InChI to Molecule')
         
         #mol.RemoveHydrogens()
@@ -1176,7 +1191,7 @@ def MakeOpts():
     return opt_parser
 
 def init_groups_data():
-    return GroupsData.FromGroupsFile(GROUP_CSV, transformed=False)
+    return GroupsData.FromGroupsFile(StringIO(GROUP_CSV), transformed=False)
 
 if __name__ == "__main__":
     parser = MakeOpts()

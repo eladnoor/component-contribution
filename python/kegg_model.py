@@ -53,7 +53,7 @@ class KeggModel(object):
         S = []
         cids = []
         for i, row in enumerate(csv_reader):
-            cids.append(int(row[0]))
+            cids.append(row[0])
             S.append([float(x) for x in row[1:]])
         S = np.array(S)
         return KeggModel(S, cids, rids)
@@ -94,15 +94,15 @@ class KeggModel(object):
                 reaction = KeggReaction({})
             cids = cids.union(reaction.keys())
             reactions.append(reaction)
-            logging.info('Adding reaction: ' + reaction.write_formula())
+            logging.debug('Adding reaction: ' + reaction.write_formula())
         
         # convert the list of reactions in sparse notation into a full
         # stoichiometric matrix, where the rows (compounds) are according to the
         # CID list 'cids'.
         cids = sorted(cids)
-        S = np.zeros((len(cids), len(reactions)))
+        S = np.matrix(np.zeros((len(cids), len(reactions))))
         for i, reaction in enumerate(reactions):
-            S[:, i] = reaction.dense(cids).T
+            S[:, i] = np.matrix(reaction.dense(cids))
         
         logging.info('Successfully loaded %d reactions (involving %d unique compounds)' %
                      (S.shape[1], S.shape[0]))
@@ -141,16 +141,16 @@ class KeggModel(object):
             to the chemical Gibbs energies of reaction (DrG0) to get the 
             transformed values
         """
-        ddG0_compounds = np.zeros((self.S.shape[0], 1))
+        ddG0_compounds = np.matrix(np.zeros((self.S.shape[0], 1)))
         for i, cid in enumerate(self.cids):
-            comp = self.ccache.get_kegg_compound(cid)
-            ddG0_compounds[i, 0] = comp.transform(pH, I, T)
+            comp = self.ccache.get_compound(cid)
+            ddG0_compounds[i, 0] = comp.transform_pH7(pH, I, T)
         
         ddG0_forward = np.dot(self.S.T, ddG0_compounds)
         return ddG0_forward
         
     def check_S_balance(self):
-        elements, Ematrix = self.ccache.get_kegg_ematrix(self.cids)
+        elements, Ematrix = self.ccache.get_element_matrix(self.cids)
         conserved = Ematrix.T * self.S
         rxnFil = np.any(conserved[:,range(self.S.shape[1])],axis=0)
         unbalanced_ind = np.nonzero(rxnFil)[1]

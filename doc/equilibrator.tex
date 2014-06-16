@@ -1,0 +1,193 @@
+\documentclass[11pt]{article}
+\usepackage[left=2cm,top=2cm,bottom=2cm]{geometry}
+\geometry{a4paper}
+\usepackage{graphicx}
+\usepackage[square, comma, sort&compress, numbers]{natbib}
+\usepackage{ctable}
+\usepackage{longtable}
+\usepackage{color}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{epstopdf}
+\usepackage{url}
+\usepackage[colorlinks,citecolor=red,linkcolor=blue]{hyperref}
+\usepackage[english]{babel}
+
+\title{Using Component-Contribution in eQuilibrator}
+\author{Elad Noor}
+
+\newcommand{\Gmat}{\mathcal{G}}
+\newcommand{\PRmat}[1]{P_{\mathcal{R}\left(#1\right)}}
+\newcommand{\PNmat}[1]{P_{\mathcal{N}\left(#1\right)}}
+
+\begin{document}
+\maketitle
+
+It is a specific challenge to use the Component Contribution (CC) method in a website such as eQuilibrator, since uncertainty calculations must be made on-the-fly, but the math for CC was developed as a one-step calculation for thousands of reactions in a model. The time it takes to run CC even for a single reaction is too long to be useful for a website.
+
+Therefore, we need to come up with a pre-processing scheme which will probably involve several intermediate matrices in-memory and the remaining calculations will be minimal.
+
+\section{Standard Component Contribution}
+The standard CC method is described by the following equation:
+\begin{eqnarray}\label{eq:cc}
+\Delta_{r}G_{cc,x}^{\circ} = x^{\top} 
+\left[ 
+	\PRmat{S} \left(S^{\top}\right)^{+} +
+	\PNmat{S^\top} \Gmat \left(S^{\top}\Gmat\right)^{+}
+\right]
+\cdot\Delta_{r}G_{obs}^{\circ}
+\end{eqnarray}
+where $x$ is the stoichiometric vector of the reaction we wish to estimate, $S$ is the stoichiometric matrix of the training dataset, $\Gmat$ is the group incidence matrix, and $\Delta_{r}G_{obs}^{\circ}$ are the observed chemical Gibbs energies of the training set reactions. The orthogonal projections $P_{\mathcal{R}\left(S\right)}$ and $P_{\mathcal{N}(S^{\top})}$ are the projections on the range of $S$ and the null-space of $S^\top$ respectively. The $()^{+}$ sign represents the matrix pseudo-inverse.
+
+The standard error for the reaction $x$ is given by:
+\begin{eqnarray}
+{s_{cc,x}}^2 &=& x^{\top} \left[ \alpha_{rc}\cdot C_{rc} + \alpha_{gc}\cdot C_{gc} + \infty\cdot C_{\infty}  \right] x\label{eq:simple_u}
+\end{eqnarray}
+where
+\begin{eqnarray}\label{eq:c_rc}
+\alpha_{rc} &\equiv& \frac{||e_{rc}||^{2}}{n-\mbox{rank}(S)} \\
+\alpha_{gc} &\equiv& \frac{||e_{gc}||^{2}}{n-\mbox{rank}(S^{\top}\Gmat)} \\
+C_{rc} & \equiv & \PRmat{S} \left(SS^{\top}\right)^{+} \PRmat{S} \\
+C_{gc} & \equiv & \PNmat{S^\top} \Gmat \left(\Gmat^{\top}SS^{\top}\Gmat\right)^{+} \Gmat^{\top} \PNmat{S^\top} \\
+C_{\infty} & \equiv & \Gmat \PNmat{S^\top\Gmat} \Gmat^{\top}
+\end{eqnarray}
+and $e_{rc}$ and $e_{gc}$ are the residuals of the reactant and group contribution regressions.
+
+
+\section{Calculating Gibbs energy estimates on-the-fly}
+
+What happens when we want to estimate the Gibbs energy of a reaction with reactants that are not in $S$? The long way would be to augment $S$, $\Gmat$ and $x$ with more rows that would correspond to the new compounds. Note that if we do not have a group decomposition of one of these new compounds, there is no way to make the estimation (we cannot add ``group columns'' like we did for compounds in the training set). Fortunately, we will soon see that the effect of the added rows on the calculation is minimal, and it is easy to do the preprocessing trick we need.
+
+Let $\Gmat'$ be the group incidence matrix of only the new compounds, and $x'$ the stoichiometric coefficients of the new compounds. Then the new matrices we need to use for CC are:
+
+\begin{eqnarray}
+	\bar{x} & \equiv & \left( \begin{array}{c} x \\ \hline x' \end{array} \right) \\
+	\bar{S} & \equiv & \left( \begin{array}{c} S \\ \hline 0 \end{array} \right) \\
+	\bar{\Gmat} & \equiv & \left( \begin{array}{c} \Gmat \\ \hline \Gmat'\end{array} \right)
+\end{eqnarray}
+It is easy to see that $\bar{S}^\top \bar{\Gmat} = S^\top \Gmat$. Since we added only zeros to $S$, the range will not change, and the null-space of $S^\top$ will include all the new rows. Therefore
+\begin{eqnarray}
+	\PRmat{\bar{S}} & \equiv & \left( \begin{array}{c|c} \PRmat{S} & 0 \\ \hline 0 & 0 \end{array} \right)	 \\
+	\PNmat{\bar{S}^\top} & \equiv & \left( \begin{array}{c|c} \PNmat{S^\top} & 0 \\ \hline 0 & I \end{array} \right)
+\end{eqnarray}
+
+So, the left term in the parentheses of equation \ref{eq:cc} (i.e., the one we call reactant contribution) will not change at all. The right term (group contribution) can be rewritten in block-matrix form:
+\begin{eqnarray}\label{eq:P_N_ST_G}
+\PNmat{\bar{S}^\top} \bar{\Gmat} &=& 
+\left( \begin{array}{c|c} \PNmat{S^\top} & 0 \\ \hline 0 & I \end{array} \right)
+\left( \begin{array}{c} \Gmat \\ \hline \Gmat'\end{array} \right)
+ = \left( \begin{array}{c} \PNmat{S^\top} \Gmat \\ \hline \Gmat' \end{array} \right)
+\end{eqnarray}
+
+Plugging it back into equation \ref{eq:cc} we get:
+\begin{eqnarray}
+\Delta_{r}G_{cc,\bar{x}}^{\circ} &=& 
+    x^\top \left[
+	\PRmat{S} \left(S^{\top}\right)^{+} +
+	\PNmat{S^\top} \Gmat  \left(S^{\top}\Gmat\right)^{+} \right]\Delta_{r}G_{obs}^{\circ} ~+~ \nonumber\\ && 
+	x'^\top \Gmat' \left(S^{\top}\Gmat\right)^{+} \Delta_{r}G_{obs}^{\circ}
+\end{eqnarray}
+We can define the pre-processing vectors (which depend only on the training data and not on the reaction we wish to estimate) as:
+\begin{eqnarray}
+	v_{r} &\equiv&
+	\left[
+		\PRmat{S} \left(S^{\top}\right)^{+} + 
+		\PNmat{S^\top} \Gmat \left(S^{\top}\Gmat\right)^{+}
+	\right]
+	\Delta_{r}G_{obs}^{\circ}
+\\
+	v_g &\equiv& \left(S^{\top}\Gmat\right)^{+} \Delta_{r}G_{obs}^{\circ}
+\end{eqnarray}
+and get that
+\begin{eqnarray}
+\Delta_{r}G_{cc,\bar{x}}^{\circ} &=& x^\top v_r ~+~ x'^\top \Gmat' v_g
+\end{eqnarray}
+
+\section{Calculating uncertainty estimates on-the-fly}
+If we look again at equation \ref{eq:c_rc}, it's obvious that $\bar{C}_{rc} = C_{rc}$ is not affected by the new compounds in $x'$, besides some zero-padding for adjusting its size. From what we saw in the previous section, $\bar{S}^\top \bar{\Gmat} = S^\top \Gmat$ and using \ref{eq:P_N_ST_G} we can conclude that:
+\begin{eqnarray}
+	\bar{C}_{gr} &=& \left( \begin{array}{c} \PNmat{S^\top} \Gmat \\ \hline \Gmat' \end{array} \right)
+	\left(\Gmat^{\top}SS^{\top}\Gmat\right)^{+} 
+	\left( \begin{array}{c|c} \Gmat^\top \PNmat{S^\top} & \Gmat'^\top \end{array} \right) 
+\\
+&=&
+\left( \begin{array}{c|c} C_{gc} & \PNmat{S^\top} \Gmat \left(\Gmat^{\top}SS^{\top}\Gmat\right)^{+} \Gmat'^\top \\ \hline \Gmat' \left(\Gmat^{\top}SS^{\top}\Gmat\right)^{+} \Gmat^\top \PNmat{S^\top} & \Gmat'\left(\Gmat^{\top}SS^{\top}\Gmat\right)^{+} \Gmat'^\top \end{array} \right)
+\end{eqnarray}
+and the third term will change to:
+\begin{eqnarray}
+	\bar{C}_{\infty} &=& 
+		\left(\begin{array}{c} \Gmat \\ \hline \Gmat' \end{array}\right)
+		\PNmat{S^\top\Gmat}
+		\left(\begin{array}{c|c} \Gmat^\top & \Gmat'^\top \end{array}\right)
+\\ &=&
+	\left(\begin{array}{c|c}
+		C_\infty &
+		\Gmat \PNmat{S^\top\Gmat} \Gmat'^\top \\ \hline
+		\Gmat' \PNmat{S^\top\Gmat} \Gmat^\top &
+		\Gmat' \PNmat{S^\top\Gmat} \Gmat'^\top
+ \end{array}\right)
+\end{eqnarray}
+
+Finally, we can rewrite the formula for the standard error for $\bar{x}$ as:
+\begin{eqnarray}
+{s_{cc,\bar{x}}}^2
+&=& 
+\bar{x}^{\top} \left[ \alpha_{rc}\cdot \bar{C}_{rc} + \alpha_{gc}\cdot \bar{C}_{gc} + \infty\cdot \bar{C}_{\infty}  \right] \bar{x}
+\nonumber\\ &=&
+\alpha_{rc} \cdot x^{\top} C_{rc} x + \alpha_{gc} \cdot \bar{x}^{\top} \bar{C}_{gc} \bar{x} + \infty \cdot \bar{x}^{\top} \bar{C}_{\infty} \bar{x}
+\nonumber\\ &=&
+\alpha_{rc} \cdot x^{\top} C_{rc} x ~~+
+\nonumber\\ &&
+\alpha_{gc} \cdot \left( \begin{array}{c|c} x^\top & x'^\top \end{array} \right)
+\left( \begin{array}{c|c}
+		C_{gc} &
+		\PNmat{S^\top} \Gmat \left(\Gmat^{\top}SS^{\top}\Gmat\right)^{+} \Gmat'^\top \\ \hline
+		\Gmat' \left(\Gmat^{\top}SS^{\top}\Gmat\right)^{+} \Gmat^\top \PNmat{S^\top} &
+		\Gmat'\left(\Gmat^{\top}SS^{\top}\Gmat\right)^{+} \Gmat'^\top
+	\end{array} \right)
+ \left( \begin{array}{c} x \\ \hline x' \end{array} \right)
+\nonumber\\ &&+~
+\infty \cdot \left( \begin{array}{c|c} x^\top & x'^\top \end{array} \right)
+\left( \begin{array}{c|c}
+		C_\infty &
+		\Gmat \PNmat{S^\top\Gmat} \Gmat'^\top \\ \hline
+		\Gmat' \PNmat{S^\top\Gmat} \Gmat^\top &
+		\Gmat' \PNmat{S^\top\Gmat} \Gmat'^\top
+ \end{array}\right) \left( \begin{array}{c} x \\ \hline x' \end{array} \right)
+\nonumber\\ &=&
+\alpha_{rc} \cdot x^{\top} C_{rc} x ~~+
+\nonumber\\ &&
+\alpha_{gc} \cdot \left(
+	x^\top C_{gc} x +
+	2 x^\top \PNmat{S^\top} \Gmat \left(\Gmat^{\top}SS^{\top}\Gmat\right)^{+} \Gmat'^\top x' +
+	x'^\top \Gmat'\left(\Gmat^{\top}SS^{\top}\Gmat\right)^{+} \Gmat'^\top x'
+\right)
+\nonumber\\ &&+~
+\infty \cdot \left(
+	x^\top C_{\infty} x +
+	2 x^\top \Gmat \PNmat{S^\top\Gmat} \Gmat'^\top x' +
+	x'^\top \Gmat' \PNmat{S^\top\Gmat} \Gmat'^\top x'
+\right)
+\end{eqnarray}
+
+So, as a pre-processing step, we can calculate the following matrices:
+\begin{eqnarray}
+	C_1 &=& \alpha_{rc} C_{rc} + \alpha_{gc} C_{gc} + \infty C_\infty \\
+	C_2 &=& 2 \PNmat{S^\top} \Gmat \left(\Gmat^{\top}SS^{\top}\Gmat\right)^{+} + 2 \Gmat \PNmat{S^\top\Gmat} \\
+	C_3 &=& \left(\Gmat^{\top}SS^{\top}\Gmat\right)^{+} + \PNmat{S^\top\Gmat} 
+\end{eqnarray}
+And therefore the on-the-fly calculation of the standard error will be:
+\begin{eqnarray}
+	{s_{cc,\bar{x}}}^2 &=& x^\top C_1 x + x^\top C_2 g + g^\top C_3 g
+\end{eqnarray}
+where $g \equiv \Gmat'^\top x'$. Note that the sizes of the $C$ matrices are:
+\begin{eqnarray}
+	C_1 \in \mathbb{R}^{N_c \times N_c} \\
+	C_2 \in \mathbb{R}^{N_c \times N_g} \\
+	C_3 \in \mathbb{R}^{N_g \times N_g}
+\end{eqnarray}
+Assuming $N_c = 600$ and $N_g = 200$, we'll need to store 520,000 floats which is only about 2MB.
+
+
+\end{document}

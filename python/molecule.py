@@ -1,5 +1,7 @@
 import openbabel
-from thermodynamic_constants import R, default_T, default_pH
+import types
+import re
+from thermodynamic_constants import default_T, default_pH
 
 class OpenBabelError(Exception):
     pass

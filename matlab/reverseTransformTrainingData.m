@@ -24,7 +24,8 @@ for i = 1:size(training_data.S, 2) % for each reaction in S
 
         if inds(j) <= length(training_data.cids)
             % find the diss table from the training data structure
-            k = find(cell2mat({training_data.kegg_pKa.cid}) == training_data.cids(inds(j)));
+            k = find(ismember(training_data.cids{inds(j)}, ...
+                              {training_data.kegg_pKa.cid}));
             if ~isempty(k)
                 training_diss = training_data.kegg_pKa(k);
             end

@@ -1,38 +1,48 @@
-import sys
-from subprocess import Popen, PIPE
-import numpy as np
+import sys, logging, os
 
-REACTION_FNAME = 'wolf_reactions.txt'
+REACTION_FNAME = 'examples/wolf_reactions.txt'
 PYTHON_BIN = 'python'
-PYTHON_SCRIPT_FNAME = '../python/component_contribution.py'
+PYTHON_SCRIPT_FNAME = 'python/component_contribution.py'
 
-def cmd_main():
-    p1 = Popen(['cat', REACTION_FNAME], stdout=PIPE)
-    p2 = Popen([PYTHON_BIN, PYTHON_SCRIPT_FNAME], stdin=p1.stdout,
-               executable=PYTHON_BIN, stdout=PIPE)
-    res = p2.communicate()[0]
-    model_dG0 = np.array(res)
-    print str(model_dG0)
-    
 def python_main():
-    sys.path.append('../python')
-    from training_data import TrainingData
-    from component_contribution import ComponentContribution
-    from kegg_model import KeggModel
+    logger = logging.getLogger('')
+    logger.setLevel(logging.INFO)
+    from python.component_contribution import ComponentContribution
+    from python.kegg_model import KeggModel
+    from python.kegg_reaction import KeggReaction
 
     reaction_strings = open(REACTION_FNAME, 'r').readlines()
-    model = KeggModel.from_formulas(reaction_strings)    
 
-    td = TrainingData()
-    cc = ComponentContribution(td)
-    model.add_thermo(cc)
+    if True:
+        cc = ComponentContribution()
+        cc.train()
+        for s in reaction_strings:
+            reaction = KeggReaction.parse_formula(s)
+            ddG0 = reaction.get_transform_ddG0(pH=7.5, I=0.2, T=298.15)
+            dG0_cc, s_cc = cc.get_dG0_r(reaction)
+            dG0_prime_cc = dG0_cc + ddG0
+            print "dG0 = %8.1f +- %5.1f, dG0' = %8.1f +- %5.1f" % \
+                (dG0_cc, s_cc * 1.96, dG0_prime_cc, s_cc * 1.96)
+
+    if True: # old piece of code left here for debugging purposes
+        cc2 = ComponentContribution()
+        model = KeggModel.from_formulas(reaction_strings)    
+        model.add_thermo(cc2)
+        
+        dG0_prime, dG0_std = model.get_transformed_dG0(pH=7.5, I=0.2, T=298.15)
     
-    dG0_prime, dG0_std = model.get_transformed_dG0(pH=7.5, I=0.2, T=298.15)
-    
-    sys.stdout.write('[' + 
-                     ', '.join([str(x) for x in model.dG0.flat]) + '; ' + 
-                     ', '.join([str(x) for x in dG0_prime.flat]) + 
-                     ']')    
+        for i in xrange(dG0_prime.shape[0]):
+            dG0_cc = model.dG0[i, 0]
+            dG0_prime_cc = dG0_prime[i, 0]
+            s_cc = dG0_std[i, 0]
+            print "dG0 = %8.1f +- %5.1f, dG0' = %8.1f +- %5.1f" % \
+                (dG0_cc, s_cc * 1.96, dG0_prime_cc, s_cc * 1.96)
 
 if __name__ == '__main__':
+    pwd = os.path.realpath(os.path.curdir)
+    _, directory = os.path.split(pwd)
+    if directory == 'examples':
+        sys.path.append(os.path.abspath('..'))
+        os.chdir('..')
+        
     python_main()

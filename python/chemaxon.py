@@ -1,11 +1,12 @@
-import logging, itertools, os, csv
-import numpy as np
+import logging, csv, re
 import StringIO
 from subprocess import Popen, PIPE
+import openbabel
 
 CXCALC_BIN = "cxcalc"
 MID_PH = 7.0
 N_PKAS = 20
+_obElements = openbabel.OBElementTable()
 
 class ChemAxonError(Exception):
     pass
@@ -13,10 +14,10 @@ class ChemAxonError(Exception):
 def RunCxcalc(molstring, args):
     devnull = open('/dev/null', 'w')
     try:
+        logging.debug("INPUT: echo %s | %s" % (molstring, ' '.join([CXCALC_BIN] + args)))
         p1 = Popen(["echo", molstring], stdout=PIPE)
         p2 = Popen([CXCALC_BIN] + args, stdin=p1.stdout,
                    executable=CXCALC_BIN, stdout=PIPE, stderr=devnull)
-        logging.debug("INPUT: echo %s | %s" % (molstring, ' '.join([CXCALC_BIN] + args)))
         #p.wait()
         #os.remove(temp_fname)
         res = p2.communicate()[0]
@@ -129,20 +130,44 @@ def GetFormulaAndCharge(molstring):
     if headers != ['id', 'Formula', 'Formal charge']:
         raise ChemAxonError('cannot get the formula and charge for: ' + molstring)
     _, formula, formal_charge = tsv_output.next()
+
+    try:
+        formal_charge = int(formal_charge)
+    except ValueError:
+        formal_charge = 0
     
-    return formula, int(formal_charge)
+    return formula, formal_charge
+
+def GetAtomBagAndCharge(molstring):
+    formula, formal_charge = GetFormulaAndCharge(molstring)
+
+    atom_bag = {}
+    for mol_formula_times in formula.split('.'):
+        for times, mol_formula in re.findall('^(\d+)?(\w+)', mol_formula_times):
+            if not times:
+                times = 1
+            else:
+                times = int(times)
+            for atom, count in re.findall("([A-Z][a-z]*)([0-9]*)", mol_formula):
+                if count == '':
+                    count = 1
+                else:
+                    count = int(count)
+                atom_bag[atom] = atom_bag.get(atom, 0) + count * times
     
+    n_protons = sum([c * _obElements.GetAtomicNum(str(elem))
+                     for (elem, c) in atom_bag.iteritems()])
+    atom_bag['e-'] = n_protons - formal_charge
+
+    return atom_bag, formal_charge
 
 if __name__ == "__main__":
     
     from molecule import Molecule
-    compound_list = [('glycine', 'C(=O)(O)CN'),
-                     ('CO2', 'O=C=O'),
-                     ('ATP', 'Nc1ncnc2n(cnc12)C1OC(COP([O-])(=O)OP([O-])(=O)OP(O)([O-])=O)C(O)C1O'),
-                     ('3-Ketoarabinitol', 'OCC(O)C(C(O)CO)=O')]
+    compound_list = [('H2', 'InChI=1/H2/h1H')]
     
-    for name, smiles in compound_list:
-        print GetFormulaAndCharge(smiles)
-        diss_table, major_ms = GetDissociationConstants(smiles)
+    for name, inchi in compound_list:
+        print GetFormulaAndCharge(inchi)
+        diss_table, major_ms = GetDissociationConstants(inchi)
         m = Molecule.FromSmiles(major_ms)
         print name, m.ToInChI(), str(diss_table)

@@ -39,8 +39,8 @@ end
 
 % Read the raw data of TECRDB (NIST)
 reactions = {};
-cids = [];
-cids_that_dont_decompose = [];
+cids = {};
+cids_that_dont_decompose = {};
 thermo_params = []; % columns are: dG'0, T, I, pH, pMg, weight, balance?
 
 fid = fopen(TECRDB_TSV_FNAME, 'r');
@@ -59,7 +59,6 @@ thermo_params = [dG0_prime, res{11}(inds), res{12}(inds), res{13}(inds), ...
 % parse the reactions in each row
 for i = 1:length(inds)
     sprs = reaction2sparse(res{7}{inds(i)});
-    cids = unique([cids, find(sprs)]);
     reactions = [reactions, {sprs}];
 end
 fprintf('Successfully added %d values from TECRDB\n', length(inds));
@@ -68,7 +67,7 @@ fprintf('Successfully added %d values from TECRDB\n', length(inds));
 fid = fopen(FORMATION_TSV_FNAME, 'r');
 fgetl(fid); % skip the first header line
 % fields are: cid, name, dG'0, pH, I, pMg, T, decompose?, compound_ref, remark
-res = textscan(fid, '%f%s%f%f%f%f%f%f%s%s', 'delimiter','\t');
+res = textscan(fid, '%s%s%f%f%f%f%f%f%s%s', 'delimiter','\t');
 fclose(fid);
 
 inds = find(~isnan(res{3}));
@@ -77,12 +76,12 @@ thermo_params = [thermo_params; [res{3}(inds), res{7}(inds), res{5}(inds), ...
                                  WEIGHT_FORMATION * ones(size(inds)), ...
                                  false(size(inds))]];
 for i = 1:length(inds)
-    sprs = sparse([]);
-    sprs(res{1}(inds(i))) = 1;
+    sprs = {};
+    sprs{1,1} = res{1}{inds(i)};
+    sprs{1,2} = 1;
     reactions = [reactions, {sprs}];
 end
 
-cids = union(cids, res{1}');
 cids_that_dont_decompose = res{1}(find(res{8} == 0));
 
 fprintf('Successfully added %d formation energies\n', length(res{1}));
@@ -92,7 +91,7 @@ fid = fopen(REDOX_TSV_FNAME, 'r');
 fgetl(fid); % skip the first header line
 % fields are: name, CID_ox, nH_ox, charge_ox, CID_red, nH_red, 
 %             charge_red, E'0, pH, I, pMg, T, ref
-res = textscan(fid, '%s%f%f%f%f%f%f%f%f%f%f%f%s', 'delimiter', '\t');
+res = textscan(fid, '%s%s%f%f%s%f%f%f%f%f%f%f%s', 'delimiter', '\t');
 fclose(fid);
 
 delta_e = (res{6} - res{3}) - (res{7} - res{4}); % delta_nH - delta_charge
@@ -103,10 +102,11 @@ thermo_params = [thermo_params; [dG0_prime, res{12}, res{10}, res{9}, ...
                                  false(size(dG0_prime))]];
 
 for i = 1:length(res{1})
-    sprs = sparse([]);
-    sprs(res{2}(i)) = -1;
-    sprs(res{5}(i)) = 1;
-    cids = unique([cids, res{2}(i), res{5}(i)]);
+    sprs = {};
+    sprs{1,1} = res{2}{i};
+    sprs{1,2} = -1;
+    sprs{2,1} = res{5}{i};
+    sprs{2,2} = 1;
     reactions = [reactions, {sprs}];
 end
 
@@ -115,10 +115,17 @@ fprintf('Successfully added %d redox potentials\n', length(res{1}));
 % convert the list of reactions in sparse notation into a full
 % stoichiometric matrix, where the rows (compounds) are according to the
 % CID list 'cids'.
+cids = {};
+for i = 1:length(reactions)
+    r = reactions{i};
+    cids = unique({cids{:}, r{:,1}});
+end
+
 S = zeros(length(cids), length(reactions));
 for i = 1:length(reactions)
     r = reactions{i};
-    S(ismember(cids, find(r)), i) = r(r ~= 0);
+    [~, idx] = ismember({r{:,1}}, cids);
+    S(idx, i) = [r{:,2}];
 end
     
 training_data.cids = cids;
@@ -135,7 +142,7 @@ training_data.balance = thermo_params(:, 7);
 
 % get the InChIs for all the compounds in the training data
 % (note that all of them have KEGG IDs)
-kegg_inchies = getInchies(training_data.cids, use_cached_kegg_inchis);
+kegg_inchies = getInchies();
 [~, inds, ~] = intersect(kegg_inchies.cids, training_data.cids);
 assert(length(inds) == length(training_data.cids));
 training_data.std_inchi = kegg_inchies.std_inchi(inds);
@@ -149,6 +156,7 @@ training_data = balanceReactionsInTrainingData(training_data);
 
 % get the pKas for the compounds in the training data (using ChemAxon)
 kegg_pKa = getTrainingDatapKas(training_data.cids, training_data.nstd_inchi, use_cached_kegg_pkas);
-[~, inds, ~] = intersect(cell2mat({kegg_pKa.cid}), training_data.cids);
+[~, inds, ~] = intersect(training_data.cids, {kegg_pKa.cid});
 assert(length(inds) == length(training_data.cids));
 training_data.kegg_pKa = kegg_pKa(inds);
+

@@ -22,7 +22,7 @@ if nargin < 3
     has_reaction_ids = false;
 end
 
-cids = [];
+cids = {};
 reactions = {};
 for i = 1:length(reactionStrings)
     curr_line = reactionStrings{i};
@@ -31,16 +31,15 @@ for i = 1:length(reactionStrings)
         curr_line = tokens{1}{2};
     end
     sprs = reaction2sparse(curr_line, arrow);
-    cids = unique([cids, find(sprs)]);
+    cids = unique({cids{:}, sprs{:,1}});
     reactions = [reactions, {sprs}];
 end
 
 S = zeros(length(cids), length(reactions));
 for i = 1:length(reactions)
-    r = full(reactions{i});
-    if norm(r) ~= 0
-        S(ismember(cids, find(r)), i) = r(r ~= 0);
-    end
+    r = reactions{i};
+    [~, idx] = ismember({r{:,1}}, cids);
+    S(idx, i) = [r{:,2}];
 end
 fprintf('Loaded a KEGG model with %d compounds and %d reactions\n', ...
         size(S, 1), size(S, 2));

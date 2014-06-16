@@ -18,7 +18,7 @@ end
 KeggSpeciespKa = [];
 
 for i_cid = 1:length(target_cids)
-    KeggSpeciespKa(i_cid).cid = target_cids(i_cid);
+    KeggSpeciespKa(i_cid).cid = target_cids{i_cid};
 
     % by default have an empty pKa list for compounds that we know nothing else about
     KeggSpeciespKa(i_cid).pKas = [];
@@ -35,18 +35,18 @@ for i_cid = 1:length(target_cids)
     % openbabel and cxcalc fail on certain special compounds, therefore
     % we have exceptions for dealing with them
     
-    if target_cids(i_cid) == 282 % C00282 is hydrogen (H2)
+    if target_cids{i_cid} == 282 % C00282 is hydrogen (H2)
         [~, nH, charge] = getFormulaAndChargeFromInChI(inchi);
         KeggSpeciespKa(i_cid).zs = charge;
         KeggSpeciespKa(i_cid).nHs = nH;
         KeggSpeciespKa(i_cid).success = true;
         continue;
-    elseif target_cids(i_cid) == 305 % C00305 is magnesium cation (Mg2+)
+    elseif target_cids{i_cid} == 305 % C00305 is magnesium cation (Mg2+)
         KeggSpeciespKa(i_cid).zs = 2;
         KeggSpeciespKa(i_cid).nHs = 0;
         KeggSpeciespKa(i_cid).success = true;
         continue;
-    elseif target_cids(i_cid) == 237 % C00237 is carbon monoxide (CO)
+    elseif target_cids{i_cid} == 237 % C00237 is carbon monoxide (CO)
         structure = '[C-]#[O+]';
     else % for all other compounds, use the provided InChI as the structure
         structure = inchi;
