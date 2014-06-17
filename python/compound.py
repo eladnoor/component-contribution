@@ -33,9 +33,15 @@ class Compound(object):
             # its effect of the Legendre transform
             return Compound(database, compound_id, inchi,
                             {'H' : 1}, [], None, 0, [0], [0])
+        elif compound_id == 'C00087':
+            # ChemAxon gets confused with the structure of sulfur
+            # (returns a protonated form, [SH-], at pH 7).
+            # So we implement it manually here.
+            return Compound(database, compound_id, inchi,
+                            {'S' : 1}, [], 'S', 0, [0], [0])
         elif compound_id == 'C00237':
             # ChemAxon gets confused with the structure of carbon monoxide
-            # (returns a protonated form, [CH]#[O+] at pH 7).
+            # (returns a protonated form, [CH]#[O+], at pH 7).
             # So we implement it manually here.
             return Compound(database, compound_id, inchi,
                             {'C' : 1, 'O': 1}, [], '[C-]#[O+]', 0, [0], [0])
