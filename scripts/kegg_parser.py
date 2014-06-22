@@ -316,9 +316,26 @@ class ParsedKeggFile(dict):
         fluxes = []
         reactions = []
         for line in field_map["REACTION"].split('\t'):
+            if line.strip() == '':
+                continue
             reaction, rid, flux = ParsedKeggFile.ParseKeggReactionLine(line)
             reactions.append(reaction)
             rids.append(rid)
             fluxes.append(flux)
         
         return rids, fluxes, reactions
+
+    @staticmethod
+    def ParseBoundModule(field_map):
+        bounds = {} # a dictionary from KEGG IDs to a tuple of (low,up) bounds
+        rexp = '(C[0-9]+)\s+([0-9e\-\+]+)\s*(.*)'
+        for line in field_map["BOUND"].split('\t'):
+            try:
+                cid, low, up = re.findall(rexp, line)[0]
+            except Exception, e:
+                raise Exception(str(e) + ': ' + line)
+            up = up or low
+            low = float(low.strip())
+            up = float(up.strip())
+            bounds[cid] = (low, up)
+        return bounds

@@ -37,7 +37,7 @@ class ComponentContribution(object):
 
     def savemat(self, fname):
         if self.params is None:
-            raise Exception('One cannot call savemat() before calling train()')
+            self.train()
 
         savemat(fname, self.params, oned_as='row')
     
@@ -51,8 +51,7 @@ class ComponentContribution(object):
         if compound_id is None:
             raise ValueError('given compound ID is None')
         if self.params is None:
-            raise Exception('One cannot call get_formation_energy() '
-                            'before calling train() or train_wihtout_model()')
+            self.train()
         
         if compound_id in self.cids_joined:
             i = self.cids_joined.index(compound_id)
@@ -85,8 +84,7 @@ class ComponentContribution(object):
                 using the major MS at pH 7 for each of the reactants)
         """
         if self.params is None:
-            raise Exception('One cannot call get_formation_energy() '
-                            'before calling train() or train_wihtout_model()')
+            self.train()
         
         # calculate the reaction stoichiometric vector and the group incidence
         # vector (x and g)
@@ -133,8 +131,7 @@ class ComponentContribution(object):
         if compound_id is None:
             raise ValueError('given compound ID is None')
         if self.params is None:
-            raise Exception('One cannot call get_formation_energy() '
-                            'before calling train() or train_wihtout_model()')
+            self.train()
 
         d = {'CID': compound_id}
         comp = self.ccache.get_compound(compound_id)

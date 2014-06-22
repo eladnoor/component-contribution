@@ -111,8 +111,21 @@ class KeggModel(object):
                             (not_balanced_count, S.shape[1]))
         return KeggModel(S, cids, rids)
 
-    def add_thermo(self, cc):
+    def add_thermo_old(self, cc):
         self.dG0, self.cov_dG0, self.MSE_kerG = cc.estimate_kegg_model(self.S, self.cids)
+
+    def add_thermo(self, cc):
+    # TODO: make sure we calculate the entire cov matrix and not only the diagonal
+        Nc, Nr = self.S.shape
+        self.dG0 = np.zeros((Nr, 1))
+        self.cov_dG0 = np.zeros((Nr, Nr)) 
+        for j in xrange(Nr):
+            sparse = {self.cids[i]:self.S[i,j] for i in xrange(Nc)
+                      if self.S[i,j] != 0}
+            reaction = KeggReaction(sparse)
+            dG0_cc, s_cc = cc.get_dG0_r(reaction)
+            self.dG0[j, 0] = dG0_cc
+            self.cov_dG0[j, j] = s_cc**2
         
     def get_transformed_dG0(self, pH, I, T):
         """

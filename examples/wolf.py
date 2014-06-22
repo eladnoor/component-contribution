@@ -15,7 +15,6 @@ def python_main():
 
     if True:
         cc = ComponentContribution()
-        cc.train()
         for s in reaction_strings:
             reaction = KeggReaction.parse_formula(s)
             ddG0 = reaction.get_transform_ddG0(pH=7.5, I=0.2, T=298.15)
@@ -27,7 +26,7 @@ def python_main():
     if True: # old piece of code left here for debugging purposes
         cc2 = ComponentContribution()
         model = KeggModel.from_formulas(reaction_strings)    
-        model.add_thermo(cc2)
+        model.add_thermo_old(cc2)
         
         dG0_prime, dG0_std = model.get_transformed_dG0(pH=7.5, I=0.2, T=298.15)
     
