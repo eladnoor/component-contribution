@@ -1,6 +1,7 @@
 import sys, logging, os
 
 REACTION_FNAME = 'examples/wolf_reactions.txt'
+CC_CACHE_FNAME = 'cache/component_contribution.mat'
 PYTHON_BIN = 'python'
 PYTHON_SCRIPT_FNAME = 'python/component_contribution.py'
 
@@ -13,17 +14,24 @@ def python_main():
 
     reaction_strings = open(REACTION_FNAME, 'r').readlines()
 
-    if True:
+    if os.path.exists(CC_CACHE_FNAME):
+        logging.info('Reading the component-contribution data from .mat file')
+        cc = ComponentContribution.from_matfile(CC_CACHE_FNAME)
+    else:
+        logging.info('Calculating the component-contribution data from raw data')
         cc = ComponentContribution()
-        for s in reaction_strings:
-            reaction = KeggReaction.parse_formula(s)
-            ddG0 = reaction.get_transform_ddG0(pH=7.5, I=0.2, T=298.15)
-            dG0_cc, s_cc = cc.get_dG0_r(reaction)
-            dG0_prime_cc = dG0_cc + ddG0
-            print "dG0 = %8.1f +- %5.1f, dG0' = %8.1f +- %5.1f" % \
-                (dG0_cc, s_cc * 1.96, dG0_prime_cc, s_cc * 1.96)
+        cc.train()
+        cc.save_matfile(CC_CACHE_FNAME)
 
-    if True: # old piece of code left here for debugging purposes
+    for s in reaction_strings:
+        reaction = KeggReaction.parse_formula(s)
+        ddG0 = reaction.get_transform_ddG0(pH=7.5, I=0.2, T=298.15)
+        dG0_cc, s_cc = cc.get_dG0_r(reaction)
+        dG0_prime_cc = dG0_cc + ddG0
+        print "dG0 = %8.1f +- %5.1f, dG0' = %8.1f +- %5.1f" % \
+            (dG0_cc, s_cc * 1.96, dG0_prime_cc, s_cc * 1.96)
+
+    if False: # old piece of code left here for debugging purposes
         cc2 = ComponentContribution()
         model = KeggModel.from_formulas(reaction_strings)    
         model.add_thermo_old(cc2)

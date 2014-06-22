@@ -1,6 +1,6 @@
 import sys
 import numpy as np
-from scipy.io import savemat
+from scipy.io import savemat, loadmat
 from training_data import TrainingData
 from kegg_model import KeggModel
 from compound_cacher import CompoundCacher
@@ -35,11 +35,17 @@ class ComponentContribution(object):
         self.Ng = len(self.group_names)
         self.N_non_decomposable = 0
 
-    def savemat(self, fname):
+    def save_matfile(self, file_name):
         if self.params is None:
             self.train()
 
-        savemat(fname, self.params, oned_as='row')
+        savemat(file_name, self.params, oned_as='row')
+    
+    @staticmethod
+    def from_matfile(file_name):
+        cc = ComponentContribution()
+        cc.params = loadmat(file_name)
+        return cc
     
     def get_major_ms_dG0_f(self, compound_id):
         """
@@ -113,8 +119,12 @@ class ComponentContribution(object):
                 except inchi2gv.GroupDecompositionError:
                     return np.nan
         
-        v_r, v_g, C1, C2, C3 = self.params['preprocess']
-
+        v_r = self.params['preprocess_v_r']
+        v_g = self.params['preprocess_v_g']
+        C1  = self.params['preprocess_C1']
+        C2  = self.params['preprocess_C2']
+        C3  = self.params['preprocess_C3']
+        
         dG0_cc = float(x.T * v_r)
         s_cc_sqr = float(x.T * C1 * x)
         if x_prime != []:
@@ -319,31 +329,35 @@ class ComponentContribution(object):
         C3 = inv_GSWGS + P_N_gc
 
         # Put all the calculated data in 'params' for the sake of debugging
-        self.params = {'b':           self.train_b,
-                       'train_S':     self.train_S_joined,
-                       'model_S':     self.model_S_joined,
-                       'train_cids':  self.train_cids,
-                       'cids':        self.cids_joined,
-                       'w':           self.train_w,
-                       'G':           self.train_G,
-                       'dG0_rc':      dG0_rc,
-                       'dG0_gc':      dG0_gc,
-                       'dG0_cc':      dG0_cc,
-                       'cov_dG0':     cov_dG0,
-                       'V_rc':        V_rc,
-                       'V_gc':        V_gc,
-                       'V_inf':       V_inf,
-                       'MSE_rc':      MSE_rc,
-                       'MSE_gc':      MSE_gc,
-                       'MSE_kerG':    MSE_kerG,
-                       'MSE_inf':     MSE_inf,
-                       'P_R_rc':      P_R_rc,
-                       'P_R_gc':      P_R_gc,
-                       'inv_S':       inv_S,
-                       'inv_GS':      inv_GS,
-                       'inv_SWS':     inv_SWS,
-                       'inv_GSWGS':   inv_GSWGS,
-                       'preprocess':  (dG0_cc, dG0_gc, C1, C2, C3)}
+        self.params = {'b':              self.train_b,
+                       'train_S':        self.train_S_joined,
+                       'model_S':        self.model_S_joined,
+                       'train_cids':     self.train_cids,
+                       'cids':           self.cids_joined,
+                       'w':              self.train_w,
+                       'G':              self.train_G,
+                       'dG0_rc':         dG0_rc,
+                       'dG0_gc':         dG0_gc,
+                       'dG0_cc':         dG0_cc,
+                       'cov_dG0':        cov_dG0,
+                       'V_rc':           V_rc,
+                       'V_gc':           V_gc,
+                       'V_inf':          V_inf,
+                       'MSE_rc':         MSE_rc,
+                       'MSE_gc':         MSE_gc,
+                       'MSE_kerG':       MSE_kerG,
+                       'MSE_inf':        MSE_inf,
+                       'P_R_rc':         P_R_rc,
+                       'P_R_gc':         P_R_gc,
+                       'inv_S':          inv_S,
+                       'inv_GS':         inv_GS,
+                       'inv_SWS':        inv_SWS,
+                       'inv_GSWGS':      inv_GSWGS,
+                       'preprocess_v_r': dG0_cc,
+                       'preprocess_v_g': dG0_gc,
+                       'preprocess_C1':  C1,
+                       'preprocess_C2':  C2,
+                       'preprocess_C3':  C3}
 
     @staticmethod
     def _zero_pad_S(S, cids_orig, cids_joined):
