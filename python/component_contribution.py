@@ -117,7 +117,7 @@ class ComponentContribution(object):
                     group_vec = self.decomposer.smiles_to_groupvec(comp.smiles_pH7)
                     G_prime.append(group_vec.ToArray())
                 except inchi2gv.GroupDecompositionError:
-                    return np.nan
+                    return np.nan, np.nan
         
         v_r = self.params['preprocess_v_r']
         v_g = self.params['preprocess_v_g']

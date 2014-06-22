@@ -45,6 +45,11 @@ class Compound(object):
             # So we implement it manually here.
             return Compound(database, compound_id, inchi,
                             {'C' : 1, 'O': 1}, [], '[C-]#[O+]', 0, [0], [0])
+        elif compound_id == 'C00282':
+            # ChemAxon gets confused with the structure of hydrogen
+            # So we implement it manually here.
+            return Compound(database, compound_id, inchi,
+                            {'H' : 2}, [], None, 0, [2], [0])
         elif inchi is None:
             # If the compound has no explicit structure, we assume that it has 
             # no proton dissociations in the relevant pH range

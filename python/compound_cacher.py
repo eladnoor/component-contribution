@@ -1,4 +1,4 @@
-import json, os, logging, csv, gzip, sys, numpy
+import json, os, logging, csv, gzip, sys, numpy, types
 from python.compound import Compound
 base_path = os.path.split(os.path.realpath(__file__))[0]
 KEGG_COMPOUND_JSON_FNAME = os.path.join(base_path, '../data/kegg_compounds.json.gz') # names and InChIs only
@@ -84,6 +84,8 @@ class CompoundCacher(object):
         self.need_to_update_cache_file = True
             
     def get_element_matrix(self, compound_ids):
+        if type(compound_ids) == str:
+            compound_ids = [compound_ids]
         # gather the "atom bags" of all compounds in a list 'atom_bag_list'
         elements = set()
         atom_bag_list = []
