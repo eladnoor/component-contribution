@@ -372,7 +372,10 @@ class KeggPathway(Pathway):
         plt.plot(np.arange(0.5, Nr + 1), cum_dG, style,
                  figure=figure, label=label)
    
-    def PlotProfile(self, concentrations, figure=None):
+    def PlotProfile(self, params, figure=None):
+        phys_concentrations = self.GetPhysiologicalConcentrations(self.bounds)
+        concentrations = params['concentrations']
+
         if figure is None:
             figure = plt.figure(figsize=(6,6), dpi=100)
         plt.title(r'Thermodynamic profile', figure=figure)
@@ -392,7 +395,6 @@ class KeggPathway(Pathway):
         KeggPathway._AddProfileToFigure(figure,
             self.dG0_r_prime[0, nonzero_reactions], nonzero_fluxes, 'm--', r"$\Delta_r G'^\circ$")
        
-        phys_concentrations = self.GetPhysiologicalConcentrations(self.bounds)
         dGm_r_prime = self.CalculateReactionEnergiesUsingConcentrations(phys_concentrations)
         KeggPathway._AddProfileToFigure(figure,
             dGm_r_prime[0, nonzero_reactions], nonzero_fluxes, 'g--', r"$\Delta_r G'^m$")
@@ -404,7 +406,9 @@ class KeggPathway(Pathway):
         plt.legend(loc='lower left')
         return figure
        
-    def PlotConcentrations(self, concentrations, figure=None):
+    def PlotConcentrations(self, params, figure=None):
+        concentrations = params['concentrations']
+
         if figure is None:
             figure = plt.figure()
         plt.xscale('log', figure=figure)
@@ -431,18 +435,16 @@ class KeggPathway(Pathway):
         plt.axis([x_min, x_max, y_min, y_max], figure=figure)
         return figure
 
-    def WriteResultsToHtmlTables(self, html_writer, concentrations,
-                                 reaction_shadow_prices, compound_shadow_prices):
-        
-        self.WriteProfileToHtmlTable(html_writer, concentrations, reaction_shadow_prices)
-        self.WriteConcentrationsToHtmlTable(html_writer, concentrations, compound_shadow_prices)
+    def WriteResultsToHtmlTables(self, html_writer, params):
+        self.WriteProfileToHtmlTable(html_writer, params)
+        self.WriteConcentrationsToHtmlTable(html_writer, params)
 
-    def WriteConcentrationsToHtmlTable(self, html_writer, concentrations=None,
-                                       compound_shadow_prices=None):
-        phys_concentrations = self.GetPhysiologicalConcentrations(self.bounds)
-        if concentrations is None:
-            concentrations = phys_concentrations
-        if compound_shadow_prices is None:
+    def WriteConcentrationsToHtmlTable(self, html_writer, params=None):
+        if params is not None:
+            concentrations = params['concentrations']
+            compound_shadow_prices = params['compound prices']
+        else:
+            concentrations = self.GetPhysiologicalConcentrations(self.bounds)
             compound_shadow_prices = np.zeros((len(self.cids), 1))
 
         dict_list = []
@@ -460,13 +462,13 @@ class KeggPathway(Pathway):
        
         html_writer.write_table(dict_list, headers=headers)
    
-    def WriteProfileToHtmlTable(self, html_writer, concentrations=None,
-                                reaction_shadow_prices=None):
-
+    def WriteProfileToHtmlTable(self, html_writer, params=None):
         phys_concentrations = self.GetPhysiologicalConcentrations(self.bounds)
-        if concentrations is None:
-            concentrations = phys_concentrations
-        if reaction_shadow_prices is None:
+        if params is not None:
+            concentrations = params['concentrations']
+            reaction_shadow_prices = params['reaction prices']
+        else:
+            concentrations = self.GetPhysiologicalConcentrations(self.bounds)
             reaction_shadow_prices = np.zeros((len(self.rids), 1))
 
         dG_r_prime_c = self.CalculateReactionEnergiesUsingConcentrations(phys_concentrations)

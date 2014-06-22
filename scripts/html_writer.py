@@ -10,6 +10,7 @@ import os
 import types
 import numpy as np
 import xml.dom.minidom
+import codecs
 
 def _mkdir(newdir):
     """works the way a good mkdir should :)
@@ -212,7 +213,7 @@ class BaseHtmlWriter:
         svg = dom.getElementsByTagName("svg")[0]
         svg.setAttribute('width', '%dpt' % width)
         svg.setAttribute('height', '%dpt' % height)
-        self.write(svg.toprettyxml(indent='  ', newl=''))
+        self.write(svg.toxml())
                 
     def extract_svg_from_file(self, fname, width=320, height=240):
         xmldom = xml.dom.minidom.parse(fname)
@@ -256,7 +257,7 @@ class HtmlWriter(BaseHtmlWriter):
             else:
                 raise Exception("cannot write to HTML file %s since the directory doesn't exist" % filename)
         
-        self.file = open(self.filename, "w")
+        self.file = codecs.open(self.filename, "w", encoding='utf_8')
         self.write_header()
         self.write_js(self.filepath)
     
