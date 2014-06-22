@@ -107,7 +107,7 @@ and get that
 \section{Calculating uncertainty estimates on-the-fly}
 If we look again at equation \ref{eq:c_rc}, it's obvious that $\bar{C}_{rc} = C_{rc}$ is not affected by the new compounds in $x'$, besides some zero-padding for adjusting its size. From what we saw in the previous section, $\bar{S}^\top \bar{\Gmat} = S^\top \Gmat$ and using \ref{eq:P_N_ST_G} we can conclude that:
 \begin{eqnarray}
-	\bar{C}_{gr} &=& \left( \begin{array}{c} \PNmat{S^\top} \Gmat \\ \hline \Gmat' \end{array} \right)
+	\bar{C}_{gc} &=& \left( \begin{array}{c} \PNmat{S^\top} \Gmat \\ \hline \Gmat' \end{array} \right)
 	\left(\Gmat^{\top}SS^{\top}\Gmat\right)^{+} 
 	\left( \begin{array}{c|c} \Gmat^\top \PNmat{S^\top} & \Gmat'^\top \end{array} \right) 
 \\
@@ -174,8 +174,8 @@ Finally, we can rewrite the formula for the standard error for $\bar{x}$ as:
 So, as a pre-processing step, we can calculate the following matrices:
 \begin{eqnarray}
 	C_1 &=& \alpha_{rc} C_{rc} + \alpha_{gc} C_{gc} + \infty C_\infty \\
-	C_2 &=& 2 \PNmat{S^\top} \Gmat \left(\Gmat^{\top}SS^{\top}\Gmat\right)^{+} + 2 \Gmat \PNmat{S^\top\Gmat} \\
-	C_3 &=& \left(\Gmat^{\top}SS^{\top}\Gmat\right)^{+} + \PNmat{S^\top\Gmat} 
+	C_2 &=& \alpha_{gc} \cdot 2 \PNmat{S^\top} \Gmat \left(\Gmat^{\top}SS^{\top}\Gmat\right)^{+} + \infty \cdot 2 \Gmat \PNmat{S^\top\Gmat} \\
+	C_3 &=& \alpha_{gc} \cdot \left(\Gmat^{\top}SS^{\top}\Gmat\right)^{+} + \infty \cdot \PNmat{S^\top\Gmat} 
 \end{eqnarray}
 And therefore the on-the-fly calculation of the standard error will be:
 \begin{eqnarray}

@@ -25,6 +25,10 @@ if __name__ == '__main__':
     json.dump(compound_json, new_json, sort_keys=True, indent=4)
     new_json.close()
     
-    v_r, v_g, C1, C2, C3 = cc.params['preprocess']
+    v_r = cc.params['preprocess_v_r']
+    v_g = cc.params['preprocess_v_g']
+    C1  = cc.params['preprocess_C1']
+    C2  = cc.params['preprocess_C2']
+    C3  = cc.params['preprocess_C3']
 
     np.savez_compressed('res/cc_preprocess', v_r=v_r, v_g=v_g, C1=C1, C2=C2, C3=C3)

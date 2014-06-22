@@ -13,6 +13,8 @@ stderr_handler.setFormatter(formatter)
 file_handler.setFormatter(formatter)
 
 logger = logging.getLogger('')
+logger.removeHandler(stdout_handler)
+logger.removeHandler(file_handler)
 logger.addHandler(stdout_handler)
 logger.addHandler(file_handler)
 logger.setLevel(logging.INFO)

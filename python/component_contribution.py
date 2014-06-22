@@ -325,8 +325,8 @@ class ComponentContribution(object):
 
         # preprocessing matrices (for quick calculation of uncertainty)
         C1 = cov_dG0
-        C2 = 2 * P_N_rc * G * inv_GSWGS + 2 * G * P_N_gc
-        C3 = inv_GSWGS + P_N_gc
+        C2 = MSE_gc * 2 * P_N_rc * G * inv_GSWGS + MSE_inf * 2 * G * P_N_gc
+        C3 = MSE_gc * inv_GSWGS + MSE_inf * P_N_gc
 
         # Put all the calculated data in 'params' for the sake of debugging
         self.params = {'b':              self.train_b,
@@ -349,6 +349,8 @@ class ComponentContribution(object):
                        'MSE_inf':        MSE_inf,
                        'P_R_rc':         P_R_rc,
                        'P_R_gc':         P_R_gc,
+                       'P_N_rc':         P_N_rc,
+                       'P_N_gc':         P_N_gc,
                        'inv_S':          inv_S,
                        'inv_GS':         inv_GS,
                        'inv_SWS':        inv_SWS,
