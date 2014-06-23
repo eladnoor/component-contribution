@@ -33,7 +33,6 @@ class ComponentContribution(object):
         
         self.Nc = len(self.cids_joined)
         self.Ng = len(self.group_names)
-        self.N_non_decomposable = 0
 
     def save_matfile(self, file_name):
         if self.params is None:
@@ -75,8 +74,8 @@ class ComponentContribution(object):
             try:
                 group_vec = self.decomposer.smiles_to_groupvec(comp.smiles_pH7)
                 g = np.matrix(group_vec.ToArray())
-                dG0_gc = self.params['dG0_gc'][0:self.Ng, 0]
-                return float(g * dG0_gc)
+                dG0_gc = self.params['dG0_gc'][0:self.Ng, :]
+                return float(np.dot(g, dG0_gc))
             except inchi2gv.GroupDecompositionError:
                 return np.nan
 
@@ -119,11 +118,11 @@ class ComponentContribution(object):
                 except inchi2gv.GroupDecompositionError:
                     return np.nan, np.nan
         
-        v_r = self.params['preprocess_v_r']
-        v_g = self.params['preprocess_v_g']
-        C1  = self.params['preprocess_C1']
-        C2  = self.params['preprocess_C2']
-        C3  = self.params['preprocess_C3']
+        v_r = np.matrix(self.params['preprocess_v_r'])
+        v_g = np.matrix(self.params['preprocess_v_g'])
+        C1  = np.matrix(self.params['preprocess_C1'])
+        C2  = np.matrix(self.params['preprocess_C2'])
+        C3  = np.matrix(self.params['preprocess_C3'])
         
         dG0_cc = float(x.T * v_r)
         s_cc_sqr = float(x.T * C1 * x)
@@ -157,12 +156,11 @@ class ComponentContribution(object):
             try:
                 group_def = self.decomposer.smiles_to_groupvec(comp.smiles_pH7)
                 gv = np.matrix(group_def.ToArray())
-                # we need to pad the group vector with zeros to account for
-                # the added columns corresponding to compound that we could
-                # not decompose in the training set.
-                gv = np.hstack([gv, np.zeros((1, self.N_non_decomposable))])
-                
-                major_ms_dG0_f = float(gv * self.params['dG0_gc'])
+                # we need to truncate the dG0_gc matrix from all the group
+                # dimensions that correspond to non-decomposable compounds
+                # from the training set
+                dG0_gc = self.params['dG0_gc'][0:self.Ng, :]
+                major_ms_dG0_f = float(np.dot(gv, dG0_gc))
             except inchi2gv.GroupDecompositionError:
                 d['error'] = 'We cannot estimate the formation energy of this compound ' +\
                              'because its structure is too complex to decompose to groups'
@@ -247,8 +245,8 @@ class ComponentContribution(object):
                 # add a unique 1 in a new column
                 cpd_inds_without_gv.append(i)
 
-        self.N_non_decomposable = len(cpd_inds_without_gv)
-        add_G = np.zeros((self.Nc, self.N_non_decomposable))
+        N_non_decomposable = len(cpd_inds_without_gv)
+        add_G = np.zeros((self.Nc, N_non_decomposable))
         for j, i in enumerate(cpd_inds_without_gv):
             add_G[i, j] = 1
         return np.matrix(np.hstack([G, add_G]))

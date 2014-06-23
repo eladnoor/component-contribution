@@ -20,7 +20,21 @@ if __name__ == '__main__':
                            'C10282', 'C10286', 'C10356', 'C10359',
                            'C10396', 'C16818', 'C16839', 'C16857']: 
             continue
-        compound_json.append(cc.get_compound_json(compound_id))
+        sub_json = cc.get_compound_json(compound_id)
+        if compound_id in ['C00001']:
+            sub_json['pmap']['species'][0]['phase'] = 'liquid'
+        if compound_id in ['C00087']:
+            sub_json['pmap']['species'][0]['phase'] = 'solid'
+        if compound_id in ['C00007', 'C00697']:
+            sub_json['pmap']['species'].append({'phase':'gas', 'dG0_f':0})
+        if compound_id in ['C00282']:
+            sub_json['pmap']['species'].append({'phase':'gas', 'dG0_f':0, 'nH':2})
+        if compound_id in ['C00011']:
+            sub_json['pmap']['species'].append({'phase':'gas', 'dG0_f':-394.36})
+        if compound_id in ['C00237']:
+            sub_json['pmap']['species'].append({'phase':'gas', 'dG0_f':-137.17})
+            
+        compound_json.append(sub_json)
     new_json = gzip.open(OUTPUT_JSON, 'w')
     json.dump(compound_json, new_json, sort_keys=True, indent=4)
     new_json.close()

@@ -27,6 +27,7 @@ def python_main():
     std = res[:, 1]
 
     for i, r in enumerate(reactions):
+        print r
         print "dG0' = %8.1f +- %5.1f" % (dG0_prime[i], std[i] * 1.96)
 
 if __name__ == '__main__':

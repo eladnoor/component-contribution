@@ -26,7 +26,7 @@ C00058	Formate	-311.1	7	0.25	14	298.15	0	Alberty (2006)
 C00059	Sulfate	-747.8	7	0.25	14	298.15	0	Alberty (2006)	
 C00064	L-Glutamine	-120.6	7	0.25	14	298.15	1	Alberty (2006)	
 C00065	L-Serine	-225.7	7	0.25	14	298.15	1	Alberty (2006)	
-C00067	Formaldehyde	-49.1	7	0.25	14	298.15	0	Thauer (1977)	
+C00067	Formaldehyde	-40	7	0.25	14	298.15	0	Maden (2000)	The value in Alberty (2006) is probably wrong
 C00074	Phosphoenolpyruvate	-1189.5	7	0.25	14	298.15	1	Alberty (2006)	
 C00078	L-Tryptophan	374.2	7	0.25	14	298.15	1	Alberty (2006)	
 C00079	L-Phenylalanine	241.1	7	0.25	14	298.15	1	Alberty (2006)	

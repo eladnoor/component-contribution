@@ -193,7 +193,7 @@ class Compound(object):
             (self.compound_id, self.inchi, ', '.join(['%.2f' % p for p in self.pKas]),
              self.nHs[self.majorMSpH7], self.zs[self.majorMSpH7])
 
-    def _transform(self, pH, I, T):
+    def _dG0_prime_vector(self, pH, I, T):
         """
             Calculates the difference in kJ/mol between dG'0 and 
             the dG0 of the MS with the least hydrogens (dG0[0])
@@ -215,8 +215,11 @@ class Compound(object):
         dG0_prime_vector = pseudoisomers[:, 0] + \
                            pseudoisomers[:, 1] * (R * T * np.log(10) * pH + DH) - \
                            pseudoisomers[:, 2]**2 * DH
+        return dG0_prime_vector
+        
+    def _transform(self, pH, I, T):
 
-        return -R * T * logsumexp(dG0_prime_vector / (-R * T))
+        return -R * T * logsumexp(self._dG0_prime_vector(pH, I, T) / (-R * T))
 
     def _ddG(self, i_from, i_to, T):
         """
