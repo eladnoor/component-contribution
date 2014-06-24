@@ -1,6 +1,7 @@
 import openbabel
 import types
 import re
+import chemaxon
 from thermodynamic_constants import default_T, default_pH
 
 class OpenBabelError(Exception):
@@ -230,36 +231,9 @@ class Molecule(object):
     
     def GetAtomBagAndCharge(self):
         inchi = self.ToInChI()
+        atom_bag, major_ms_charge = chemaxon.GetAtomBagAndCharge(inchi)
+        return atom_bag, major_ms_charge
 
-        fixed_charge = 0
-        for s in re.findall('/q([0-9\+\-]+)', inchi):
-            fixed_charge += int(s)
-
-        fixed_protons = 0
-        for s in re.findall('/p([0-9\+\-]+)', inchi):
-            fixed_protons += int(s)
-        
-        formula = self.GetFormula()
-
-        atom_bag = {}
-        for mol_formula_times in formula.split('.'):
-            for times, mol_formula in re.findall('^(\d+)?(\w+)', mol_formula_times):
-                if not times:
-                    times = 1
-                else:
-                    times = int(times)
-                for atom, count in re.findall("([A-Z][a-z]*)([0-9]*)", mol_formula):
-                    if count == '':
-                        count = 1
-                    else:
-                        count = int(count)
-                    atom_bag[atom] = atom_bag.get(atom, 0) + count * times
-        
-        if fixed_protons:
-            atom_bag['H'] = atom_bag.get('H', 0) + fixed_protons
-            fixed_charge += fixed_protons
-        return atom_bag, fixed_charge
-        
     def GetHydrogensAndCharge(self):
         atom_bag, charge = self.GetAtomBagAndCharge()
         return atom_bag.get('H', 0), charge
@@ -267,10 +241,7 @@ class Molecule(object):
     def GetNumElectrons(self):
         """Calculates the number of electrons in a given molecule."""
         atom_bag, fixed_charge = self.GetAtomBagAndCharge()
-        n_protons = 0
-        for elem, count in atom_bag.iteritems():
-            n_protons += count * self._obElements.GetAtomicNum(elem)
-        return n_protons - fixed_charge
+        return atom_bag.get('e-', 0)
     
     def GetNumAtoms(self):
         return self.obmol.NumAtoms()
@@ -353,3 +324,6 @@ class Molecule(object):
         return Molecule._GetDissociationTable(self.ToInChI(), 'inchi',
                                             mid_pH, min_pKa, max_pKa, T)
 
+if __name__ == '__main__':
+    mol = Molecule.FromInChI('InChI=1S/H2/h1H')
+    print mol.ExactMass()

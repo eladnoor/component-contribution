@@ -178,22 +178,21 @@ class ComponentContribution(object):
             d['pmap'] = {'source': 'Component Contribution (2013)',
                          'species': list(comp.get_species(major_ms_dG0_f, default_T))}
 
+        d['num_electrons'] = comp.atom_bag.get('e-', 0)
+
         if comp.inchi is not None:
             d['InChI'] = comp.inchi
             try:
                 mol = Molecule.FromInChI(str(comp.inchi))
                 d['mass'] = mol.GetExactMass()
                 d['formula'] = mol.GetFormula()
-                d['num_electrons'] = mol.GetNumElectrons()
             except OpenBabelError:
                 if compound_id == 'C00282': # an exception for hydrogen
                     d['mass'] = 2.0157
                     d['formula'] = 'H2'
-                    d['num_electrons'] = 2
                 else:
                     d['mass'] = 0
                     d['formula'] = ''
-                    d['num_electrons'] = 0
             
         return d
     

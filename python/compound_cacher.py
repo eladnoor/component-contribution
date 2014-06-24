@@ -64,7 +64,8 @@ class CompoundCacher(object):
             fp = gzip.open(self.cache_fname, 'w')
             data = sorted(self.compound_dict.values(),
                           key=lambda d:d.compound_id)
-            json.dump(data, fp, cls=CompoundEncoder, 
+            dict_data = map(lambda x:x.to_json_dict(), data)
+            json.dump(dict_data, fp, cls=CompoundEncoder, 
                       sort_keys=True, indent=4,  separators=(',', ': '))
             fp.close()
             self.need_to_update_cache_file = False

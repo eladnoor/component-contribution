@@ -281,12 +281,21 @@ class Compound(object):
             yield d
         
 if __name__ == '__main__':
-    import sys
+    import sys, json
     logger = logging.getLogger('')
     logger.setLevel(logging.DEBUG)
+    from python.compound_cacher import CompoundCacher, CompoundEncoder
+    from python.molecule import Molecule
+    ccache = CompoundCacher(cache_fname=None)
 
-    for compound_id in ['C00138', 'C00282', 'C00237', 'C00087', 'C00032',
-                        'C01137', 'C02191', 'C15670', 'C15672']:
+    for compound_id in ['C00003', 'C00004', 'C00005', 'C00006']:
         comp = Compound.from_kegg(compound_id)
-        sys.stderr.write('\ncompound id = %s, nH = %s, z = %s\n\n\n' % 
-                         (compound_id, str(comp.nHs), str(comp.zs)))
+        print comp.atom_bag
+        mol = Molecule.FromInChI(str(comp.inchi))
+        print mol.GetFormula()
+        print mol.GetNumElectrons()
+        ccache.add(comp)
+        sys.stderr.write('\ncompound id = %s, nH = %s, z = %s, pKa = %s\n\n\n' % 
+                         (compound_id, str(comp.nHs), str(comp.zs), str(comp.pKas)))
+    
+    ccache.dump()

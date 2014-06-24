@@ -109,26 +109,42 @@ class KeggReaction(object):
     def __str__(self):
         return self.write_formula()
     
-    def is_balanced(self):
+    def _get_reaction_atom_bag(self):
+        """
+            Use for checking if all elements are conserved.
+            
+            Returns:
+                An atom_bag of the differences between the sides of the reaction.
+                E.g. if there is one extra C on the left-hand side, the result will
+                be {'C': -1}.
+        """
         cids = list(self.keys())
         coeffs = np.array([self.sparse[cid] for cid in cids], ndmin=2).T
     
         elements, Ematrix = self.ccache.get_element_matrix(cids)
         conserved = Ematrix.T * coeffs
-        
+
         if np.any(np.isnan(conserved), 0):
             logging.debug('cannot test reaction balancing because of unspecific '
                           'compound formulas: %s' % self.write_formula())
-            return True
+            return None
         
+        atom_bag = {}        
         if np.any(conserved != 0, 0):
             logging.debug('unbalanced reaction: %s' % self.write_formula())
             for j in np.where(conserved[:, 0])[0].flat:
                 logging.debug('there are %d more %s atoms on the right-hand side' %
                               (conserved[j, 0], elements[j]))
-            return False
+                atom_bag[str(elements[j])] = conserved[j, 0]
+        
+        return atom_bag
 
-        return True
+    def is_balanced(self):
+        reaction_atom_bag = self._get_reaction_atom_bag()
+        if reaction_atom_bag is None:
+            return False
+        else:
+            return len(reaction_atom_bag) == 0
     
     def dense(self, cids):
         s = np.matrix(np.zeros((len(cids), 1)))
