@@ -14,21 +14,25 @@ def python_main():
 
     reaction_strings = open(REACTION_FNAME, 'r').readlines()
 
-    logging.info('Calculating the component-contributions from raw data')
-    cc = ComponentContribution()
+    if os.path.exists(CC_CACHE_FNAME):
+        cc = ComponentContribution.from_matfile(CC_CACHE_FNAME)
+    else:
+        logging.info('Calculating the component-contributions from raw data')
+        cc = ComponentContribution()
+        cc.save_matfile(CC_CACHE_FNAME)
 
     reactions = map(KeggReaction.parse_formula, reaction_strings)
-    ddG0 = np.array([r.get_transform_ddG0(pH=7.5, I=0.2, T=298.15)
-                     for r in reactions])
-    
-    res = np.array([cc.get_dG0_r(r) for r in reactions])
-    
-    dG0_prime = res[:, 0] + ddG0
-    std = res[:, 1]
 
     for i, r in enumerate(reactions):
+        dG0, u_r, analysis = cc.get_dG0_r(r, True)
+        ddG0 = r.get_transform_ddG0(pH=7.5, I=0.2, T=298.15)
+        dG0_prime = dG0 + ddG0
+        print '-'*50
         print r
-        print "dG0' = %8.1f +- %5.1f" % (dG0_prime[i], std[i] * 1.96)
+        print "dG0' = %8.1f +- %5.1f" % (dG0_prime, u_r * 1.96)
+        for d in analysis:
+            print 'Wrc = %3g, Wgc = %3g : %s' % \
+                (d['w_rc'], d['w_gc'], d['reaction'])
 
 if __name__ == '__main__':
     pwd = os.path.realpath(os.path.curdir)

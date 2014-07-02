@@ -3,6 +3,7 @@ import numpy as np
 from scipy.io import savemat, loadmat
 from training_data import TrainingData
 from kegg_model import KeggModel
+from kegg_reaction import KeggReaction
 from compound_cacher import CompoundCacher
 import inchi2gv
 from thermodynamic_constants import default_T
@@ -79,18 +80,13 @@ class ComponentContribution(object):
             except inchi2gv.GroupDecompositionError:
                 return np.nan
 
-    def get_dG0_r(self, reaction):
-        """
-            Arguments:
-                reaction - a KeggReaction object
-            
-            Returns:
-                the CC estimation for this reaction's untransformed dG0 (i.e.
-                using the major MS at pH 7 for each of the reactants)
-        """
+    def _decompose_reaction(self, reaction):
         if self.params is None:
             self.train()
         
+        cids = list(self.params['cids'])
+        G = self.params['G']
+
         # calculate the reaction stoichiometric vector and the group incidence
         # vector (x and g)
         x = np.matrix(np.zeros((self.Nc, 1)))
@@ -99,7 +95,7 @@ class ComponentContribution(object):
 
         for compound_id, coeff in reaction.iteritems():
             if compound_id in self.cids_joined:
-                i = self.cids_joined.index(compound_id)
+                i = cids.index(compound_id)
                 x[i, 0] = coeff
             else:
                 # Decompose the compound and calculate the 'formation energy'
@@ -117,21 +113,64 @@ class ComponentContribution(object):
                     G_prime.append(group_vec.ToArray())
                 except inchi2gv.GroupDecompositionError:
                     return np.nan, np.nan
-        
+
+        if x_prime != []:
+            g = np.matrix(x_prime) * np.vstack(G_prime)
+        else:
+            g = np.matrix(np.zeros((1, 1)))
+
+        g.resize((G.shape[1], 1))
+
+        return x, g
+
+    def get_dG0_r(self, reaction, include_analysis=False):
+        """
+            Arguments:
+                reaction - a KeggReaction object
+            
+            Returns:
+                the CC estimation for this reaction's untransformed dG0 (i.e.
+                using the major MS at pH 7 for each of the reactants)
+        """
+        x, g = self._decompose_reaction(reaction)
+
         v_r = np.matrix(self.params['preprocess_v_r'])
         v_g = np.matrix(self.params['preprocess_v_g'])
         C1  = np.matrix(self.params['preprocess_C1'])
         C2  = np.matrix(self.params['preprocess_C2'])
         C3  = np.matrix(self.params['preprocess_C3'])
-        
-        dG0_cc = float(x.T * v_r)
-        s_cc_sqr = float(x.T * C1 * x)
-        if x_prime != []:
-            g = np.matrix(x_prime) * np.vstack(G_prime)
-            g.resize(v_g.shape)
-            dG0_cc += float(g.T * v_g)
-            s_cc_sqr += float(x.T * C2 * g + g.T * C3 * g)
-        return dG0_cc, np.sqrt(s_cc_sqr)
+
+        dG0_cc = float(x.T * v_r + g.T * v_g)
+        s_cc_sqr = float(x.T * C1 * x + x.T * C2 * g + g.T * C3 * g)
+
+        if not include_analysis:
+            return dG0_cc, np.sqrt(s_cc_sqr)
+        else:
+            # Analyse the contribution of each training observation to this 
+            # reaction's dG0 estimate.
+            G1 = np.matrix(self.params['preprocess_G1'])
+            G2 = np.matrix(self.params['preprocess_G2'])
+            G3 = np.matrix(self.params['preprocess_G3'])
+            S  = np.matrix(self.params['preprocess_S'])
+            cids = self.params['cids']
+            
+            # dG0_cc = (x*G1 + x*G2 + g*G3)*b
+            weights_rc = (x.T * G1).round(5)
+            weights_gc = (x.T * G2 + g.T * G3).round(5)
+            weights = weights_rc + weights_gc
+    
+            orders = sorted(range(weights.shape[1]), key=lambda i:-weights[0, i])
+    
+            analysis = []        
+            for j in orders[:5]:
+                if abs(weights[0, j]) > 1e-2:
+                    r = KeggReaction({cids[i]:S[i,j] for i in xrange(S.shape[0])
+                                      if S[i,j] != 0})
+                    analysis.append({'w_rc': weights_rc[0, j],
+                                     'w_gc': weights_gc[0, j],
+                                     'reaction': r})
+
+            return dG0_cc, np.sqrt(s_cc_sqr), analysis
 
     def get_compound_json(self, compound_id):
         """
@@ -320,6 +359,18 @@ class ComponentContribution(object):
         # Calculate the total of the contributions and covariances
         cov_dG0 = V_rc * MSE_rc + V_gc * MSE_gc + V_inf * MSE_inf
 
+        # preprocessing matrices (for calculating the contribution of each 
+        # observation)
+        G1 = P_R_rc * inv_S.T * W
+        G2 = P_N_rc * G * inv_GS.T * W
+        G3 = inv_GS.T * W
+        
+        S_uniq, P_col = ComponentContribution._col_uniq(S)
+        S_counter = np.sum(P_col, 1)
+        G1 = G1 * P_col
+        G2 = G2 * P_col
+        G3 = G3 * P_col
+
         # preprocessing matrices (for quick calculation of uncertainty)
         C1 = cov_dG0
         C2 = MSE_gc * 2 * P_N_rc * G * inv_GSWGS + MSE_inf * 2 * G * P_N_gc
@@ -354,6 +405,11 @@ class ComponentContribution(object):
                        'inv_GSWGS':      inv_GSWGS,
                        'preprocess_v_r': dG0_cc,
                        'preprocess_v_g': dG0_gc,
+                       'preprocess_G1':  G1,
+                       'preprocess_G2':  G2,
+                       'preprocess_G3':  G3,
+                       'preprocess_S':   S_uniq,
+                       'preprocess_S_count': S_counter,
                        'preprocess_C1':  C1,
                        'preprocess_C2':  C2,
                        'preprocess_C3':  C3}
@@ -413,6 +469,46 @@ class ComponentContribution(object):
 
         return inv_A, r, P_R, P_N
         
+    @staticmethod
+    def _row_uniq(A):
+        """
+            A procedure usually performed before linear regression (i.e. solving Ax = y).
+            If the matrix A contains repeating rows, it is advisable to combine
+            all of them to one row, and the observed value corresponding to that
+            row will be the average of the original observations.
+
+            Input:
+                A - a 2D NumPy array
+            
+            Returns:
+                A_unique, P_row
+                
+                where A_unique has the same number of columns as A, but with
+                unique rows.
+                P_row is a matrix that can be used to map the original rows
+                to the ones in A_unique (all values in P_row are 0 or 1).
+        """
+        # convert the rows of A into tuples so we can compare them
+        A_tuples = [tuple(A[i,:].flat) for i in xrange(A.shape[0])]
+        A_unique = list(sorted(set(A_tuples), reverse=True))
+
+        # create the projection matrix that maps the rows in A to rows in
+        # A_unique
+        P_col = np.matrix(np.zeros((len(A_unique), len(A_tuples))))
+
+        for j, tup in enumerate(A_tuples):
+            # find the indices of the unique row in A_unique which correspond
+            # to this original row in A (represented as 'tup')
+            i = A_unique.index(tup)
+            P_col[i, j] = 1
+        
+        return np.matrix(A_unique), P_col
+    
+    @staticmethod
+    def _col_uniq(A):
+        A_unique, P_col = ComponentContribution._row_uniq(A.T)
+        return A_unique.T, P_col.T
+
 if __name__ == '__main__':
     reaction_strings = sys.stdin.readlines()
     cc = ComponentContribution()

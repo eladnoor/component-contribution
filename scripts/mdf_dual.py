@@ -339,6 +339,15 @@ class KeggPathway(Pathway):
         ub = ub or self.c_range[1]
         return lb, ub
 
+    def GetMillimolarConcentrations(self):
+        conc = np.matrix(np.ones((self.Nc, 1))) * self.DEFAULT_PHYSIOLOGICAL_CONC
+        try:
+            i_h2o = self.cids.index('C00001')
+            conc[i_h2o, 0] = 1
+        except ValueError:
+            pass
+        return conc
+
     def GetReactionString(self, r, show_cids=False):
         rid = self.rids[r]
         sparse = dict([(self.cids[c], self.S[c, r])
@@ -373,7 +382,7 @@ class KeggPathway(Pathway):
                  figure=figure, label=label)
    
     def PlotProfile(self, params, figure=None):
-        phys_concentrations = self.GetPhysiologicalConcentrations(self.bounds)
+        phys_concentrations = self.GetMillimolarConcentrations()
         concentrations = params['concentrations']
 
         if figure is None:
@@ -444,7 +453,7 @@ class KeggPathway(Pathway):
             concentrations = params['concentrations']
             compound_shadow_prices = params['compound prices']
         else:
-            concentrations = self.GetPhysiologicalConcentrations(self.bounds)
+            concentrations = self.GetMillimolarConcentrations()
             compound_shadow_prices = np.zeros((len(self.cids), 1))
 
         dict_list = []
@@ -463,12 +472,12 @@ class KeggPathway(Pathway):
         html_writer.write_table(dict_list, headers=headers)
    
     def WriteProfileToHtmlTable(self, html_writer, params=None):
-        phys_concentrations = self.GetPhysiologicalConcentrations(self.bounds)
+        phys_concentrations = self.GetMillimolarConcentrations()
         if params is not None:
             concentrations = params['concentrations']
             reaction_shadow_prices = params['reaction prices']
         else:
-            concentrations = self.GetPhysiologicalConcentrations(self.bounds)
+            concentrations = self.GetMillimolarConcentrations()
             reaction_shadow_prices = np.zeros((len(self.rids), 1))
 
         dG_r_prime_c = self.CalculateReactionEnergiesUsingConcentrations(phys_concentrations)
@@ -476,7 +485,7 @@ class KeggPathway(Pathway):
         dG_r_prime = self.CalculateReactionEnergiesUsingConcentrations(concentrations)
         dG_r_prime_adj = np.multiply(dG_r_prime, np.sign(self.fluxes)) # adjust dG to flux directions
         headers=["reaction", 'formula', 'flux',
-                 "&Delta;<sub>r</sub>G'<sup>c</sup> [kJ/mol] (%g M)" % self.DEFAULT_PHYSIOLOGICAL_CONC,
+                 "&Delta;<sub>r</sub>G'<sup>m</sup> [kJ/mol] (%g M)" % self.DEFAULT_PHYSIOLOGICAL_CONC,
                  "&Delta;<sub>r</sub>G' [kJ/mol]", "shadow price"]
 
         dict_list = []

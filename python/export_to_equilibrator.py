@@ -10,6 +10,7 @@ OUTPUT_JSON = 'res/cc_compounds.json.gz'
 if __name__ == '__main__':
     cc = ComponentContribution()
     cc.train()
+
     compound_json = []
 
     for i, compound_id in enumerate(cc.ccache.get_all_compound_ids()):
@@ -44,5 +45,14 @@ if __name__ == '__main__':
     C1  = cc.params['preprocess_C1']
     C2  = cc.params['preprocess_C2']
     C3  = cc.params['preprocess_C3']
+    G1  = cc.params['preprocess_G1']
+    G2  = cc.params['preprocess_G2']
+    G3  = cc.params['preprocess_G3']
+    S   = cc.params['preprocess_S']
+    S_count = cc.params['preprocess_S_count']
+    cids = cc.params['cids']
 
-    np.savez_compressed('res/cc_preprocess', v_r=v_r, v_g=v_g, C1=C1, C2=C2, C3=C3)
+    np.savez_compressed('res/cc_preprocess',
+                        v_r=v_r, v_g=v_g, C1=C1, C2=C2, C3=C3,
+                        G1=G1, G2=G2, G3=G3,
+                        S=S, S_count=S_count, cids=cids)

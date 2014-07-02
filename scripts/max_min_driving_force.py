@@ -5,6 +5,7 @@ Created on Wed May 28 13:13:37 2014
 @author: eladn
 """
 
+import logging
 import numpy as np
 import matplotlib.pyplot as plt
 from python.thermodynamic_constants import R, default_c_range, default_c_mid
@@ -60,23 +61,22 @@ class MaxMinDrivingForce(object):
                                cid2bounds=cid2bounds, c_range=self.c_range)
         _mdf, params = keggpath.FindMDF()
         total_dG_prime = params['maximum total dG']
-        
         odfe = 100 * np.tanh(_mdf / (2*R*self.T))
+        average_dG_prime = total_dG_prime/np.sum(self.fluxes)
+        average_dfe = 100 * np.tanh(-average_dG_prime / (2*R*self.T))        
+        res =  ["MDF = %.1f (avg. = %.1f) kJ/mol" % (_mdf, -average_dG_prime),
+               "ODFE = %.1f%% (avg. = %.1f%%)" % (odfe, average_dfe),
+               "Total &Delta;<sub>r</sub>G' = %.1f kJ/mol" % total_dG_prime,
+               "no. steps = %g" % np.sum(self.fluxes)]
+        self.html_writer.write_ul(res)
         
         profile_fig = keggpath.PlotProfile(params)
         plt.title('ODFE = %.1f%%' % odfe, figure=profile_fig)
         self.html_writer.embed_matplotlib_figure(profile_fig, width=320, height=320)
         keggpath.WriteProfileToHtmlTable(self.html_writer, params)
         keggpath.WriteConcentrationsToHtmlTable(self.html_writer, params)
-        average_dG_prime = total_dG_prime/np.sum(self.fluxes)
-        average_dfe = 100 * np.tanh(-average_dG_prime / (2*R*self.T))
         
-        res =  ["MDF = %.1f (avg. = %.1f) kJ/mol" % (_mdf, -average_dG_prime),
-               "ODFE = %.1f%% (avg. = %.1f%%)" % (odfe, average_dfe),
-               "Total &Delta;<sub>r</sub>G' = %.1f kJ/mol" % total_dG_prime,
-               "no. steps = %g" % np.sum(self.fluxes)]
-        self.html_writer.write_ul(res)
-        return '\n'.join(res)
+        return _mdf
 
 def KeggFile2ModelList(pathway_file):
     kegg_file = ParsedKeggFile.FromKeggFile(pathway_file)
@@ -106,14 +106,11 @@ if __name__ == '__main__':
         html_writer.write('<h2>%s</h2>' % p['entry'])
 
         p['model'].add_thermo(cc)
-        print p['bounds']
         dG0, u = p['model'].get_transformed_dG0(pH=p['pH'], I=p['I'], T=p['T'])
         mdf = MaxMinDrivingForce(p['model'], p['fluxes'], p['bounds'],
                                  pH=p['pH'], I=p['I'], T=p['T'],
                                  html_writer=html_writer)
 
-        print '-' * 50
-        print p['entry']
-        print '-' * 50
-        print 'dG\'0 = ' + ', '.join(map(lambda x:'%.2f' % x, dG0[:,0]))
-        print mdf.Solve()
+        #print 'dG\'0 = ' + ', '.join(map(lambda x:'%.2f' % x, dG0[:,0]))
+        mdf_solution = mdf.Solve()
+        logging.info('Pathway %s: MDF = %.1f' % (p['entry'], mdf_solution))
