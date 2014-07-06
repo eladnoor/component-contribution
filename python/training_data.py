@@ -42,6 +42,8 @@ class TrainingData(object):
         self.pH = np.array([d['pH'] for d in thermo_params])
         self.pMg = np.array([d['pMg'] for d in thermo_params])
         self.weight = np.array([d['weight'] for d in thermo_params])
+        self.reference = [d['reference'] for d in thermo_params]
+        self.description = [d['description'] for d in thermo_params]
         rxn_inds_to_balance = [i for i in xrange(len(thermo_params))
                                if thermo_params[i]['balance']]
 
@@ -100,7 +102,9 @@ class TrainingData(object):
                                       'pH': TrainingData.str2double(row['pH']),
                                       'pMg': TrainingData.str2double(row['pMg']),
                                       'weight': weight,
-                                      'balance': True})
+                                      'balance': True,
+                                      'reference': row['REF_ID'],
+                                      'description': row['REACTION IN COMPOUND NAMES']})
             except ValueError:
                 raise Exception('Cannot parse row: ' + str(row))
 
@@ -129,7 +133,9 @@ class TrainingData(object):
                                       'pH': TrainingData.str2double(row['pH']),
                                       'pMg': TrainingData.str2double(row['pMg']),
                                       'weight': weight,
-                                      'balance': False})
+                                      'balance': False,
+                                      'reference': row['compound_ref'],
+                                      'description': row['name'] + ' formation'})
 
         logging.info('Successfully added %d formation energies' % len(thermo_params))
         return thermo_params, cids_that_dont_decompose
@@ -157,7 +163,9 @@ class TrainingData(object):
                                   'pH': TrainingData.str2double(row['pH']),
                                   'pMg': TrainingData.str2double(row['pMg']),
                                   'weight': weight,
-                                  'balance': False})        
+                                  'balance': False,
+                                  'reference': row['ref'],        
+                                  'description': row['name'] + ' redox'})
 
         logging.info('Successfully added %d redox potentials' % len(thermo_params))
         return thermo_params
@@ -232,6 +240,8 @@ class TrainingData(object):
         self.pH = self.pH[rxn_inds_to_keep]
         self.pMg = self.pMg[rxn_inds_to_keep]
         self.weight = self.weight[rxn_inds_to_keep]
+        self.reference = [self.reference[i] for i in rxn_inds_to_keep]
+        self.description = [self.description[i] for i in rxn_inds_to_keep]
 
         logging.info('After removing %d unbalanced reactions, the stoichiometric '
                      'matrix contains: '

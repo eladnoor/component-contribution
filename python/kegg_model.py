@@ -16,6 +16,12 @@ class KeggModel(object):
         if self.rids is not None:
             assert len(self.rids) == self.S.shape[1]
         self.ccache = CompoundCacher()
+
+        # remove H+ from the stoichiometric matrix if it exists
+        if 'C00080' in self.cids:
+            i = self.cids.index('C00080')
+            self.S = np.vstack((self.S[:i,:], self.S[i+1:,:]))
+            self.cids.pop(i)
     
     @staticmethod
     def from_file(fname, arrow='<=>', format='kegg', has_reaction_ids=False):

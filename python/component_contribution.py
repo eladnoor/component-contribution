@@ -42,8 +42,8 @@ class ComponentContribution(object):
         savemat(file_name, self.params, oned_as='row')
     
     @staticmethod
-    def from_matfile(file_name):
-        cc = ComponentContribution()
+    def from_matfile(file_name, training_data=None):
+        cc = ComponentContribution(training_data=training_data)
         cc.params = loadmat(file_name)
         return cc
     
@@ -152,6 +152,7 @@ class ComponentContribution(object):
             G2 = np.matrix(self.params['preprocess_G2'])
             G3 = np.matrix(self.params['preprocess_G3'])
             S  = np.matrix(self.params['preprocess_S'])
+            S_count = np.matrix(self.params['preprocess_S_count'])
             cids = self.params['cids']
             
             # dG0_cc = (x*G1 + x*G2 + g*G3)*b
@@ -159,16 +160,20 @@ class ComponentContribution(object):
             weights_gc = (x.T * G2 + g.T * G3).round(5)
             weights = weights_rc + weights_gc
     
-            orders = sorted(range(weights.shape[1]), key=lambda i:-weights[0, i])
+            orders = sorted(range(weights.shape[1]),
+                            key=lambda j:abs(weights[0, j]), reverse=True)
     
             analysis = []        
-            for j in orders[:5]:
-                if abs(weights[0, j]) > 1e-2:
-                    r = KeggReaction({cids[i]:S[i,j] for i in xrange(S.shape[0])
-                                      if S[i,j] != 0})
-                    analysis.append({'w_rc': weights_rc[0, j],
-                                     'w_gc': weights_gc[0, j],
-                                     'reaction': r})
+            for j in orders:
+                if abs(weights[0, j]) < 1e-5:
+                    continue
+                r = KeggReaction({cids[i]:S[i,j] for i in xrange(S.shape[0])
+                                  if S[i,j] != 0})
+                analysis.append({'index': j,
+                                 'w_rc': weights_rc[0, j],
+                                 'w_gc': weights_gc[0, j],
+                                 'reaction': r,
+                                 'count': int(S_count[0, j])})
 
             return dG0_cc, np.sqrt(s_cc_sqr), analysis
 
@@ -366,15 +371,15 @@ class ComponentContribution(object):
         G3 = inv_GS.T * W
         
         S_uniq, P_col = ComponentContribution._col_uniq(S)
-        S_counter = np.sum(P_col, 1)
-        G1 = G1 * P_col
-        G2 = G2 * P_col
-        G3 = G3 * P_col
+        S_counter = np.sum(P_col, 0)
+        preprocess_G1 = G1 * P_col
+        preprocess_G2 = G2 * P_col
+        preprocess_G3 = G3 * P_col
 
         # preprocessing matrices (for quick calculation of uncertainty)
-        C1 = cov_dG0
-        C2 = MSE_gc * 2 * P_N_rc * G * inv_GSWGS + MSE_inf * 2 * G * P_N_gc
-        C3 = MSE_gc * inv_GSWGS + MSE_inf * P_N_gc
+        preprocess_C1 = cov_dG0
+        preprocess_C2 = MSE_gc * 2 * P_N_rc * G * inv_GSWGS + MSE_inf * 2 * G * P_N_gc
+        preprocess_C3 = MSE_gc * inv_GSWGS + MSE_inf * P_N_gc
 
         # Put all the calculated data in 'params' for the sake of debugging
         self.params = {'b':              self.train_b,
@@ -405,14 +410,17 @@ class ComponentContribution(object):
                        'inv_GSWGS':      inv_GSWGS,
                        'preprocess_v_r': dG0_cc,
                        'preprocess_v_g': dG0_gc,
-                       'preprocess_G1':  G1,
-                       'preprocess_G2':  G2,
-                       'preprocess_G3':  G3,
+                       'G1':             G1,
+                       'G2':             G2,
+                       'G3':             G3,
+                       'preprocess_G1':  preprocess_G1,
+                       'preprocess_G2':  preprocess_G2,
+                       'preprocess_G3':  preprocess_G3,
                        'preprocess_S':   S_uniq,
                        'preprocess_S_count': S_counter,
-                       'preprocess_C1':  C1,
-                       'preprocess_C2':  C2,
-                       'preprocess_C3':  C3}
+                       'preprocess_C1':  preprocess_C1,
+                       'preprocess_C2':  preprocess_C2,
+                       'preprocess_C3':  preprocess_C3}
 
     @staticmethod
     def _zero_pad_S(S, cids_orig, cids_joined):

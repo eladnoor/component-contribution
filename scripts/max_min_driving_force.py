@@ -5,9 +5,10 @@ Created on Wed May 28 13:13:37 2014
 @author: eladn
 """
 
-import logging
+import logging, sys
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy.io import savemat
 from python.thermodynamic_constants import R, default_c_range, default_c_mid
 from python.component_contribution import ComponentContribution
 from python.kegg_model import KeggModel
@@ -75,8 +76,11 @@ class MaxMinDrivingForce(object):
         self.html_writer.embed_matplotlib_figure(profile_fig, width=320, height=320)
         keggpath.WriteProfileToHtmlTable(self.html_writer, params)
         keggpath.WriteConcentrationsToHtmlTable(self.html_writer, params)
+
+        concentrations = keggpath.GetMillimolarConcentrations()
+        dGm_prime = keggpath.CalculateReactionEnergiesUsingConcentrations(concentrations)
         
-        return _mdf
+        return _mdf, dGm_prime, dG0_std
 
 def KeggFile2ModelList(pathway_file):
     kegg_file = ParsedKeggFile.FromKeggFile(pathway_file)
@@ -96,9 +100,11 @@ def KeggFile2ModelList(pathway_file):
     return pathways
 
 if __name__ == '__main__':
-    REACTION_FNAME = 'scripts/formate_pathways_arren.txt'
+    fname = sys.argv[1]
+    
+    REACTION_FNAME = 'scripts/%s.txt' % fname
     pathways = KeggFile2ModelList(REACTION_FNAME)
-    html_writer = HtmlWriter('res/max_min_driving_force.html')
+    html_writer = HtmlWriter('res/%s.html' % fname)
 
     cc = ComponentContribution()
     cc.train()
@@ -106,11 +112,14 @@ if __name__ == '__main__':
         html_writer.write('<h2>%s</h2>' % p['entry'])
 
         p['model'].add_thermo(cc)
+
         dG0, u = p['model'].get_transformed_dG0(pH=p['pH'], I=p['I'], T=p['T'])
         mdf = MaxMinDrivingForce(p['model'], p['fluxes'], p['bounds'],
                                  pH=p['pH'], I=p['I'], T=p['T'],
                                  html_writer=html_writer)
 
+
         #print 'dG\'0 = ' + ', '.join(map(lambda x:'%.2f' % x, dG0[:,0]))
-        mdf_solution = mdf.Solve()
+        mdf_solution, dGm_prime, dG0_std = mdf.Solve()
         logging.info('Pathway %s: MDF = %.1f' % (p['entry'], mdf_solution))
+        savemat('res/%s.mat' % fname, {'dGm_prime':dGm_prime, 'dG0_std':dG0_std})
