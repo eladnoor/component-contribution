@@ -38,18 +38,18 @@ class Compound(object):
             # (returns a protonated form, [SH-], at pH 7).
             # So we implement it manually here.
             return Compound(database, compound_id, inchi,
-                            {'S' : 1}, [], 'S', 0, [0], [0])
+                            {'S' : 1, 'e-': 16}, [], 'S', 0, [0], [0])
         elif compound_id == 'C00237':
             # ChemAxon gets confused with the structure of carbon monoxide
             # (returns a protonated form, [CH]#[O+], at pH 7).
             # So we implement it manually here.
             return Compound(database, compound_id, inchi,
-                            {'C' : 1, 'O': 1}, [], '[C-]#[O+]', 0, [0], [0])
+                            {'C' : 1, 'O': 1, 'e-': 14}, [], '[C-]#[O+]', 0, [0], [0])
         elif compound_id == 'C00282':
             # ChemAxon gets confused with the structure of hydrogen
             # So we implement it manually here.
             return Compound(database, compound_id, inchi,
-                            {'H' : 2}, [], None, 0, [2], [0])
+                            {'H' : 2, 'e-': 2}, [], None, 0, [2], [0])
         elif inchi is None:
             # If the compound has no explicit structure, we assume that it has 
             # no proton dissociations in the relevant pH range
@@ -285,17 +285,19 @@ if __name__ == '__main__':
     logger = logging.getLogger('')
     logger.setLevel(logging.DEBUG)
     from python.compound_cacher import CompoundCacher, CompoundEncoder
-    from python.molecule import Molecule
+    from python.molecule import Molecule, OpenBabelError
     ccache = CompoundCacher(cache_fname=None)
 
-    for compound_id in ['C00003', 'C00004', 'C00005', 'C00006']:
+    for compound_id in ['C00087', 'C00282', 'C00237']:
         comp = Compound.from_kegg(compound_id)
-        print comp.atom_bag
-        mol = Molecule.FromInChI(str(comp.inchi))
-        print mol.GetFormula()
-        print mol.GetNumElectrons()
+        try:
+            mol = Molecule.FromInChI(str(comp.inchi))
+            sys.stderr.write('%s : formula = %s, nE = %s' % 
+                             (str(comp.inchi), mol.GetFormula(), mol.GetNumElerctons()))
+        except OpenBabelError:
+            pass
         ccache.add(comp)
-        sys.stderr.write('\ncompound id = %s, nH = %s, z = %s, pKa = %s\n\n\n' % 
-                         (compound_id, str(comp.nHs), str(comp.zs), str(comp.pKas)))
+        sys.stderr.write('\ncompound id = %s, nH = %s, z = %s, pKa = %s, bag = %s\n\n\n' % 
+                         (compound_id, str(comp.nHs), str(comp.zs), str(comp.pKas), str(comp.atom_bag)))
     
     ccache.dump()
