@@ -106,13 +106,10 @@ class ComponentContribution(object):
                 # non-decomposable compounds. Therefore, we truncate the 
                 # dG0_gc vector since here we only use GC for compounds which
                 # are not in cids_joined anyway.
-                try:
-                    x_prime.append(coeff)
-                    comp = self.ccache.get_compound(compound_id)
-                    group_vec = self.decomposer.smiles_to_groupvec(comp.smiles_pH7)
-                    G_prime.append(group_vec.ToArray())
-                except inchi2gv.GroupDecompositionError:
-                    return np.nan, np.nan
+                x_prime.append(coeff)
+                comp = self.ccache.get_compound(compound_id)
+                group_vec = self.decomposer.smiles_to_groupvec(comp.smiles_pH7)
+                G_prime.append(group_vec.ToArray())
 
         if x_prime != []:
             g = np.matrix(x_prime) * np.vstack(G_prime)
@@ -132,7 +129,13 @@ class ComponentContribution(object):
                 the CC estimation for this reaction's untransformed dG0 (i.e.
                 using the major MS at pH 7 for each of the reactants)
         """
-        x, g = self._decompose_reaction(reaction)
+        try:
+            x, g = self._decompose_reaction(reaction)
+        except inchi2gv.GroupDecompositionError:
+            if not include_analysis:
+                return 0, 1e5
+            else:
+                return 0, 1e5, []
 
         v_r = np.matrix(self.params['preprocess_v_r'])
         v_g = np.matrix(self.params['preprocess_v_g'])

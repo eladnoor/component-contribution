@@ -50,6 +50,16 @@ class Compound(object):
             # So we implement it manually here.
             return Compound(database, compound_id, inchi,
                             {'H' : 2, 'e-': 2}, [], None, 0, [2], [0])
+        elif compound_id == 'C80070':
+            # When given the structure of bicarbonate, ChemAxon returns the
+            # pKas for CO2(tot), i.e. it assumes the non-hydrated CO2 species is
+            # one of the pseudoisomers, and the lower pKa value is 6.05 instead of 
+            # 3.78. Here, we introduce a new "KEGG" compound that will represent
+            # pure bicarbonate (without CO2(sp)) and therefore plug in the pKa
+            # values from Alberty's book.
+            return Compound(database, compound_id, inchi,
+                            {'C': 1, 'H': 1, 'O': 3, 'e-': 32}, [10.33, 3.43],
+                            'OC(=O)[O-]', 1, [0, 1, 2], [-2, -1, 0])            
         elif inchi is None:
             # If the compound has no explicit structure, we assume that it has 
             # no proton dissociations in the relevant pH range

@@ -1,5 +1,4 @@
 import sys, logging, os
-import numpy as np
 
 REACTION_FNAME = 'examples/wolf_reactions.txt'
 CC_CACHE_FNAME = 'cache/component_contribution.mat'
@@ -27,14 +26,14 @@ def python_main():
 
     for i, r in enumerate(reactions):
         dG0, u_r, analysis = cc.get_dG0_r(r, True)
-        ddG0 = r.get_transform_ddG0(pH=7.5, I=0.2, T=298.15)
+        ddG0 = r.get_transform_ddG0(pH=7, I=0.25, T=298.15)
         dG0_prime = dG0 + ddG0
         print '-'*50
         print r
         print "dG0' = %8.1f +- %5.1f" % (dG0_prime, u_r * 1.96)
-        for d in analysis:
-            print 'Wrc = %3g, Wgc = %3g, N = %d : %s' % \
-                (d['w_rc'], d['w_gc'], d['count'], d['reaction'])
+        #for d in analysis:
+        #    print 'Wrc = %3g, Wgc = %3g, N = %d : %s' % \
+        #        (d['w_rc'], d['w_gc'], d['count'], d['reaction'])
 
 if __name__ == '__main__':
     pwd = os.path.realpath(os.path.curdir)
