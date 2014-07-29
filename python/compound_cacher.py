@@ -1,8 +1,22 @@
-import json, os, logging, csv, gzip, sys, numpy, types
+import json, os, logging, csv, gzip, numpy
 from python.compound import Compound
 base_path = os.path.split(os.path.realpath(__file__))[0]
-KEGG_COMPOUND_JSON_FNAME = os.path.join(base_path, '../data/kegg_compounds.json.gz') # names and InChIs only
-DEFAULT_CACHE_FNAME = os.path.join(base_path, '../cache/compounds.json.gz') # names, InChIs and pKa data
+
+### Input Files:
+# original version of the KEGG compound file 
+OLD_COMPOUND_JSON_FNAME = os.path.join(base_path, '../data/equilibrator_compounds.json.gz')
+
+# a CSV file with additional names and InChIs (mostly compounds missing from KEGG
+# and added manually)
+KEGG_ADDITIONS_TSV_FNAME = os.path.join(base_path, '../data/kegg_additions.tsv')
+
+### Files created by this module:
+# names and InChIs only
+KEGG_COMPOUND_JSON_FNAME = os.path.join(base_path, '../data/kegg_compounds.json.gz') 
+
+# names, InChIs and pKa data
+DEFAULT_CACHE_FNAME = os.path.join(base_path, '../cache/compounds.json.gz') 
+
 
 class CompoundEncoder(json.JSONEncoder):
     def default(self, obj):
@@ -39,9 +53,7 @@ class CompoundCacher(object):
         if self.cache_fname is None:
             self.cache_fname = DEFAULT_CACHE_FNAME
         
-        compound_json_fname = KEGG_COMPOUND_JSON_FNAME
-        
-        compounds = json.load(gzip.open(compound_json_fname, 'r'))
+        compounds = json.load(gzip.open(KEGG_COMPOUND_JSON_FNAME, 'r'))
         self.compound_id2inchi = { d['compound_id']: d['inchi'] 
                                    for d in compounds }
         self.need_to_update_cache_file = False
@@ -111,18 +123,10 @@ class CompoundCacher(object):
         return elements, Ematrix
 
 ###############################################################################
+
+    @staticmethod
+    def RebuildCompoundJSON():
         
-if __name__ == '__main__':
-    logger = logging.getLogger('')
-    logger.setLevel(logging.INFO)
-    
-    if not os.path.exists(KEGG_COMPOUND_JSON_FNAME):
-        # this is legacy code which was used for creating the kegg_compounds.json.gz
-        # file.
-    
-        OLD_COMPOUND_JSON_FNAME = os.path.join(base_path, '../data/equilibrator_compounds.json.gz')
-        KEGG_ADDITIONS_TSV_FNAME = os.path.join(base_path, '../data/kegg_additions.tsv')
-    
         kegg_dict = {}
         for d in json.load(gzip.open(OLD_COMPOUND_JSON_FNAME, 'r')):
             cid = d['CID']
@@ -147,16 +151,32 @@ if __name__ == '__main__':
         json.dump(compound_json, new_json, sort_keys=True, indent=4)
         new_json.close()
     
-    ccache = CompoundCacher(cache_fname=None)
+###############################################################################
+
+    @staticmethod
+    def BuildCache(start_from_scratch=False):
+        if start_from_scratch and os.path.exists(DEFAULT_CACHE_FNAME):
+            os.remove(DEFAULT_CACHE_FNAME)
+            
+        ccache = CompoundCacher(cache_fname=DEFAULT_CACHE_FNAME)
+        
+        i = 0
+        for compound_id in ccache.get_all_compound_ids():
+            logging.info('Caching %s' % compound_id)
+            comp = ccache.get_compound(compound_id)
+            logging.info(str(comp))
+            i += 1
+            if i % 100 == 0:
+                logging.info('Dumping Cache ...')
+                ccache.dump()
+        
+        ccache.dump()
+
+###############################################################################
+        
+if __name__ == '__main__':
+    logger = logging.getLogger('')
+    logger.setLevel(logging.INFO)
     
-    i = 0
-    for compound_id in ccache.get_all_compound_ids():
-        logging.info('Caching %s' % compound_id)
-        comp = ccache.get_compound(compound_id)
-        logging.info(str(comp))
-        i += 1
-        if i % 100 == 0:
-            logging.info('Dumping Cache ...')
-            ccache.dump()
-    
-    ccache.dump()
+    CompoundCacher.RebuildCompoundJSON()
+    #CompoundCacher.BuildCache()
