@@ -179,4 +179,4 @@ if __name__ == '__main__':
     logger.setLevel(logging.INFO)
     
     CompoundCacher.RebuildCompoundJSON()
-    #CompoundCacher.BuildCache()
+    CompoundCacher.BuildCache()

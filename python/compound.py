@@ -50,8 +50,8 @@ class Compound(object):
             # So we implement it manually here.
             return Compound(database, compound_id, inchi,
                             {'H' : 2, 'e-': 2}, [], None, 0, [2], [0])
-        elif compound_id == 'C80070':
-            # When given the structure of bicarbonate, ChemAxon returns the
+        elif compound_id == 'C01353':
+            # When given the structure of carbonic acid, ChemAxon returns the
             # pKas for CO2(tot), i.e. it assumes the non-hydrated CO2 species is
             # one of the pseudoisomers, and the lower pKa value is 6.05 instead of 
             # 3.78. Here, we introduce a new "KEGG" compound that will represent
