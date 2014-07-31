@@ -10,7 +10,7 @@ class KeggReaction(object):
         for cid, coeff in sparse.iteritems():
             if not (isinstance(coeff, float) or isinstance(coeff, int)):
                 raise ValueError('All values in KeggReaction must be integers or floats')
-        self.sparse = sparse
+        self.sparse = dict(filter(lambda (k,v):v, sparse.items()))
         self.arrow = arrow
         self.rid = rid
         self.ccache = CompoundCacher()
