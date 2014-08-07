@@ -91,7 +91,13 @@ class CompoundCacher(object):
 
         logging.debug('Cache hit: %s' % str(compound_id))
         return self.compound_dict[compound_id]
-            
+
+    def remove(self, compound_id):
+        if compound_id in self.compound_dict:
+            del self.compound_dict[compound_id]
+        else:
+            logging.debug('%s is not cached, cannot remove it' % str(compound_id))
+    
     def add(self, comp):
         self.compound_dict[comp.compound_id] = comp
         self.need_to_update_cache_file = True

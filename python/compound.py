@@ -60,6 +60,29 @@ class Compound(object):
             return Compound(database, compound_id, inchi,
                             {'C': 1, 'H': 1, 'O': 3, 'e-': 32}, [10.33, 3.43],
                             'OC(=O)[O-]', 1, [0, 1, 2], [-2, -1, 0])            
+        # Metal Cations get multiple pKa values from ChemAxon, which is
+        # obviously a bug. We override the important ones here:
+        elif compound_id == 'C00076': # Ca2+
+            return Compound(database, compound_id, inchi,
+                            {'Ca' : 1, 'e-': 18}, [], '[Ca++]', 0, [0], [2])
+        elif compound_id == 'C00238': # K+
+            return Compound(database, compound_id, inchi,
+                            {'K' : 1, 'e-': 18}, [], '[K+]', 0, [0], [1])
+        elif compound_id == 'C00305': # Mg2+
+            return Compound(database, compound_id, inchi,
+                            {'Mg' : 1, 'e-': 10}, [], '[Mg++]', 0, [0], [2])
+        elif compound_id == 'C14818': # Fe2+
+            return Compound(database, compound_id, inchi,
+                            {'Fe' : 1, 'e-': 24}, [], '[Fe++]', 0, [0], [2])
+        elif compound_id == 'C14819': # Fe3+
+            return Compound(database, compound_id, inchi,
+                            {'Fe' : 1, 'e-': 23}, [], '[Fe+++]', 0, [0], [3])
+        elif compound_id == 'C00138': # ferredoxin(red)
+            return Compound(database, compound_id, inchi,
+                            {'Fe' : 1, 'e-': 26}, [], None, 0, [0], [0])
+        elif compound_id == 'C00139': # ferredoxin(ox)
+            return Compound(database, compound_id, inchi,
+                            {'Fe' : 1, 'e-': 25}, [], None, 0, [0], [1])
         elif inchi is None:
             # If the compound has no explicit structure, we assume that it has 
             # no proton dissociations in the relevant pH range
