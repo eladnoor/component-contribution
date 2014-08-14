@@ -210,7 +210,8 @@ class ComponentContribution(object):
                 major_ms_dG0_f = float(np.dot(gv, dG0_gc))
             except inchi2gv.GroupDecompositionError:
                 d['error'] = 'We cannot estimate the formation energy of this compound ' +\
-                             'because its structure is too complex to decompose to groups'
+                             'because its structure is too small or too complex to ' +\
+                             'decompose to groups'
                 major_ms_dG0_f = np.nan
         else:
             d['error'] = 'We cannot estimate the formation energy of this compound ' +\

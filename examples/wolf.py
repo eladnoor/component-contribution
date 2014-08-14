@@ -10,15 +10,12 @@ def python_main():
     logger.setLevel(logging.INFO)
     from python.component_contribution import ComponentContribution
     from python.kegg_reaction import KeggReaction
-    from python.training_data import TrainingData
-
-    td = TrainingData()
 
     if os.path.exists(CC_CACHE_FNAME):
-        cc = ComponentContribution.from_matfile(CC_CACHE_FNAME, td)
+        cc = ComponentContribution.from_matfile(CC_CACHE_FNAME)
     else:
         logging.info('Calculating the component-contributions from raw data')
-        cc = ComponentContribution(td)
+        cc = ComponentContribution()
         cc.save_matfile(CC_CACHE_FNAME)
 
     reaction_strings = open(REACTION_FNAME, 'r').readlines()
