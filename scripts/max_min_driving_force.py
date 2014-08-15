@@ -105,9 +105,8 @@ if __name__ == '__main__':
     REACTION_FNAME = 'scripts/%s.txt' % fname
     pathways = KeggFile2ModelList(REACTION_FNAME)
     html_writer = HtmlWriter('res/%s.html' % fname)
+    cc = ComponentContribution.init()
 
-    cc = ComponentContribution()
-    cc.train()
     for p in pathways:
         html_writer.write('<h2>%s</h2>' % p['entry'])
 

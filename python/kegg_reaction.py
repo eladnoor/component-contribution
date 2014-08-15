@@ -139,13 +139,21 @@ class KeggReaction(object):
         
         return atom_bag
 
-    def is_balanced(self):
+    def is_balanced(self, fix_water=False):
         reaction_atom_bag = self._get_reaction_atom_bag()
-        if reaction_atom_bag is None:
+
+        if reaction_atom_bag is None: # this means some compound formulas are missing
             return False
-        else:
-            return len(reaction_atom_bag) == 0
-    
+
+        if fix_water and 'O' in reaction_atom_bag:
+            self.sparse.setdefault('C00001', 0)
+            self.sparse['C00001'] += -reaction_atom_bag['O']
+            if self.sparse['C00001'] == 0:
+                del self.sparse['C00001']
+            reaction_atom_bag = self._get_reaction_atom_bag()
+
+        return len(reaction_atom_bag) == 0
+            
     def dense(self, cids):
         s = np.matrix(np.zeros((len(cids), 1)))
         for cid, coeff in self.iteritems():

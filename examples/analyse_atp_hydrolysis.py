@@ -1,4 +1,4 @@
-import logging, os, csv
+import logging, csv
 import numpy as np
 logger = logging.getLogger('')
 logger.setLevel(logging.INFO)
@@ -6,18 +6,10 @@ from python.component_contribution import ComponentContribution
 from python.kegg_reaction import KeggReaction
 from python.training_data import TrainingData
 
-CC_CACHE_FNAME = 'cache/component_contribution.mat'
-
 def main():
 
     td = TrainingData()
-
-    if os.path.exists(CC_CACHE_FNAME):
-        cc = ComponentContribution.from_matfile(CC_CACHE_FNAME, td)
-    else:
-        logging.info('Calculating the component-contributions from raw data')
-        cc = ComponentContribution(td)
-        cc.save_matfile(CC_CACHE_FNAME)
+    cc = ComponentContribution.init()
 
     G1 = np.matrix(cc.params['G1'])
     G2 = np.matrix(cc.params['G2'])

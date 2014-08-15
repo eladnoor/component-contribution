@@ -1,7 +1,6 @@
 import sys, logging, os
 
 REACTION_FNAME = 'examples/wolf_reactions.txt'
-CC_CACHE_FNAME = 'cache/component_contribution.mat'
 PYTHON_BIN = 'python'
 PYTHON_SCRIPT_FNAME = 'python/component_contribution.py'
 
@@ -11,13 +10,7 @@ def python_main():
     from python.component_contribution import ComponentContribution
     from python.kegg_reaction import KeggReaction
 
-    if os.path.exists(CC_CACHE_FNAME):
-        cc = ComponentContribution.from_matfile(CC_CACHE_FNAME)
-    else:
-        logging.info('Calculating the component-contributions from raw data')
-        cc = ComponentContribution()
-        cc.save_matfile(CC_CACHE_FNAME)
-
+    cc = ComponentContribution.init()
     reaction_strings = open(REACTION_FNAME, 'r').readlines()
     reactions = map(KeggReaction.parse_formula, reaction_strings)
 

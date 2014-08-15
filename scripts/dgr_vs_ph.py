@@ -1,5 +1,5 @@
 
-import sys, logging, os
+import sys
 import numpy as np
 from scipy.io import savemat
 from python.component_contribution import ComponentContribution
@@ -34,14 +34,7 @@ if __name__ == '__main__':
     I = 0.2
     T = 298.15
 
-    CC_CACHE_FNAME = 'cache/component_contribution.mat'
-
-    if os.path.exists(CC_CACHE_FNAME):
-        cc = ComponentContribution.from_matfile(CC_CACHE_FNAME)
-    else:
-        logging.info('Calculating the component-contributions from raw data')
-        cc = ComponentContribution()
-        cc.save_matfile(CC_CACHE_FNAME)
+    cc = ComponentContribution.init()
 
     cc_dict = {'pH' : np.matrix(pH_range).T}
     for p in pathways:

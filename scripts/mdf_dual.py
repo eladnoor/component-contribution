@@ -2,6 +2,7 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
+import logging
 
 from matplotlib.font_manager import FontProperties
 import types
@@ -201,7 +202,7 @@ class Pathway(object):
         
         # ln-concentration variables
         l = pulp.LpVariable.dicts("l", ["%d" % i for i in xrange(self.Nc)])
-        B = pulp.LpVariable("B")
+        B = pulp.LpVariable("mdf")
         x = [l["%d" % i] for i in xrange(self.Nc)] + [B]
         
         for j in xrange(A.shape[0]):
@@ -296,14 +297,20 @@ class Pathway(object):
         lp_total, total_dg = self._GetTotalEnergyProblem(mdf - 1e-6, pulp.LpMinimize)
         lp_total.solve(pulp.CPLEX(msg=0))
         if lp_total.status != pulp.LpStatusOptimal:
-            raise pulp.solvers.PulpSolverError("cannot solve total delta-G problem")
-        min_tot_dg = pulp.value(total_dg)
+            #raise pulp.solvers.PulpSolverError("cannot solve minimal total delta-G problem")
+            logging.warning("cannot solve minimal total delta-G problem")
+            min_tot_dg = np.nan
+        else:
+            min_tot_dg = pulp.value(total_dg)
 
         lp_total, total_dg = self._GetTotalEnergyProblem(mdf - 1e-6, pulp.LpMaximize)
         lp_total.solve(pulp.CPLEX(msg=0))
         if lp_total.status != pulp.LpStatusOptimal:
-            raise pulp.solvers.PulpSolverError("cannot solve total delta-G problem")
-        max_tot_dg = pulp.value(total_dg)
+            #raise pulp.solvers.PulpSolverError("cannot solve maximal total delta-G problem")
+            logging.warning("cannot solve maximal total delta-G problem")
+            max_tot_dg = np.nan
+        else:
+            max_tot_dg = pulp.value(total_dg)
         
         params = {'MDF': mdf * default_RT,
                   'concentrations' : conc,

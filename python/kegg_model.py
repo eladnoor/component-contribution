@@ -94,7 +94,7 @@ class KeggModel(object):
                 rids.append(tokens[0])
                 line = tokens[1]
             reaction = KeggReaction.parse_formula(line, arrow)
-            if not reaction.is_balanced():
+            if not reaction.is_balanced(fix_water=True):
                 not_balanced_count += 1
                 logging.warning('Model contains an unbalanced reaction: ' + line)
                 reaction = KeggReaction({})

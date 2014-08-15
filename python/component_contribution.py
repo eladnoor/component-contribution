@@ -1,4 +1,4 @@
-import sys
+import sys, os, logging
 import numpy as np
 from scipy.io import savemat, loadmat
 from training_data import TrainingData
@@ -9,8 +9,12 @@ import inchi2gv
 from thermodynamic_constants import default_T
 from molecule import Molecule, OpenBabelError
 
+base_path = os.path.split(os.path.realpath(__file__))[0]
+CC_CACHE_FNAME = os.path.join(base_path, '../cache/component_contribution.mat')
+
 class ComponentContribution(object):
     
+
     def __init__(self, training_data=None):
         if training_data is None:
             training_data = TrainingData()
@@ -34,6 +38,17 @@ class ComponentContribution(object):
         
         self.Nc = len(self.cids_joined)
         self.Ng = len(self.group_names)
+
+    @staticmethod
+    def init():
+        if os.path.exists(CC_CACHE_FNAME):
+            logging.info('Loading component-contributions from cache')
+            return ComponentContribution.from_matfile(CC_CACHE_FNAME)
+        else:
+            logging.info('Calculating the component-contributions from raw data')
+            cc = ComponentContribution()
+            cc.save_matfile(CC_CACHE_FNAME)
+            return cc
 
     def save_matfile(self, file_name):
         if self.params is None:

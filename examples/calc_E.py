@@ -4,31 +4,18 @@ Created on Mon Jun 23 14:58:44 2014
 
 @author: eladn
 """
-import sys, logging, os
-import numpy as np
 from python.component_contribution import ComponentContribution
 from python.kegg_reaction import KeggReaction
-from python.compound_cacher import CompoundCacher
-from python.training_data import TrainingData
 
 #pH = 7
 I = 0.2
 T = 298.15
 F = 96.48 / 1000.0 # kJ/mol / mV
-ccache = CompoundCacher()
-CC_CACHE_FNAME = 'cache/component_contribution.mat'
-if not os.path.exists(CC_CACHE_FNAME):
-    #TrainingData.FNAME_DICT['FORMATION'] = \
-    #    ('../data/formation_energies_transformed.tsv', 10.0)
-    td = TrainingData()
-    cc = ComponentContribution(td)
-    cc.save_matfile(CC_CACHE_FNAME)
-else:
-    cc = ComponentContribution.from_matfile(CC_CACHE_FNAME)
+cc = ComponentContribution.init()
 
 #formula = 'C00033 + C00282 <=> C00084 + C00001'
-formula = 'C00067 + C00001 <=> C00058 + C00010'
-#formula = 'C00003 + C00282 <=> C00004'
+#formula = 'C00067 + C00001 <=> C00058 + C00010'
+formula = 'C00003 + C00282 <=> C00004'
 #############################################################################
 reaction = KeggReaction.parse_formula(formula)
 reaction_atom_bag = reaction._get_reaction_atom_bag()
@@ -52,7 +39,7 @@ for pH in xrange(6, 9):
 dG0_r_prime = 0
 for cid, coeff in reaction.iteritems():
     print '****', cid, '****'
-    comp = ccache.get_compound(cid)
+    comp = cc.ccache.get_compound(cid)
     dG0_f = cc.get_major_ms_dG0_f(cid)
     print cc.get_compound_json(cid)
 
