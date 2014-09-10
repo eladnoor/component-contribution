@@ -65,7 +65,8 @@ class Pathway(object):
 
         assert self.fluxes.shape[1] == self.Nr
            
-        self.bounds = None
+        self.c_bounds = None
+        self.r_bounds = None
         self.c_range = self.DEFAULT_C_RANGE
 
     def CalculateReactionEnergies(self, dG_f):
@@ -110,8 +111,8 @@ class Pathway(object):
         ln_conc_lb = np.matrix(np.ones((self.Nc, 1)) * np.log(c_lower))
         ln_conc_ub = np.matrix(np.ones((self.Nc, 1)) * np.log(c_upper))
        
-        if self.bounds:
-            for i, bound in enumerate(self.bounds):
+        if self.c_bounds:
+            for i, bound in enumerate(self.c_bounds):
                 lb, ub = bound
                 log_lb = np.log(lb or c_lower)
                 log_ub = np.log(ub or c_upper)
@@ -133,7 +134,15 @@ class Pathway(object):
                 max          c'x
                 subject to   Ax >= b
                              x >= 0
+                            
+            x is the vector of ln-concentrations concatenated with the MDF
+            variable (B), which is also the parameter being maximized.
         """
+        
+        # TODO: change the constaints such that reaction that have an explicit
+        # r_bound will not be constrained by B, but will be constained by
+        # their specific bounds.
+        
         I_dir = np.matrix(np.diag([np.sign(x) for x in self.fluxes.flat]))
        
         A = np.matrix(np.vstack([np.hstack([I_dir * self.S.T, np.ones((self.Nr, 1)) ]),
@@ -322,8 +331,12 @@ class Pathway(object):
 
 class KeggPathway(Pathway):
    
-    def __init__(self, S, rids, fluxes, cids, formation_energies=None,
-                 reaction_energies=None, cid2bounds=None, c_range=None):
+    def __init__(self, S, rids, fluxes, cids,
+                 formation_energies=None,
+                 rid2bounds=None,
+                 reaction_energies=None,
+                 cid2bounds=None,
+                 c_range=None):
         Pathway.__init__(self, S, formation_energies=formation_energies,
                          reaction_energies=reaction_energies, fluxes=fluxes)
         assert len(cids) == self.Nc
@@ -332,10 +345,17 @@ class KeggPathway(Pathway):
         self.rids = rids
         self.cids = cids
         if cid2bounds:
-            self.bounds = [cid2bounds.get(cid, (None, None)) for cid in self.cids]
+            self.c_bounds = [cid2bounds.get(cid, (None, None)) for cid in self.cids]
         else:
-            self.bounds = None
+            self.c_bounds = None
         self.cid2bounds = cid2bounds
+        
+        if rid2bounds:
+            self.r_bound = [rid2bounds.get(rid, (None, None)) for rid in self.rids]
+        else:
+            self.r_bound = None
+        
+        self.rid2bounds = rid2bounds
         self.c_range = c_range
 
     def GetConcentrationBounds(self, cid):

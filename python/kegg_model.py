@@ -65,6 +65,29 @@ class KeggModel(object):
         return KeggModel(S, cids, rids)
     
     @staticmethod
+    def from_kegg_reactions(kegg_reactions, has_reaction_ids=False):
+        if has_reaction_ids:
+            rids = [r.rid for r in kegg_reactions]
+        else:
+            rids = []
+
+        cids = set()
+        for reaction in kegg_reactions:
+            cids = cids.union(reaction.keys())
+        
+        # convert the list of reactions in sparse notation into a full
+        # stoichiometric matrix, where the rows (compounds) are according to the
+        # CID list 'cids'.
+        cids = sorted(cids)
+        S = np.matrix(np.zeros((len(cids), len(kegg_reactions))))
+        for i, reaction in enumerate(kegg_reactions):
+            S[:, i] = np.matrix(reaction.dense(cids))
+        
+        logging.info('Successfully loaded %d reactions (involving %d unique compounds)' %
+                     (S.shape[1], S.shape[0]))
+        return KeggModel(S, cids, rids)
+    
+    @staticmethod
     def from_formulas(reaction_strings, arrow='<=>', has_reaction_ids=False):
         """
         parses a list of reactions in KEGG format
@@ -81,41 +104,26 @@ class KeggModel(object):
            cids  - the KEGG compound IDs in the same order as the rows of S
         """
         
-        cids = set()
-        if has_reaction_ids:
-            rids = []
-        else:
-            rids = None
         reactions = []
         not_balanced_count = 0
         for line in reaction_strings:
+            rid = None
             if has_reaction_ids:
                 tokens = re.split('(\w+)\s+(.*)', line, maxsplit=1)
-                rids.append(tokens[0])
+                rid = tokens[0]
                 line = tokens[1]
-            reaction = KeggReaction.parse_formula(line, arrow)
+            reaction = KeggReaction.parse_formula(line, arrow, rid)
             if not reaction.is_balanced(fix_water=True):
                 not_balanced_count += 1
                 logging.warning('Model contains an unbalanced reaction: ' + line)
                 reaction = KeggReaction({})
-            cids = cids.union(reaction.keys())
             reactions.append(reaction)
             logging.debug('Adding reaction: ' + reaction.write_formula())
         
-        # convert the list of reactions in sparse notation into a full
-        # stoichiometric matrix, where the rows (compounds) are according to the
-        # CID list 'cids'.
-        cids = sorted(cids)
-        S = np.matrix(np.zeros((len(cids), len(reactions))))
-        for i, reaction in enumerate(reactions):
-            S[:, i] = np.matrix(reaction.dense(cids))
-        
-        logging.info('Successfully loaded %d reactions (involving %d unique compounds)' %
-                     (S.shape[1], S.shape[0]))
         if not_balanced_count > 0:
             logging.warning('%d out of the %d reactions are not chemically balanced' %
-                            (not_balanced_count, S.shape[1]))
-        return KeggModel(S, cids, rids)
+                            (not_balanced_count, len(reaction_strings)))
+        return KeggModel.from_kegg_reactions(reactions, has_reaction_ids)
 
     def add_thermo_old(self, cc):
         self.dG0, self.cov_dG0, self.MSE_kerG = cc.estimate_kegg_model(self.S, self.cids)

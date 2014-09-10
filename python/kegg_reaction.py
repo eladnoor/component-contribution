@@ -24,6 +24,13 @@ class KeggReaction(object):
     def __str__(self):
         return self.write_formula()
 
+    def reverse(self):
+        """
+            reverse the direction of the reaction by negating all stoichiometric
+            coefficients
+        """
+        self.sparse = dict( (k, -v) for (k, v) in self.sparse.iteritems() )
+
     @staticmethod
     def parse_reaction_formula_side(s):
         """ 
@@ -106,9 +113,6 @@ class KeggReaction(object):
                 right.append(KeggReaction.write_compound_and_coeff(cid, coeff))
         return "%s %s %s" % (' + '.join(left), self.arrow, ' + '.join(right))
 
-    def __str__(self):
-        return self.write_formula()
-    
     def _get_reaction_atom_bag(self):
         """
             Use for checking if all elements are conserved.
@@ -153,6 +157,9 @@ class KeggReaction(object):
             reaction_atom_bag = self._get_reaction_atom_bag()
 
         return len(reaction_atom_bag) == 0
+
+    def is_empty(self):
+        return len(self.sparse) == 0
             
     def dense(self, cids):
         s = np.matrix(np.zeros((len(cids), 1)))

@@ -23,6 +23,14 @@ class ConcentrationConstraints(object):
 class MaxMinDrivingForce(object):
     
     def __init__(self, model, fluxes, bounds, pH, I, T, html_writer=None):
+        """
+            model    - a KeggModel object
+            fluxes   - a list of fluxes, should match the model in length
+            bounds   - a dictionary mapping KEGG compound IDs to tuples of 
+                       (low,up) bound
+            pH, I, T - the aqueous conditions for the thermodynamics
+            html_writer - (optional) write a report to HTML file
+        """
         self.model = model
         self.fluxes = np.matrix(fluxes)
         self.pH, self.I, self.T = pH, I, T
@@ -49,7 +57,7 @@ class MaxMinDrivingForce(object):
             cid2bounds[cid] = b
         return cid2bounds
 
-    def Solve(self, prefix='mdf'):
+    def Solve(self):
         S = self.model.S
         rids = self.model.rids or ['R%05d' % i for i in xrange(S.shape[1])]
         cids = self.model.cids
@@ -82,6 +90,61 @@ class MaxMinDrivingForce(object):
         
         return _mdf, dGm_prime, dG0_std
 
+    def SolveIterative(self):
+        S = self.model.S
+        f = self.fluxes
+        rids = self.model.rids or ['R%05d' % i for i in xrange(S.shape[1])]
+        cids = self.model.cids
+        dG0_prime, dG0_std = self.model.get_transformed_dG0(pH=self.pH, I=self.I, T=self.T)
+        cid2bounds = self.GetBounds()
+        
+        rid2bounds = {rid: (None, None) for rid in rids}
+        bound_reaction_counter = 0
+        while bound_reaction_counter < len(rids):
+            keggpath = KeggPathway(S, rids, f, cids,
+                                   formation_energies=None,
+                                   rid2bounds=rid2bounds,
+                                   reaction_energies=dG0_prime.T,
+                                   cid2bounds=cid2bounds,
+                                   c_range=self.c_range)
+            _mdf, params = keggpath.FindMDF()
+            print _mdf
+            
+            # fix the driving force of the reactions that have shadow prices
+            # to the MDF value, and remove them from the optimization in the
+            # next round
+            shadow_prices = params['reaction prices']
+            
+            for i, rid in enumerate(rids):
+                if shadow_prices[i] > 1e-6:
+                    rid2bounds[rid] = (_mdf - 1e-5, _mdf + 1e-5)
+                    bound_reaction_counter += 1
+            
+            print rid2bounds
+            break
+            
+        total_dG_prime = params['maximum total dG']
+        odfe = 100 * np.tanh(_mdf / (2*R*self.T))
+        average_dG_prime = total_dG_prime/np.sum(self.fluxes)
+        average_dfe = 100 * np.tanh(-average_dG_prime / (2*R*self.T))        
+        res =  ["MDF = %.1f (avg. = %.1f) kJ/mol" % (_mdf, -average_dG_prime),
+               "ODFE = %.1f%% (avg. = %.1f%%)" % (odfe, average_dfe),
+               "Total &Delta;<sub>r</sub>G' = %.1f kJ/mol" % total_dG_prime,
+               "no. steps = %g" % np.sum(self.fluxes)]
+        self.html_writer.write_ul(res)
+        
+        profile_fig = keggpath.PlotProfile(params)
+        plt.title('ODFE = %.1f%%' % odfe, figure=profile_fig)
+        self.html_writer.embed_matplotlib_figure(profile_fig, width=320, height=320)
+        keggpath.WriteProfileToHtmlTable(self.html_writer, params)
+        keggpath.WriteConcentrationsToHtmlTable(self.html_writer, params)
+
+        concentrations = keggpath.GetMillimolarConcentrations()
+        dGm_prime = keggpath.CalculateReactionEnergiesUsingConcentrations(concentrations)
+        
+        return _mdf, dGm_prime, dG0_std
+            
+            
 def KeggFile2ModelList(pathway_file):
     kegg_file = ParsedKeggFile.FromKeggFile(pathway_file)
     entries = kegg_file.entries()
@@ -116,7 +179,6 @@ if __name__ == '__main__':
         mdf = MaxMinDrivingForce(p['model'], p['fluxes'], p['bounds'],
                                  pH=p['pH'], I=p['I'], T=p['T'],
                                  html_writer=html_writer)
-
 
         #print 'dG\'0 = ' + ', '.join(map(lambda x:'%.2f' % x, dG0[:,0]))
         mdf_solution, dGm_prime, dG0_std = mdf.Solve()
