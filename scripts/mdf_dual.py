@@ -328,12 +328,17 @@ class Pathway(object):
         else:
             max_tot_dg = pulp.value(total_dg)
         
+        dG_r_prime = self.CalculateReactionEnergiesUsingConcentrations(conc)
+        # adjust dG to flux directions
+        dG_r_prime_adj = np.multiply(dG_r_prime, np.sign(self.fluxes)) 
+
         params = {'MDF': mdf * default_RT,
                   'concentrations' : conc,
                   'reaction prices' : reaction_prices,
                   'compound prices' : compound_prices,
                   'maximum total dG' : max_tot_dg * default_RT,
-                  'minimum total dG' : min_tot_dg * default_RT}
+                  'minimum total dG' : min_tot_dg * default_RT,
+                  'gibbs energies': dG_r_prime_adj}
         return mdf * default_RT, params
 
 class KeggPathway(Pathway):
