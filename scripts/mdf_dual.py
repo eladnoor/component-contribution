@@ -139,10 +139,6 @@ class Pathway(object):
             variable (B), which is also the parameter being maximized.
         """
         
-        # TODO: change the constaints such that reaction that have an explicit
-        # r_bound will not be constrained by B, but will be constained by
-        # their specific bounds.
-        
         I_dir = np.matrix(np.diag([np.sign(x) for x in self.fluxes.flat]))
        
         A = np.matrix(np.vstack([np.hstack([I_dir * self.S.T, np.ones((self.Nr, 1)) ]),
@@ -153,7 +149,18 @@ class Pathway(object):
                                  -ln_conc_lb]))
         c = np.matrix(np.vstack([np.zeros((self.Nc, 1)),
                                  np.ones((1, 1))]))
-       
+
+        # change the constaints such that reaction that have an explicit
+        # r_bound will not be constrained by B, but will be constained by
+        # their specific bounds. Note that we need to divide the bound
+        # by R*T since the variables in the LP are not in kJ/mol but in units
+        # of R*T.
+        if self.r_bounds:
+            for i, r_ub in enumerate(self.r_bounds):
+                if r_ub is not None:
+                    A[i, -1] = 0
+                    b[i] += r_ub/default_RT + 1e-5 
+        
         return A, b, c
    
     def _GetTotalEnergyProblem(self, min_driving_force=0, objective=pulp.LpMinimize):
@@ -351,9 +358,9 @@ class KeggPathway(Pathway):
         self.cid2bounds = cid2bounds
         
         if rid2bounds:
-            self.r_bound = [rid2bounds.get(rid, (None, None)) for rid in self.rids]
+            self.r_bounds = [rid2bounds.get(rid, None) for rid in self.rids]
         else:
-            self.r_bound = None
+            self.r_bounds = None
         
         self.rid2bounds = rid2bounds
         self.c_range = c_range

@@ -98,7 +98,7 @@ class MaxMinDrivingForce(object):
         dG0_prime, dG0_std = self.model.get_transformed_dG0(pH=self.pH, I=self.I, T=self.T)
         cid2bounds = self.GetBounds()
         
-        rid2bounds = {rid: (None, None) for rid in rids}
+        rid2bounds = {}
         bound_reaction_counter = 0
         while bound_reaction_counter < len(rids):
             keggpath = KeggPathway(S, rids, f, cids,
@@ -108,20 +108,20 @@ class MaxMinDrivingForce(object):
                                    cid2bounds=cid2bounds,
                                    c_range=self.c_range)
             _mdf, params = keggpath.FindMDF()
-            print _mdf
             
             # fix the driving force of the reactions that have shadow prices
             # to the MDF value, and remove them from the optimization in the
             # next round
             shadow_prices = params['reaction prices']
             
-            for i, rid in enumerate(rids):
-                if shadow_prices[i] > 1e-6:
-                    rid2bounds[rid] = (_mdf - 1e-5, _mdf + 1e-5)
+            print '-' * 50
+            print 'MDF = %.2f' % _mdf
+            for rid, s_p in zip(rids, shadow_prices):
+                if rid not in rid2bounds and s_p > 1e-5:
+                    print 'shadow_price(%s) = %.3f' % (rid, s_p)
+                    print 'Setting bound dG(%s) < %.2f' % (rid, -_mdf)
+                    rid2bounds[rid] = -_mdf
                     bound_reaction_counter += 1
-            
-            print rid2bounds
-            break
             
         total_dG_prime = params['maximum total dG']
         odfe = 100 * np.tanh(_mdf / (2*R*self.T))
