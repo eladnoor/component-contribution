@@ -425,7 +425,7 @@ class KeggPathway(Pathway):
         concentrations = params['concentrations']
 
         if figure is None:
-            figure = plt.figure(figsize=(6,6), dpi=100)
+            figure = plt.figure(figsize=(8,8), dpi=100)
         plt.title(r'Thermodynamic profile', figure=figure)
         plt.ylabel(r"cumulative $\Delta_r G'*$ [kJ/mol]", figure=figure)
         plt.xlabel(r'Reaction', figure=figure)
@@ -487,29 +487,6 @@ class KeggPathway(Pathway):
         self.WriteProfileToHtmlTable(html_writer, params)
         self.WriteConcentrationsToHtmlTable(html_writer, params)
 
-    def WriteConcentrationsToHtmlTable(self, html_writer, params=None):
-        if params is not None:
-            concentrations = params['concentrations']
-            compound_shadow_prices = params['compound prices']
-        else:
-            concentrations = self.GetMillimolarConcentrations()
-            compound_shadow_prices = np.zeros((len(self.cids), 1))
-
-        dict_list = []
-        for c, cid in enumerate(self.cids):
-            d = {}
-            d['KEGG CID'] = cid
-            lb, ub = self.GetConcentrationBounds(cid)
-            d['Concentration LB [M]'] = '%.2e' % lb
-            d['Concentration [M]'] = '%.2e' % concentrations[c, 0]
-            d['Concentration UB [M]'] = '%.2e' % ub
-            d['shadow price'] = '%.3g' % compound_shadow_prices[c, 0]
-            dict_list.append(d)
-        headers = ['KEGG CID', 'Concentration LB [M]',
-                   'Concentration [M]', 'Concentration UB [M]', 'shadow price']
-       
-        html_writer.write_table(dict_list, headers=headers)
-   
     def WriteProfileToHtmlTable(self, html_writer, params=None):
         phys_concentrations = self.GetMillimolarConcentrations()
         if params is not None:
@@ -548,6 +525,30 @@ class KeggPathway(Pathway):
         dict_list.append(d)
         
         html_writer.write_table(dict_list, headers=headers, decimal=1)
+
+    def WriteConcentrationsToHtmlTable(self, html_writer, params=None):
+        if params is not None:
+            concentrations = params['concentrations']
+            compound_shadow_prices = params['compound prices']
+        else:
+            concentrations = self.GetMillimolarConcentrations()
+            compound_shadow_prices = np.zeros((len(self.cids), 1))
+
+        dict_list = []
+        for c, cid in enumerate(self.cids):
+            d = {}
+            d['KEGG CID'] = cid
+            lb, ub = self.GetConcentrationBounds(cid)
+            d['Concentration LB [M]'] = '%.2e' % lb
+            d['Concentration [M]'] = '%.2e' % concentrations[c, 0]
+            d['Concentration UB [M]'] = '%.2e' % ub
+            d['shadow price'] = '%.3g' % compound_shadow_prices[c, 0]
+            dict_list.append(d)
+        headers = ['KEGG CID', 'Concentration LB [M]',
+                   'Concentration [M]', 'Concentration UB [M]', 'shadow price']
+       
+        html_writer.write_table(dict_list, headers=headers)
+   
        
 if __name__ == '__main__':
     dGs = np.matrix([[0, -50, -30, -100]])

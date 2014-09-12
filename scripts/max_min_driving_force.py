@@ -133,10 +133,10 @@ class MaxMinDrivingForce(object):
                "no. steps = %g" % np.sum(self.fluxes)]
         self.html_writer.write_ul(res)
         
-        profile_fig = keggpath.PlotProfile(params)
-        self.html_writer.embed_matplotlib_figure(profile_fig, width=320, height=320)
-        keggpath.WriteProfileToHtmlTable(self.html_writer, params)
-        keggpath.WriteConcentrationsToHtmlTable(self.html_writer, params)
+        params['profile figure'] = keggpath.PlotProfile(params)
+        self.html_writer.embed_matplotlib_figure(params['profile figure'],
+                                                 width=320, height=320)
+        keggpath.WriteResultsToHtmlTables(self.html_writer, params)
 
         return params
             
