@@ -96,6 +96,10 @@ class MaxMinDrivingForce(object):
         rids = self.model.rids or ['R%05d' % i for i in xrange(S.shape[1])]
         cids = self.model.cids
         dG0_prime, dG0_std = self.model.get_transformed_dG0(pH=self.pH, I=self.I, T=self.T)
+        # a conservative approach is to use the lowest dG'0 value within the
+        # 95% confidence interval.
+        dG0_prime = dG0_prime - 3*dG0_std
+        
         cid2bounds = self.GetBounds()
         
         rid2bounds = {}
