@@ -281,7 +281,7 @@ class Pathway(object):
         
         return lp, w, z, u
     
-    def FindMDF(self):
+    def FindMDF(self, calculate_totals=True):
         """Find the MDF (Optimized Bottleneck Energetics).
        
         Args:
@@ -307,38 +307,44 @@ class Pathway(object):
         reaction_prices = np.matrix([pulp.value(w["%d" % i]) for i in xrange(self.Nr)]).T
         compound_prices = np.matrix([pulp.value(z["%d" % j]) for j in xrange(self.Nc)]).T - \
                           np.matrix([pulp.value(u["%d" % j]) for j in xrange(self.Nc)]).T
-        
-        # find the maximum and minimum total Gibbs energy of the pathway,
-        # under the constraint that the driving force of each reaction is >= MDF
-        lp_total, total_dg = self._GetTotalEnergyProblem(mdf - 1e-6, pulp.LpMinimize)
-        lp_total.solve(pulp.CPLEX(msg=0))
-        if lp_total.status != pulp.LpStatusOptimal:
-            #raise pulp.solvers.PulpSolverError("cannot solve minimal total delta-G problem")
-            logging.warning("cannot solve minimal total delta-G problem")
-            min_tot_dg = np.nan
-        else:
-            min_tot_dg = pulp.value(total_dg)
-
-        lp_total, total_dg = self._GetTotalEnergyProblem(mdf - 1e-6, pulp.LpMaximize)
-        lp_total.solve(pulp.CPLEX(msg=0))
-        if lp_total.status != pulp.LpStatusOptimal:
-            #raise pulp.solvers.PulpSolverError("cannot solve maximal total delta-G problem")
-            logging.warning("cannot solve maximal total delta-G problem")
-            max_tot_dg = np.nan
-        else:
-            max_tot_dg = pulp.value(total_dg)
-        
-        dG_r_prime = self.CalculateReactionEnergiesUsingConcentrations(conc)
-        # adjust dG to flux directions
-        dG_r_prime_adj = np.multiply(dG_r_prime, np.sign(self.fluxes)) 
 
         params = {'MDF': mdf * default_RT,
                   'concentrations' : conc,
                   'reaction prices' : reaction_prices,
-                  'compound prices' : compound_prices,
-                  'maximum total dG' : max_tot_dg * default_RT,
-                  'minimum total dG' : min_tot_dg * default_RT,
-                  'gibbs energies': dG_r_prime_adj}
+                  'compound prices' : compound_prices}
+                  
+        if calculate_totals:
+            # find the maximum and minimum total Gibbs energy of the pathway,
+            # under the constraint that the driving force of each reaction is >= MDF
+            lp_total, total_dg = self._GetTotalEnergyProblem(mdf - 1e-6, pulp.LpMinimize)
+            lp_total.solve(pulp.CPLEX(msg=0))
+            if lp_total.status != pulp.LpStatusOptimal:
+                #raise pulp.solvers.PulpSolverError("cannot solve minimal total delta-G problem")
+                logging.warning("cannot solve minimal total delta-G problem")
+                min_tot_dg = np.nan
+            else:
+                min_tot_dg = pulp.value(total_dg)
+    
+            params['minimum total dG'] = min_tot_dg * default_RT
+    
+            lp_total, total_dg = self._GetTotalEnergyProblem(mdf - 1e-6, pulp.LpMaximize)
+            lp_total.solve(pulp.CPLEX(msg=0))
+            if lp_total.status != pulp.LpStatusOptimal:
+                #raise pulp.solvers.PulpSolverError("cannot solve maximal total delta-G problem")
+                logging.warning("cannot solve maximal total delta-G problem")
+                max_tot_dg = np.nan
+            else:
+                max_tot_dg = pulp.value(total_dg)
+
+            params['maximum total dG'] = max_tot_dg * default_RT
+            
+        dG_r_prime = self.CalculateReactionEnergiesUsingConcentrations(conc)
+        params['gibbs energies raw'] = dG_r_prime
+
+        # adjust dG to flux directions
+        dG_r_prime_adj = np.multiply(dG_r_prime, np.sign(self.fluxes)) 
+        params['gibbs energies'] = dG_r_prime_adj
+        
         return mdf * default_RT, params
 
 class KeggPathway(Pathway):

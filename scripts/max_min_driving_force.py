@@ -90,7 +90,7 @@ class MaxMinDrivingForce(object):
         
         return _mdf, dGm_prime, dG0_std
 
-    def SolveIterative(self):
+    def SolveIterative(self, uncertainty_factor=3):
         S = self.model.S
         f = self.fluxes
         rids = self.model.rids or ['R%05d' % i for i in xrange(S.shape[1])]
@@ -98,22 +98,22 @@ class MaxMinDrivingForce(object):
         dG0_prime, dG0_std = self.model.get_transformed_dG0(pH=self.pH, I=self.I, T=self.T)
         # a conservative approach is to use the lowest dG'0 value within the
         # 95% confidence interval.
-        dG0_prime = dG0_prime - 3*dG0_std
+        dG0_prime = dG0_prime - uncertainty_factor*dG0_std
         
         cid2bounds = self.GetBounds()
         
         rid2bounds = {}
         bound_reaction_counter = 0
-        iter_counter = 0
-        while bound_reaction_counter < len(rids):
-            iter_counter += 1
+        total_active_reactions = len(filter(None, f.flat))
+        
+        while bound_reaction_counter < total_active_reactions:
             keggpath = KeggPathway(S, rids, f, cids,
                                    formation_energies=None,
                                    rid2bounds=rid2bounds,
                                    reaction_energies=dG0_prime.T,
                                    cid2bounds=cid2bounds,
                                    c_range=self.c_range)
-            _mdf, params = keggpath.FindMDF()
+            _mdf, params = keggpath.FindMDF(calculate_totals=False)
             
             # fix the driving force of the reactions that have shadow prices
             # to the MDF value, and remove them from the optimization in the
@@ -121,21 +121,14 @@ class MaxMinDrivingForce(object):
             shadow_prices = params['reaction prices']
             
             print '\rIterative MDF: %3d%%' % \
-                (bound_reaction_counter * 100 / len(rids)),
+                (bound_reaction_counter * 100 / total_active_reactions),
             for rid, s_p in zip(rids, shadow_prices):
                 if rid not in rid2bounds and s_p > 1e-5:
                     rid2bounds[rid] = -_mdf
                     bound_reaction_counter += 1
         
         print '\rIterative MDF: [DONE]'
-        total_dG_prime = params['maximum total dG']
-        average_dG_prime = total_dG_prime/np.sum(self.fluxes)
-        average_dfe = 100 * np.tanh(-average_dG_prime / (2*R*self.T))        
-        res =  ["MDF = %.1f (avg. = %.1f) kJ/mol" % (_mdf, -average_dG_prime),
-               "Average dfe = %.1f%%)" % (average_dfe),
-               "Total &Delta;<sub>r</sub>G' = %.1f kJ/mol" % total_dG_prime,
-               "no. steps = %g" % np.sum(self.fluxes)]
-        self.html_writer.write_ul(res)
+        self.html_writer.write("<p>MDF = %.1f kJ/mol</p>\n" % _mdf)
         
         params['profile figure'] = keggpath.PlotProfile(params)
         self.html_writer.embed_matplotlib_figure(params['profile figure'],

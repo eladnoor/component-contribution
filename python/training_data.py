@@ -1,9 +1,9 @@
 import os, logging, csv
 import numpy as np
-from thermodynamic_constants import R, F
-from compound_cacher import CompoundCacher
-from kegg_reaction import KeggReaction
 from scipy.io import savemat
+from python.thermodynamic_constants import R, F
+from python.compound_cacher import CompoundCacher
+from python.kegg_reaction import KeggReaction
 
 class TrainingData(object):
     
@@ -61,6 +61,15 @@ class TrainingData(object):
              'weight': self.weight,
              'cids': self.cids}
         savemat(fname, d, oned_as='row')
+
+    def savecsv(self, fname):
+        csv_output = csv.writer(open(fname, 'w'))
+        csv_output.writerow(['reaction', 'T', 'I', 'pH', 'reference', 'dG0', 'dG0_prime'])
+        for j in xrange(self.S.shape[1]):
+            sparse = {self.cids[i]: self.S[i, j] for i in xrange(self.S.shape[0])}
+            r_string = KeggReaction(sparse).write_formula()
+            csv_output.writerow([r_string, self.T[j], self.I[j], self.pH[j],
+                                 self.reference[j], self.dG0[j], self.dG0_prime[j]])
 
     @staticmethod
     def str2double(s):
@@ -271,3 +280,4 @@ if __name__ == '__main__':
     logger = logging.getLogger('')
     logger.setLevel(logging.INFO)
     td = TrainingData()
+    td.savecsv('res/training_data.csv')
