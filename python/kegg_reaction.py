@@ -68,7 +68,7 @@ class KeggReaction(object):
         return compound_bag
 
     @staticmethod
-    def parse_formula(formula, arrow='<=>'):
+    def parse_formula(formula, arrow='<=>', rid=None):
         """ 
             Parses a two-sided formula such as: 2 C00001 => C00002 + C00003 
             
@@ -93,7 +93,7 @@ class KeggReaction(object):
         for cid, count in KeggReaction.parse_reaction_formula_side(right).iteritems():
             sparse_reaction[cid] = sparse_reaction.get(cid, 0) + count 
 
-        return KeggReaction(sparse_reaction, arrow)
+        return KeggReaction(sparse_reaction, arrow, rid=rid)
 
     @staticmethod
     def write_compound_and_coeff(compound_id, coeff):

@@ -349,6 +349,24 @@ class KeggPathway(Pathway):
                  reaction_energies=None,
                  cid2bounds=None,
                  c_range=None):
+                     
+                     
+        """
+            S           - the stoichiometric matrix
+            rid         - a list of names of the reactions in S
+            fluxes      - a vector the relative fluxes in each reaction
+            cids        - a list of names of the compounds in S
+            formation_energies - the standard Gibbs energy of formation of the 
+                                 compounds
+            rid2bounds - a dictionary mapping rid to an upper bound on its dG'
+                         if the value is None then the upper bound
+                         is the B variable (corresponding to the MDF)
+            reaction_energies - the standard Gibbs energies of the reactions
+            cid2bounds - a dictionary mapping cid to a pair of lower/upper
+                         bound on its concentration. if the value is (None, None)
+                         the default bounds are used (i.e. c_range)
+            c_range    - the default lower/upper bounds on the compound conc.
+        """
         Pathway.__init__(self, S, formation_energies=formation_energies,
                          reaction_energies=reaction_energies, fluxes=fluxes)
         assert len(cids) == self.Nc
