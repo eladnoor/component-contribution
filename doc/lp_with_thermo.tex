@@ -1,0 +1,44 @@
+\documentclass[11pt]{paper}
+\usepackage[left=2cm,top=2cm,bottom=2cm]{geometry}
+\geometry{a4paper}
+\usepackage{graphicx}
+\usepackage[sort&compress, numbers, super]{natbib}
+\usepackage{ctable}
+\usepackage{longtable}
+\usepackage{color}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{epstopdf}
+\usepackage{url}
+\usepackage[colorlinks,citecolor=red,linkcolor=blue]{hyperref}
+\usepackage[english]{babel}
+\usepackage[titles]{tocloft}
+
+\DeclareGraphicsRule{.tif}{png}{.png}{`convert #1 `dirname #1`/`basename #1 .tif`.png}
+\title{Chemical and Biochemical Thermodynamics}
+\author{Elad Noor}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\section{Sampling from a multivariate Gaussian}
+Let $X$ be a $D$-dimensional random variable with a Guassian distribution  with mean $\mu$ and covariance $\bold{\Sigma}$.
+
+If we have a 1-dimensional random Gaussian sampler, we can sample from the multivariate distribution by sampling $D$ times and then stretching and rotating the vector according to $\Sigma$. Specifically, we define the square root of the covariance matrix as
+\begin{eqnarray}
+	\sqrt{\bold{\Sigma}} = U \cdot \sqrt{S} \cdot U^\top
+\end{eqnarray}
+where where $S$ is a diagonal real matrix and $U$ is unitary which are given by the Singular Value Decomposition (SVD) of the covariance matrix, i.e. $\Sigma = U \cdot S \cdot U^\top$ (note that $\Sigma$ is Hermitian and thus diagonalizable with real eigenvalues).
+
+If $\forall i :~ y_i \sim \mathcal{N}(0, 1)$ and we define $z \equiv \mu + y \cdot \sqrt{\Sigma}$ then
+\begin{eqnarray}
+z \sim \mathcal{N}(\mu, \bold{\Sigma})
+\end{eqnarray}
+
+The same approach can be applied for setting hard linear constraints on a the variable $X$ in the context of linear programming. We define the auxiliary variable $y \in [-1, 1]$ and constraining $x = \mu + K \cdot y \cdot \sqrt{\bold{\Sigma}}$, where $K$ is a parameter of how loose we want the constraints to be (typically, we use the value $3$).
+
+\end{document}
+
+
