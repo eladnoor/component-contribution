@@ -159,7 +159,7 @@ class ComponentContribution(object):
         C3  = np.matrix(self.params['preprocess_C3'])
 
         dG0_cc = float(x.T * v_r + g.T * v_g)
-        s_cc_sqr = float(x.T * C1 * x + x.T * C2 * g + g.T * C3 * g)
+        s_cc_sqr = float(x.T * C1 * x + 2 * x.T * C2 * g + g.T * C3 * g)
 
         if not include_analysis:
             return dG0_cc, np.sqrt(s_cc_sqr)
@@ -195,6 +195,38 @@ class ComponentContribution(object):
 
             return dG0_cc, np.sqrt(s_cc_sqr), analysis
 
+    def get_dG0_r_multi(self, reactions):
+        """
+            Arguments:
+                reaction - a KeggReaction object
+            
+            Returns:
+                the CC estimation for this reaction's untransformed dG0 (i.e.
+                using the major MS at pH 7 for each of the reactants)
+        """
+        X = []
+        G = []
+        for reaction in reactions:
+            try:
+                x, g = self._decompose_reaction(reaction)
+            except inchi2gv.GroupDecompositionError:
+                x = np.zeros((self.Nc, 1))
+                g = np.zeros((self.params['G'].shape[1], 1))
+            X.append(list(x.flat))
+            G.append(list(g.flat))
+        X = np.matrix(X).T
+        G = np.matrix(G).T
+        
+        v_r = np.matrix(self.params['preprocess_v_r'])
+        v_g = np.matrix(self.params['preprocess_v_g'])
+        C1  = np.matrix(self.params['preprocess_C1'])
+        C2  = np.matrix(self.params['preprocess_C2'])
+        C3  = np.matrix(self.params['preprocess_C3'])
+
+        dG0_cc = X.T * v_r + G.T * v_g
+        U = X.T * C1 * X + X.T * C2 * G + G.T * C2.T * X + G.T * C3 * G
+        return dG0_cc, U
+        
     def get_compound_json(self, compound_id):
         """
             adds the component-contribution estimation to the JSON
@@ -397,7 +429,7 @@ class ComponentContribution(object):
 
         # preprocessing matrices (for quick calculation of uncertainty)
         preprocess_C1 = cov_dG0
-        preprocess_C2 = MSE_gc * 2 * P_N_rc * G * inv_GSWGS + MSE_inf * 2 * G * P_N_gc
+        preprocess_C2 = MSE_gc * P_N_rc * G * inv_GSWGS + MSE_inf * G * P_N_gc
         preprocess_C3 = MSE_gc * inv_GSWGS + MSE_inf * P_N_gc
 
         # Put all the calculated data in 'params' for the sake of debugging
@@ -536,15 +568,3 @@ class ComponentContribution(object):
         A_unique, P_col = ComponentContribution._row_uniq(A.T)
         return A_unique.T, P_col.T
 
-if __name__ == '__main__':
-    reaction_strings = sys.stdin.readlines()
-    cc = ComponentContribution()
-    model = KeggModel.from_formulas(reaction_strings)
-    model.add_thermo(cc)
-    
-    dG0_prime, dG0_std = model.get_transformed_dG0(pH=7.5, I=0.2, T=298.15)
-    
-    sys.stdout.write('[' + 
-                     ', '.join([str(x) for x in model.dG0.flat]) + '; ' + 
-                     ', '.join([str(x) for x in dG0_prime.flat]) + 
-                     ']')    

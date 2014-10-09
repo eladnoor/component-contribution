@@ -62,6 +62,7 @@ class KeggModel(object):
             cids.append(row[0])
             S.append([float(x) for x in row[1:]])
         S = np.array(S)
+
         return KeggModel(S, cids, rids)
     
     @staticmethod
@@ -69,7 +70,7 @@ class KeggModel(object):
         if has_reaction_ids:
             rids = [r.rid for r in kegg_reactions]
         else:
-            rids = []
+            rids = None
 
         cids = set()
         for reaction in kegg_reactions:
@@ -125,21 +126,16 @@ class KeggModel(object):
                             (not_balanced_count, len(reaction_strings)))
         return KeggModel.from_kegg_reactions(reactions, has_reaction_ids)
 
-    def add_thermo_old(self, cc):
-        self.dG0, self.cov_dG0, self.MSE_kerG = cc.estimate_kegg_model(self.S, self.cids)
-
     def add_thermo(self, cc):
-    # TODO: make sure we calculate the entire cov matrix and not only the diagonal
         Nc, Nr = self.S.shape
-        self.dG0 = np.zeros((Nr, 1))
-        self.cov_dG0 = np.zeros((Nr, Nr)) 
+        reactions = []
         for j in xrange(Nr):
             sparse = {self.cids[i]:self.S[i,j] for i in xrange(Nc)
                       if self.S[i,j] != 0}
             reaction = KeggReaction(sparse)
-            dG0_cc, s_cc = cc.get_dG0_r(reaction)
-            self.dG0[j, 0] = dG0_cc
-            self.cov_dG0[j, j] = s_cc**2
+            reactions.append(reaction)
+        
+        self.dG0, self.cov_dG0 = cc.get_dG0_r_multi(reactions)
         
     def get_transformed_dG0(self, pH, I, T):
         """
@@ -147,15 +143,9 @@ class KeggModel(object):
             each estimate (i.e. a measure for the uncertainty).
         """
         dG0_prime = self.dG0 + self._get_transform_ddG0(pH=pH, I=I, T=T)
-        dG0_std = np.matrix(np.sqrt(np.diag(self.cov_dG0))).T
-        
-        # find all reactions what are not 0, not covered by RC, and are in ker(G)
-        # and therefore have a dG0 estimate of 0 and a dG0_std of 0.
-        # change the std estimate for them to the RMSE of ker(G) reactions
-        inds_zero = np.where(np.all(self.S == 0, 0))[0]
-        dG0_std[inds_zero, 0] = 1e10
-        
-        return dG0_prime, dG0_std
+        U, s, V = np.linalg.svd(self.cov_dG0, full_matrices=True)
+        sqrt_Sigma = np.matrix(U) * np.matrix(np.diag(s**0.5)) * np.matrix(V)
+        return dG0_prime, sqrt_Sigma
 
     def _get_transform_ddG0(self, pH, I, T):
         """
