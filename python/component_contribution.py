@@ -1,8 +1,7 @@
-import sys, os, logging
+import os, logging
 import numpy as np
 from scipy.io import savemat, loadmat
 from training_data import TrainingData
-from kegg_model import KeggModel
 from kegg_reaction import KeggReaction
 from compound_cacher import CompoundCacher
 import inchi2gv
