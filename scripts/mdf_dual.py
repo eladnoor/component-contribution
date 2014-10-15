@@ -21,40 +21,33 @@ class Pathway(object):
     DEFAULT_C_RANGE = (1e-6, 0.1)
     DEFAULT_PHYSIOLOGICAL_CONC = 1e-3
    
-    def __init__(self, S,
-                 formation_energies=None, reaction_energies=None, fluxes=None):
+    def __init__(self, S, dG0_r_prime, dG0_r_std=None, fluxes=None):
         """Create a pathway object.
        
         Args:
             S: Stoichiometric matrix of the pathway.
                 Reactions are on the rows, compounds on the columns.
-            formation_energies: the Gibbs formation energy for the compounds
+            dG0_r_prime: the change in Gibbs energy for the reactions
                 in standard conditions, corrected for pH, ionic strength, etc.
-                Should be a column vector in numpy.array format.
-            reaction_energies: the change in Gibbs energy for the reactions
-                in standard conditions, corrected for pH, ionic strength, etc.
-                Should be a column vector in numpy.array format.
+                Should be a column vector in numpy.matrix format.
+            dG0_r_std: (optional) the square root of the covariance matrix
+                corresponding to the uncertainty in the dG0_r values.
             fluxes: the list of relative fluxes through each of the reactions.
                 By default, all fluxes are 1.
         """
-        if formation_energies is None and reaction_energies is None:
-            raise ValueError("In order to use 'Pathway' xeither formation xor "
-                             "reaction energies must be provided.")
-        if formation_energies is not None and reaction_energies is not None:
-            raise ValueError("In order to use 'Pathway' xeither formation xor "
-                             "reaction energies must be provided.")
-       
         self.S = S
-        self.dG0_f_prime = formation_energies
-        self.dG0_r_prime = reaction_energies
         self.Nc, self.Nr = S.shape
-       
-        # make sure dG0_f' and dG0_r' are both 2D arrays of the right size
-        if self.dG0_f_prime is not None:
-            assert self.dG0_f_prime.shape[1] == self.Nc
-            self.dG0_r_prime = self.CalculateReactionEnergies(self.dG0_f_prime)
+
+        self.dG0_r_prime = dG0_r_prime
+        if dG0_r_std is None:
+            self.dG0_r_std = np.matrix(np.zeros((self.Nr, self.Nr)))
         else:
-            assert self.dG0_r_prime.shape[1] == self.Nr
+            self.dG0_r_std = dG0_r_std
+       
+        # make sure dG0_r' is the right size
+        assert self.dG0_r_prime.shape[0] == self.Nr
+        assert self.dG0_r_std.shape[0] == self.Nr
+        assert self.dG0_r_std.shape[1] == self.Nr
 
         if fluxes is None:
             self.fluxes = np.matrix(np.ones((1, self.Nr)))
@@ -64,35 +57,22 @@ class Pathway(object):
             self.fluxes = fluxes
 
         assert self.fluxes.shape[1] == self.Nr
-           
+        
+        self.I_dir = np.matrix(np.diag(map(np.sign, self.fluxes.flat)))
         self.c_bounds = None
         self.r_bounds = None
         self.c_range = self.DEFAULT_C_RANGE
 
-    def CalculateReactionEnergies(self, dG_f):
-        if np.isnan(dG_f).any():
-            # if there are NaN values in dG_f, multiplying the matrices will not
-            # work, since NumPy will not convert 0*NaN into 0 in the sum. Therefore,
-            # the multiplication must be done explicitly and using only the nonzero
-            # stoichiometric coefficients and their corresponding dG_f.
-            dG_r = np.matrix(np.zeros((1, self.Nr)))
-            for r in xrange(self.Nr):
-                reactants = list(self.S[:, r].nonzero()[0].flat)
-                dG_r[0, r] = dG_f[0, reactants] * self.S[reactants, r]
-            return dG_r
-        else:
-            return dG_f * self.S
-
     def CalculateReactionEnergiesUsingConcentrations(self, concentrations):
         log_conc = np.log(concentrations)
-        if np.isnan(self.dG0_r_prime).any(): # see CalculateReactionEnergies
+        if np.isnan(self.dG0_r_prime).any():
             dG_r_prime = self.dG0_r_prime.copy()
             for r in xrange(self.Nr):
                 reactants = list(self.S[:, r].nonzero()[0].flat)
                 dG_r_prime[0, r] += default_RT * log_conc[reactants, 0].T * self.S[reactants, r]
             return dG_r_prime
         else:
-            return self.dG0_r_prime + default_RT * log_conc.T * self.S
+            return self.dG0_r_prime + default_RT * self.S.T * log_conc
 
     def GetPhysiologicalConcentrations(self, bounds=None):
         conc = np.matrix(np.ones((self.Nc, 1))) * self.DEFAULT_PHYSIOLOGICAL_CONC
@@ -132,22 +112,28 @@ class Pathway(object):
             Generates the A matrix and b & c vectors that can be used in a 
             standard form linear problem:
                 max          c'x
-                subject to   Ax >= b
-                             x >= 0
+                subject to   Ax <= b
                             
-            x is the vector of ln-concentrations concatenated with the MDF
-            variable (B), which is also the parameter being maximized.
+            x is the vector of (y | log-conc | B)
+            where y dG'0 are the reaction Gibbs energy variables, log-conc
+            are the natural log of the concentrations of metabolites, and
+            B is the max-min driving force variable which is being maximized
+            by the LP
         """
         
-        I_dir = np.matrix(np.diag([np.sign(x) for x in self.fluxes.flat]))
+        
        
-        A = np.matrix(np.vstack([np.hstack([I_dir * self.S.T, np.ones((self.Nr, 1)) ]),
-                                 np.hstack([np.eye(self.Nc),  np.zeros((self.Nc, 1))]),
-                                 np.hstack([-np.eye(self.Nc), np.zeros((self.Nc, 1))])]))
-        b = np.matrix(np.vstack([-I_dir * self.dG0_r_prime.T / default_RT,
-                                 ln_conc_ub,
+        A = np.matrix(np.vstack([np.hstack([self.dG0_r_std / default_RT, self.I_dir * self.S.T, np.ones((self.Nr, 1)) ]),
+                                 np.hstack([ np.eye(self.Nr),              np.zeros((self.Nr, self.Nc+1))]),
+                                 np.hstack([-np.eye(self.Nr),              np.zeros((self.Nr, self.Nc+1))]),
+                                 np.hstack([np.zeros((self.Nc, self.Nr)),  np.eye(self.Nc), np.zeros((self.Nc, 1))]),
+                                 np.hstack([np.zeros((self.Nc, self.Nr)), -np.eye(self.Nc), np.zeros((self.Nc, 1))])]))
+        b = np.matrix(np.vstack([-self.I_dir * self.dG0_r_prime / default_RT,
+                                 np.ones((self.Nr, 1)),
+                                 np.ones((self.Nr, 1)),
+                                  ln_conc_ub,
                                  -ln_conc_lb]))
-        c = np.matrix(np.vstack([np.zeros((self.Nc, 1)),
+        c = np.matrix(np.vstack([np.zeros((self.Nr + self.Nc, 1)),
                                  np.ones((1, 1))]))
 
         # change the constaints such that reaction that have an explicit
@@ -163,34 +149,45 @@ class Pathway(object):
         
         return A, b, c
    
-    def _GetTotalEnergyProblem(self, min_driving_force=0, objective=pulp.LpMinimize):
-        
+    def _MakeBasicProblem(self, mdf):
         # Define and apply the constraints on the concentrations
         ln_conc_lb, ln_conc_ub = self._MakeLnConcentratonBounds()
 
         # Create the driving force variable and add the relevant constraints
-        A, b, _c = self._MakeDrivingForceConstraints(ln_conc_lb, ln_conc_ub)
+        A, b, c = self._MakeDrivingForceConstraints(ln_conc_lb, ln_conc_ub)
        
-        lp = pulp.LpProblem("MDF", objective)
-        
+        # the dG'0 covariance eigenvariables        
+        y = pulp.LpVariable.dicts("y", ["%d" % i for i in xrange(self.Nr)])
+        y = [y["%d" % i] for i in xrange(self.Nr)]
+
         # ln-concentration variables
         l = pulp.LpVariable.dicts("l", ["%d" % i for i in xrange(self.Nc)])
-        x = [l["%d" % i] for i in xrange(self.Nc)] + [min_driving_force]
+        l = [l["%d" % i] for i in xrange(self.Nc)]
+
+        x = y + l + [mdf]
+        return A, b, c, x, y, l
+   
+    def _GetTotalEnergyProblem(self,
+                               min_driving_force=0.0,
+                               objective=pulp.LpMinimize):
         
         total_g = pulp.LpVariable("g_tot")
+        A, b, _c, x, y, l = self._MakeBasicProblem(min_driving_force)
+
+        lp = pulp.LpProblem("MDF", objective)
         
-        for j in xrange(A.shape[0]):
-            row = [A[j, i] * x[i] for i in xrange(A.shape[1])]
+        for j in xrange(3*self.Nr + 2 * self.Nc):
+            row = [A[j, i] * x[i] for i in xrange(self.Nr + self.Nc + 1)]
             lp += (pulp.lpSum(row) <= b[j, 0]), "energy_%02d" % j
         
-        total_g0 = float(self.dG0_r_prime * self.fluxes.T)
+        total_g0 = float(self.fluxes * self.dG0_r_prime)
         total_reaction = self.S * self.fluxes.T
         row = [total_reaction[i, 0] * x[i] for i in xrange(self.Nc)]
         lp += (total_g == total_g0 + pulp.lpSum(row)), "Total G"
 
         lp.setObjective(total_g)
         
-        #lp.writeLP("../res/total_g.lp")
+        #lp.writeLP("res/total_g.lp")
         
         return lp, total_g
            
@@ -208,29 +205,21 @@ class Pathway(object):
         Returns:
             A tuple (dgf_var, motive_force_var, problem_object).
         """
-        # Define and apply the constraints on the concentrations
-        ln_conc_lb, ln_conc_ub = self._MakeLnConcentratonBounds()
+        B = pulp.LpVariable("mdf")
+        A, b, c, x, y, l = self._MakeBasicProblem(B)
 
-        # Create the driving force variable and add the relevant constraints
-        A, b, c = self._MakeDrivingForceConstraints(ln_conc_lb, ln_conc_ub)
-       
         lp = pulp.LpProblem("MDF", pulp.LpMaximize)
         
-        # ln-concentration variables
-        l = pulp.LpVariable.dicts("l", ["%d" % i for i in xrange(self.Nc)])
-        B = pulp.LpVariable("mdf")
-        x = [l["%d" % i] for i in xrange(self.Nc)] + [B]
-        
-        for j in xrange(A.shape[0]):
-            row = [A[j, i] * x[i] for i in xrange(A.shape[1])]
+        for j in xrange(3*self.Nr + 2 * self.Nc):
+            row = [A[j, i] * x[i] for i in xrange(self.Nr + self.Nc + 1)]
             lp += (pulp.lpSum(row) <= b[j, 0]), "energy_%02d" % j
         
         objective = pulp.lpSum([c[i] * x[i] for i in xrange(A.shape[1])])
         lp.setObjective(objective)
         
-        #lp.writeLP("../res/mdf_primal.lp")
+        #lp.writeLP("res/mdf_primal.lp")
         
-        return lp, x, ln_conc_lb
+        return lp, y, l, B
 
     def _MakeMDFProblemDual(self):
         """Create a CVXOPT problem for finding the Maximal Thermodynamic
@@ -257,29 +246,35 @@ class Pathway(object):
         w = pulp.LpVariable.dicts("w", 
                                   ["%d" % i for i in xrange(self.Nr)],
                                   lowBound=0)
+        w = [w["%d" % i] for i in xrange(self.Nr)]
+
+        g = pulp.LpVariable.dicts("g", 
+                                  ["%d" % i for i in xrange(2*self.Nr)],
+                                  lowBound=0)
+        g = [g["%d" % i] for i in xrange(2*self.Nr)]
 
         z = pulp.LpVariable.dicts("z", 
                                   ["%d" % i for i in xrange(self.Nc)],
                                   lowBound=0)
+        z = [z["%d" % i] for i in xrange(self.Nc)]
 
         u = pulp.LpVariable.dicts("u", 
                                   ["%d" % i for i in xrange(self.Nc)],
                                   lowBound=0)
+        u = [u["%d" % i] for i in xrange(self.Nc)]
         
-        y = [w["%d" % i] for i in xrange(self.Nr)] + \
-            [z["%d" % i] for i in xrange(self.Nc)] + \
-            [u["%d" % i] for i in xrange(self.Nc)]
+        x = w + g + z + u
         
         for i in xrange(A.shape[1]):
-            row = [A[j, i] * y[j] for j in xrange(A.shape[0])]
+            row = [A[j, i] * x[j] for j in xrange(A.shape[0])]
             lp += (pulp.lpSum(row) == c[i, 0]), "dual_%02d" % i
 
-        objective = pulp.lpSum([b[i] * y[i] for i in xrange(A.shape[0])])
+        objective = pulp.lpSum([b[i] * x[i] for i in xrange(A.shape[0])])
         lp.setObjective(objective)
         
-        #lp.writeLP("../res/mdf_dual.lp")
+        #lp.writeLP("res/mdf_dual.lp")
         
-        return lp, w, z, u
+        return lp, w, g, z, u
     
     def FindMDF(self, calculate_totals=True):
         """Find the MDF (Optimized Bottleneck Energetics).
@@ -292,23 +287,29 @@ class Pathway(object):
         Returns:
             A 3 tuple (optimal dGfs, optimal concentrations, optimal mdf).
         """
-        lp_primal, x, _ = self._MakeMDFProblem()
+        lp_primal, y, l, B = self._MakeMDFProblem()
         lp_primal.solve(pulp.CPLEX(msg=0))
         if lp_primal.status != pulp.LpStatusOptimal:
             raise pulp.solvers.PulpSolverError("cannot solve MDF primal")
-            
-        mdf = pulp.value(x[-1])
-        conc = np.matrix([np.exp(pulp.value(x[j])) for j in xrange(self.Nc)]).T
+        y = map(pulp.value, y)
+        l = map(pulp.value, l)
+        mdf = pulp.value(B)
+        conc = np.matrix(map(np.exp, l)).T
+        dG0_r_prime = self.dG0_r_prime + np.dot(self.dG0_r_std, y).T
 
-        lp_dual, w, z, u = self._MakeMDFProblemDual()
+        lp_dual, w, g, z, u = self._MakeMDFProblemDual()
+        
         lp_dual.solve(pulp.CPLEX(msg=0))
         if lp_dual.status != pulp.LpStatusOptimal:
             raise pulp.solvers.PulpSolverError("cannot solve MDF dual")
-        reaction_prices = np.matrix([pulp.value(w["%d" % i]) for i in xrange(self.Nr)]).T
-        compound_prices = np.matrix([pulp.value(z["%d" % j]) for j in xrange(self.Nc)]).T - \
-                          np.matrix([pulp.value(u["%d" % j]) for j in xrange(self.Nc)]).T
+        w = map(pulp.value, w)
+        z = map(pulp.value, z)
+        u = map(pulp.value, u)
+        reaction_prices = np.matrix(w).T
+        compound_prices = np.matrix(z).T - np.matrix(u).T
 
         params = {'MDF': mdf * default_RT,
+                  'reaction energies': dG0_r_prime,
                   'concentrations' : conc,
                   'reaction prices' : reaction_prices,
                   'compound prices' : compound_prices}
@@ -339,10 +340,10 @@ class Pathway(object):
             params['maximum total dG'] = max_tot_dg * default_RT
             
         dG_r_prime = self.CalculateReactionEnergiesUsingConcentrations(conc)
-        params['gibbs energies raw'] = dG_r_prime
+        params['gibbs energies raw'] = dG_r_prime + np.dot(self.dG0_r_std, y).T
 
         # adjust dG to flux directions
-        dG_r_prime_adj = np.multiply(dG_r_prime, np.sign(self.fluxes)) 
+        dG_r_prime_adj = self.I_dir * params['gibbs energies raw']
         params['gibbs energies'] = dG_r_prime_adj
         
         return mdf * default_RT, params
@@ -350,12 +351,10 @@ class Pathway(object):
 class KeggPathway(Pathway):
    
     def __init__(self, S, rids, fluxes, cids,
-                 formation_energies=None,
+                 dG0_r_prime, dG0_r_std=None,
                  rid2bounds=None,
-                 reaction_energies=None,
                  cid2bounds=None,
                  c_range=None):
-                     
                      
         """
             S           - the stoichiometric matrix
@@ -373,8 +372,7 @@ class KeggPathway(Pathway):
                          the default bounds are used (i.e. c_range)
             c_range    - the default lower/upper bounds on the compound conc.
         """
-        Pathway.__init__(self, S, formation_energies=formation_energies,
-                         reaction_energies=reaction_energies, fluxes=fluxes)
+        Pathway.__init__(self, S, dG0_r_prime=dG0_r_prime, dG0_r_std=dG0_r_std, fluxes=fluxes)
         assert len(cids) == self.Nc
         assert len(rids) == self.Nr
        
@@ -438,15 +436,14 @@ class KeggPathway(Pathway):
 
     @staticmethod
     def _AddProfileToFigure(figure, dGs, fluxes, style, label):
-        Nr = dGs.shape[1]
-        dGs_adjusted = np.multiply(dGs, fluxes)
-        cum_dG = np.cumsum([0] + [dGs_adjusted[0, r] for r in xrange(Nr)])
+        Nr = dGs.shape[0]
+        dGs_adjusted = np.diag(fluxes.flat) * dGs
+        cum_dG = np.cumsum([0] + list(dGs_adjusted.flat))
         plt.plot(np.arange(0.5, Nr + 1), cum_dG, style,
                  figure=figure, label=label)
    
     def PlotProfile(self, params, figure=None):
         phys_concentrations = self.GetMillimolarConcentrations()
-        concentrations = params['concentrations']
 
         if figure is None:
             figure = plt.figure(figsize=(8,8), dpi=100)
@@ -465,15 +462,15 @@ class KeggPathway(Pathway):
             return figure
        
         KeggPathway._AddProfileToFigure(figure,
-            self.dG0_r_prime[0, nonzero_reactions], nonzero_fluxes, 'm--', r"$\Delta_r G'^\circ$")
+            self.dG0_r_prime[nonzero_reactions, 0], nonzero_fluxes, 'm--', r"$\Delta_r G'^\circ$")
        
         dGm_r_prime = self.CalculateReactionEnergiesUsingConcentrations(phys_concentrations)
         KeggPathway._AddProfileToFigure(figure,
-            dGm_r_prime[0, nonzero_reactions], nonzero_fluxes, 'g--', r"$\Delta_r G'^m$")
+            dGm_r_prime[nonzero_reactions, 0], nonzero_fluxes, 'g--', r"$\Delta_r G'^m$")
 
-        dG_r_prime = self.CalculateReactionEnergiesUsingConcentrations(concentrations)
+        dG_r_prime = params['gibbs energies raw']
         KeggPathway._AddProfileToFigure(figure,
-            dG_r_prime[0, nonzero_reactions], nonzero_fluxes, 'b-', r"$\Delta_r G'$")
+            dG_r_prime[nonzero_reactions, 0], nonzero_fluxes, 'b-', r"$\Delta_r G'$")
 
         plt.legend(loc='lower left')
         return figure
@@ -514,16 +511,14 @@ class KeggPathway(Pathway):
     def WriteProfileToHtmlTable(self, html_writer, params=None):
         phys_concentrations = self.GetMillimolarConcentrations()
         if params is not None:
-            concentrations = params['concentrations']
             reaction_shadow_prices = params['reaction prices']
         else:
-            concentrations = self.GetMillimolarConcentrations()
             reaction_shadow_prices = np.zeros((len(self.rids), 1))
 
-        dG_r_prime_c = self.CalculateReactionEnergiesUsingConcentrations(phys_concentrations)
-        dG_r_prime_c_adj = np.multiply(dG_r_prime_c, np.sign(self.fluxes)) # adjust dG to flux directions
-        dG_r_prime = self.CalculateReactionEnergiesUsingConcentrations(concentrations)
-        dG_r_prime_adj = np.multiply(dG_r_prime, np.sign(self.fluxes)) # adjust dG to flux directions
+        dG_r_prime_c     = self.CalculateReactionEnergiesUsingConcentrations(phys_concentrations)
+        dG_r_prime_c_adj = self.I_dir * dG_r_prime_c # adjust dG to flux directions
+        dG_r_prime       = params['gibbs energies raw']
+        dG_r_prime_adj   = params['gibbs energies']
         headers=["reaction", 'formula', 'flux',
                  "&Delta;<sub>r</sub>G'<sup>m</sup> [kJ/mol] (%g M)" % self.DEFAULT_PHYSIOLOGICAL_CONC,
                  "&Delta;<sub>r</sub>G' [kJ/mol]", "shadow price"]
@@ -534,8 +529,8 @@ class KeggPathway(Pathway):
             d['reaction'] = rid
             d['flux'] = "%g" % abs(self.fluxes[0, r])
             d['formula'] = self.GetReactionString(r, show_cids=False)
-            d[headers[3]] = dG_r_prime_c_adj[0, r]
-            d[headers[4]] = dG_r_prime_adj[0, r]
+            d[headers[3]] = dG_r_prime_c_adj[r, 0]
+            d[headers[4]] = dG_r_prime_adj[r, 0]
             d[headers[5]] = '%.3g' % reaction_shadow_prices[r, 0]
                 
             dict_list.append(d)
@@ -543,8 +538,8 @@ class KeggPathway(Pathway):
         d = {'reaction':'Total',
              'flux':'1',
              'formula':self.GetTotalReactionString(show_cids=False),
-             headers[3]: float(self.dG0_r_prime * self.fluxes.T),
-             headers[4]: float(dG_r_prime * self.fluxes.T),
+             headers[3]: float(self.fluxes * self.dG0_r_prime),
+             headers[4]: float(self.fluxes * dG_r_prime),
              headers[5]: '%.3g' % np.sum(reaction_shadow_prices[:, 0])}
         dict_list.append(d)
         
@@ -575,29 +570,31 @@ class KeggPathway(Pathway):
    
        
 if __name__ == '__main__':
-    dGs = np.matrix([[0, -50, -30, -100]])
-    n = dGs.shape[1]
-    S = np.matrix(np.vstack([-np.eye(n-1), np.zeros((1, n-1))]) + np.vstack([np.zeros((1, n-1)), np.eye(n-1)]))
-    print 'S = %s' % str(S)
-    fluxes = np.matrix(np.ones((1, n-1)))
-    rids = range(n-1)
-    cids = range(n)
+    dG0_r_prime = np.matrix([[-10, -10, -10]]).T
+    dG0_r_std = 3.0 * np.matrix([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
+    #dG0_r_std = None
     
-    print 'G0 = %s' % str(dGs * S)
+    Nr = dG0_r_prime.shape[0]
+    Nc = Nr+1
+    S = np.matrix(np.vstack([-np.eye(Nr), np.zeros((1, Nr))]) + np.vstack([np.zeros((1, Nr)), np.eye(Nr)]))
+    fluxes = np.matrix(np.ones((1, Nr)))
+    rids = range(Nr)
+    cids = range(Nc)
+    
+    print 'dG0_r_prime = ' + ', '.join(['%.2f' % i for i in dG0_r_prime.flat])
     #keggpath = KeggPathway(S, rids, fluxes, cids, dGs, c_range=(1e-6, 1e-3))
     #dGf, concentrations, protein_cost = keggpath.FindKineticOptimum()
     #print 'protein cost: %g protein units' % protein_cost
     #print 'concentrations: ', concentrations
     #print 'sum(concs): ', sum(concentrations), 'M'
    
-    keggpath = KeggPathway(S, rids, fluxes, cids, dGs, c_range=(1e-6, 1e-3))
+    keggpath = KeggPathway(S, rids, fluxes, cids, dG0_r_prime, dG0_r_std, c_range=(1e-6, 1e-3))
     mdf, params = keggpath.FindMDF()
-    print 'MDF: %g' % mdf
+    print 'MDF: %.2f' % mdf
     print 'reaction shadow prices: ' + ', '.join(['%g' % i for i in params['reaction prices'].flat])
     print 'compound shadow prices: ' + ', '.join(['%g' % i for i in params['compound prices'].flat])
     print 'concentrations: ' + ', '.join(['%.2e' % i for i in params['concentrations'].flat])
-    print 'minimal total dG: %.1f' % params['minimum total dG']
-    print 'maximal total dG: %.1f' % params['maximum total dG']
+    print 'minimal total dG: %.2f' % params['minimum total dG']
+    print 'maximal total dG: %.2f' % params['maximum total dG']
     
-    G_opt = (dGs + default_RT * np.log(params['concentrations'].T))*S
-    print 'G_opt = %s' % str(G_opt)
+    print 'dG_r_prime(optimal) = ' + ', '.join(['%.2f' % i for i in params['gibbs energies'].flat])

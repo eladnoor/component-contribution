@@ -57,16 +57,15 @@ class MaxMinDrivingForce(object):
             cid2bounds[cid] = b
         return cid2bounds
 
-    def Solve(self):
+    def Solve(self, uncertainty_factor=3.0):
         S = self.model.S
         rids = self.model.rids or ['R%05d' % i for i in xrange(S.shape[1])]
         cids = self.model.cids
         dG0_prime, dG0_std = self.model.get_transformed_dG0(pH=self.pH, I=self.I, T=self.T)
         cid2bounds = self.GetBounds()
 
-        keggpath = KeggPathway(S, rids, self.fluxes, cids,
-                               formation_energies=None,
-                               reaction_energies=dG0_prime.T,
+        keggpath = KeggPathway(S, rids, self.fluxes, cids, dG0_prime,
+                               uncertainty_factor*dG0_std,
                                cid2bounds=cid2bounds, c_range=self.c_range)
         _mdf, params = keggpath.FindMDF()
         total_dG_prime = params['maximum total dG']
@@ -85,12 +84,9 @@ class MaxMinDrivingForce(object):
         keggpath.WriteProfileToHtmlTable(self.html_writer, params)
         keggpath.WriteConcentrationsToHtmlTable(self.html_writer, params)
 
-        concentrations = keggpath.GetMillimolarConcentrations()
-        dGm_prime = keggpath.CalculateReactionEnergiesUsingConcentrations(concentrations)
-        
-        return _mdf, dGm_prime, dG0_std
+        return _mdf, params['gibbs energies raw']
 
-    def SolveIterative(self, uncertainty_factor=3):
+    def SolveIterative(self, uncertainty_factor=3.0):
         S = self.model.S
         f = self.fluxes
         rids = self.model.rids or ['R%05d' % i for i in xrange(S.shape[1])]
@@ -98,7 +94,8 @@ class MaxMinDrivingForce(object):
         dG0_prime, dG0_std = self.model.get_transformed_dG0(pH=self.pH, I=self.I, T=self.T)
         # a conservative approach is to use the lowest dG'0 value within the
         # 95% confidence interval.
-        dG0_prime = dG0_prime - uncertainty_factor*dG0_std
+        dG0_std_diag = np.matrix(dG0_std.diagonal().flat).T
+        dG0_prime = dG0_prime - uncertainty_factor * dG0_std_diag
         
         cid2bounds = self.GetBounds()
         
@@ -107,10 +104,8 @@ class MaxMinDrivingForce(object):
         total_active_reactions = len(filter(None, f.flat))
         
         while bound_reaction_counter < total_active_reactions:
-            keggpath = KeggPathway(S, rids, f, cids,
-                                   formation_energies=None,
+            keggpath = KeggPathway(S, rids, f, cids, dG0_prime, dG0_std,
                                    rid2bounds=rid2bounds,
-                                   reaction_energies=dG0_prime.T,
                                    cid2bounds=cid2bounds,
                                    c_range=self.c_range)
             _mdf, params = keggpath.FindMDF(calculate_totals=False)
