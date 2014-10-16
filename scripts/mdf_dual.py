@@ -120,10 +120,8 @@ class Pathway(object):
             B is the max-min driving force variable which is being maximized
             by the LP
         """
-        
-        
        
-        A = np.matrix(np.vstack([np.hstack([self.dG0_r_std / default_RT, self.I_dir * self.S.T, np.ones((self.Nr, 1)) ]),
+        A = np.matrix(np.vstack([np.hstack([self.I_dir * self.dG0_r_std / default_RT, self.I_dir * self.S.T, np.ones((self.Nr, 1)) ]),
                                  np.hstack([ np.eye(self.Nr),              np.zeros((self.Nr, self.Nc+1))]),
                                  np.hstack([-np.eye(self.Nr),              np.zeros((self.Nr, self.Nc+1))]),
                                  np.hstack([np.zeros((self.Nc, self.Nr)),  np.eye(self.Nc), np.zeros((self.Nc, 1))]),
@@ -149,7 +147,7 @@ class Pathway(object):
         
         return A, b, c
    
-    def _MakeBasicProblem(self, mdf):
+    def _GetPrimalVariablesAndConstants(self):
         # Define and apply the constraints on the concentrations
         ln_conc_lb, ln_conc_ub = self._MakeLnConcentratonBounds()
 
@@ -164,22 +162,50 @@ class Pathway(object):
         l = pulp.LpVariable.dicts("l", ["%d" % i for i in xrange(self.Nc)])
         l = [l["%d" % i] for i in xrange(self.Nc)]
 
-        x = y + l + [mdf]
-        return A, b, c, x, y, l
+        return A, b, c, y, l
+   
+    def _GetDualVariablesAndConstants(self):
+        # Define and apply the constraints on the concentrations
+        ln_conc_lb, ln_conc_ub = self._MakeLnConcentratonBounds()
+
+        # Create the driving force variable and add the relevant constraints
+        A, b, c = self._MakeDrivingForceConstraints(ln_conc_lb, ln_conc_ub)
+       
+        w = pulp.LpVariable.dicts("w", 
+                                  ["%d" % i for i in xrange(self.Nr)],
+                                  lowBound=0)
+        w = [w["%d" % i] for i in xrange(self.Nr)]
+
+        g = pulp.LpVariable.dicts("g", 
+                                  ["%d" % i for i in xrange(2*self.Nr)],
+                                  lowBound=0)
+        g = [g["%d" % i] for i in xrange(2*self.Nr)]
+
+        z = pulp.LpVariable.dicts("z", 
+                                  ["%d" % i for i in xrange(2*self.Nc)],
+                                  lowBound=0)
+        z = [z["%d" % i] for i in xrange(self.Nc)]
+
+        u = pulp.LpVariable.dicts("u", 
+                                  ["%d" % i for i in xrange(self.Nc)],
+                                  lowBound=0)
+        u = [u["%d" % i] for i in xrange(self.Nc)]
+        
+        return A, b, c, w, g, z, u
    
     def _GetTotalEnergyProblem(self,
                                min_driving_force=0.0,
                                objective=pulp.LpMinimize):
         
-        total_g = pulp.LpVariable("g_tot")
-        A, b, _c, x, y, l = self._MakeBasicProblem(min_driving_force)
-
+        A, b, _c, y, l = self._GetPrimalVariablesAndConstants()
+        x = y + l + [min_driving_force]
         lp = pulp.LpProblem("MDF", objective)
         
         for j in xrange(3*self.Nr + 2 * self.Nc):
             row = [A[j, i] * x[i] for i in xrange(self.Nr + self.Nc + 1)]
             lp += (pulp.lpSum(row) <= b[j, 0]), "energy_%02d" % j
         
+        total_g = pulp.LpVariable("g_tot")
         total_g0 = float(self.fluxes * self.dG0_r_prime)
         total_reaction = self.S * self.fluxes.T
         row = [total_reaction[i, 0] * x[i] for i in xrange(self.Nc)]
@@ -197,27 +223,28 @@ class Pathway(object):
        
         Does not set the objective function... leaves that to the caller.
        
-        Args:
-            c_range: a tuple (min, max) for concentrations (in M).
-            bounds: a list of (lower bound, upper bound) tuples for compound
-                concentrations.
-       
         Returns:
-            A tuple (dgf_var, motive_force_var, problem_object).
+            the linear problem object, and the three types of variables as arrays
         """
+        A, b, c, y, l = self._GetPrimalVariablesAndConstants()
         B = pulp.LpVariable("mdf")
-        A, b, c, x, y, l = self._MakeBasicProblem(B)
-
-        lp = pulp.LpProblem("MDF", pulp.LpMaximize)
+        x = y + l + [B]
+        lp = pulp.LpProblem("MDF_PRIMAL", pulp.LpMaximize)
         
-        for j in xrange(3*self.Nr + 2 * self.Nc):
-            row = [A[j, i] * x[i] for i in xrange(self.Nr + self.Nc + 1)]
-            lp += (pulp.lpSum(row) <= b[j, 0]), "energy_%02d" % j
+        cnstr_names = ["driving_force_%02d" % j for j in xrange(self.Nr)] + \
+                      ["covariance_var_ub_%02d" % j for j in xrange(self.Nr)] + \
+                      ["covariance_var_lb_%02d" % j for j in xrange(self.Nr)] + \
+                      ["log_conc_ub_%02d" % j for j in xrange(self.Nc)] + \
+                      ["log_conc_lb_%02d" % j for j in xrange(self.Nc)]
+          
+        for j in xrange(A.shape[0]):
+            row = [A[j, i] * x[i] for i in xrange(A.shape[1])]
+            lp += (pulp.lpSum(row) <= b[j, 0]), cnstr_names[j]
         
         objective = pulp.lpSum([c[i] * x[i] for i in xrange(A.shape[1])])
         lp.setObjective(objective)
         
-        #lp.writeLP("res/mdf_primal.lp")
+        lp.writeLP("res/mdf_primal.lp")
         
         return lp, y, l, B
 
@@ -227,52 +254,25 @@ class Pathway(object):
        
         Does not set the objective function... leaves that to the caller.
        
-        Args:
-            c_range: a tuple (min, max) for concentrations (in M).
-            bounds: a list of (lower bound, upper bound) tuples for compound
-                concentrations.
-       
         Returns:
-            A tuple (dgf_var, motive_force_var, problem_object).
+            the linear problem object, and the four types of variables as arrays
         """
-        # Define and apply the constraints on the concentrations
-        ln_conc_lb, ln_conc_ub = self._MakeLnConcentratonBounds()
-
-        # Create the driving force variable and add the relevant constraints
-        A, b, c = self._MakeDrivingForceConstraints(ln_conc_lb, ln_conc_ub)
-       
-        lp = pulp.LpProblem("MDF", pulp.LpMinimize)
-        
-        w = pulp.LpVariable.dicts("w", 
-                                  ["%d" % i for i in xrange(self.Nr)],
-                                  lowBound=0)
-        w = [w["%d" % i] for i in xrange(self.Nr)]
-
-        g = pulp.LpVariable.dicts("g", 
-                                  ["%d" % i for i in xrange(2*self.Nr)],
-                                  lowBound=0)
-        g = [g["%d" % i] for i in xrange(2*self.Nr)]
-
-        z = pulp.LpVariable.dicts("z", 
-                                  ["%d" % i for i in xrange(self.Nc)],
-                                  lowBound=0)
-        z = [z["%d" % i] for i in xrange(self.Nc)]
-
-        u = pulp.LpVariable.dicts("u", 
-                                  ["%d" % i for i in xrange(self.Nc)],
-                                  lowBound=0)
-        u = [u["%d" % i] for i in xrange(self.Nc)]
-        
+        A, b, c, w, g, z, u = self._GetDualVariablesAndConstants()
         x = w + g + z + u
+        lp = pulp.LpProblem("MDF_DUAL", pulp.LpMinimize)
+
+        cnstr_names = ["y_%02d" % j for j in xrange(self.Nr)] + \
+                      ["l_%02d" % j for j in xrange(self.Nc)] + \
+                      ["MDF"]
         
         for i in xrange(A.shape[1]):
             row = [A[j, i] * x[j] for j in xrange(A.shape[0])]
-            lp += (pulp.lpSum(row) == c[i, 0]), "dual_%02d" % i
+            lp += (pulp.lpSum(row) == c[i, 0]), cnstr_names[i]
 
         objective = pulp.lpSum([b[i] * x[i] for i in xrange(A.shape[0])])
         lp.setObjective(objective)
         
-        #lp.writeLP("res/mdf_dual.lp")
+        lp.writeLP("res/mdf_dual.lp")
         
         return lp, w, g, z, u
     
