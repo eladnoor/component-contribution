@@ -94,8 +94,6 @@ class MaxMinDrivingForce(object):
         dG0_prime, dG0_std = self.model.get_transformed_dG0(pH=self.pH, I=self.I, T=self.T)
         # a conservative approach is to use the lowest dG'0 value within the
         # 95% confidence interval.
-        dG0_std_diag = np.matrix(dG0_std.diagonal().flat).T
-        dG0_prime = dG0_prime - uncertainty_factor * dG0_std_diag
         
         cid2bounds = self.GetBounds()
         
@@ -104,7 +102,8 @@ class MaxMinDrivingForce(object):
         total_active_reactions = len(filter(None, f.flat))
         
         while bound_reaction_counter < total_active_reactions:
-            keggpath = KeggPathway(S, rids, f, cids, dG0_prime, dG0_std,
+            keggpath = KeggPathway(S, rids, f, cids, dG0_prime,
+                                   uncertainty_factor*dG0_std,
                                    rid2bounds=rid2bounds,
                                    cid2bounds=cid2bounds,
                                    c_range=self.c_range)
