@@ -22,7 +22,8 @@ class ConcentrationConstraints(object):
 
 class MaxMinDrivingForce(object):
     
-    def __init__(self, model, fluxes, bounds, pH, I, T, html_writer=None):
+    def __init__(self, model, fluxes, bounds, pH, I, T, html_writer=None,
+                 cid2name=None):
         """
             model    - a KeggModel object
             fluxes   - a list of fluxes, should match the model in length
@@ -32,7 +33,8 @@ class MaxMinDrivingForce(object):
             html_writer - (optional) write a report to HTML file
         """
         self.model = model
-        self.fluxes = np.matrix(fluxes)
+        self.fluxes = fluxes
+        self.cid2name = cid2name
         self.pH, self.I, self.T = pH, I, T
         self.c_range = default_c_range
         self.c_mid = default_c_mid
@@ -50,6 +52,12 @@ class MaxMinDrivingForce(object):
                           'Default concentration = %g M' % self.c_mid]
         self.html_writer.write_ul(condition_list)
 
+    def MapCIDs(self, cid_dict):
+        try:
+            self.cids = map(cid_dict.get, self.cids)
+        except KeyError as e:
+            raise KeyError('Error: not all CIDs are mapped to their new names '
+                           + str(e))
     def GetBounds(self):
         cid2bounds = {cid:self.c_range for cid in self.model.cids}
         cid2bounds['C00001'] = (1, 1) # the default for H2O is 1
@@ -59,14 +67,15 @@ class MaxMinDrivingForce(object):
 
     def Solve(self, uncertainty_factor=3.0):
         S = self.model.S
-        rids = self.model.rids or ['R%05d' % i for i in xrange(S.shape[1])]
         cids = self.model.cids
+        rids = self.model.rids or ['R%05d' % i for i in xrange(S.shape[1])]
         dG0_prime, dG0_std = self.model.get_transformed_dG0(pH=self.pH, I=self.I, T=self.T)
         cid2bounds = self.GetBounds()
 
         keggpath = KeggPathway(S, rids, self.fluxes, cids, dG0_prime,
                                uncertainty_factor*dG0_std,
-                               cid2bounds=cid2bounds, c_range=self.c_range)
+                               cid2bounds=cid2bounds, c_range=self.c_range,
+                               cid2name=self.cid2name)
         _mdf, params = keggpath.FindMDF()
         total_dG_prime = params['maximum total dG']
         odfe = 100 * np.tanh(_mdf / (2*R*self.T))
@@ -98,39 +107,98 @@ class MaxMinDrivingForce(object):
         cid2bounds = self.GetBounds()
         
         rid2bounds = {}
-        bound_reaction_counter = 0
         total_active_reactions = len(filter(None, f.flat))
         
-        while bound_reaction_counter < total_active_reactions:
+        iter_counters = [-1] * len(rids)
+        params_list = []
+        for i in xrange(len(rids)):
             keggpath = KeggPathway(S, rids, f, cids, dG0_prime,
                                    uncertainty_factor*dG0_std,
                                    rid2bounds=rid2bounds,
                                    cid2bounds=cid2bounds,
-                                   c_range=self.c_range)
+                                   c_range=self.c_range,
+                                   cid2name=self.cid2name)
             _mdf, params = keggpath.FindMDF(calculate_totals=False)
+            params_list.append(params)
             
+            # is not the same and maybe there is a mixup
+            tmp = zip(rids,
+                      map(lambda x:'%.1f' % x, params['gibbs energies'].flat),
+                      map(lambda x:'%.1f' % x, params['reaction prices'].flat))
+            
+            logging.debug('\n'.join(map(', '.join, tmp)))
+        
             # fix the driving force of the reactions that have shadow prices
             # to the MDF value, and remove them from the optimization in the
             # next round
             shadow_prices = params['reaction prices']
             
             print '\rIterative MDF: %3d%%' % \
-                (bound_reaction_counter * 100 / total_active_reactions),
+                (len(rid2bounds) * 100 / total_active_reactions),
             for rid, s_p in zip(rids, shadow_prices):
                 if rid not in rid2bounds and s_p > 1e-5:
-                    rid2bounds[rid] = -_mdf
-                    bound_reaction_counter += 1
+                    rid2bounds[rid] = -_mdf + 1e-4 # add 'epsilon' for numerical reasons
+                    iter_counters[rids.index(rid)] = i
+
+            if len(rid2bounds) == total_active_reactions: 
+                break
         
         print '\rIterative MDF: [DONE]'
-        self.html_writer.write("<p>MDF = %.1f kJ/mol</p>\n" % _mdf)
+        self.html_writer.write("<p>MDF = %.1f kJ/mol</p>\n" % params_list[0]['MDF'])
         
-        params['profile figure'] = keggpath.PlotProfile(params)
-        self.html_writer.embed_matplotlib_figure(params['profile figure'],
+        params_list[-1]['profile figure'] = keggpath.PlotProfile(params_list[-1])
+        self.html_writer.embed_matplotlib_figure(params_list[-1]['profile figure'],
                                                  width=320, height=320)
-        keggpath.WriteResultsToHtmlTables(self.html_writer, params)
+        self.WriteIterativeReport(keggpath, params_list, iter_counters)
+        return params_list[-1]
 
-        return params
+    def WriteIterativeReport(self, keggpath, params_list, iter_counters):
+        headers = ["reaction", "formula", "flux",
+                   "&Delta;<sub>r</sub>G' [kJ/mol]"] + ['I%02d' % i for i in xrange(len(params_list))]
+        dict_list = []
+        for r, rid in enumerate(keggpath.rids):
+            if keggpath.fluxes[0, r] == 0:
+                continue
+            d = {'reaction'  : rid,
+                 'flux'      : keggpath.fluxes[0, r],
+                 'formula'   : keggpath.GetReactionString(r),
+                 headers[3]  : params_list[-1]['gibbs energies'][r, 0],
+                 'iteration' : iter_counters[r]}
+            for i, p in enumerate(params_list):
+                if i < iter_counters[r]:
+                    d['I%02d' % i] = '%.3f' % p['gibbs energies'][r, 0]
+                else:
+                    d['I%02d' % i] = '<b>%.3f</b>' % p['gibbs energies'][r, 0]
             
+            dict_list.append(d)
+
+        dict_list.sort(key=lambda d:d['iteration'], reverse=False)
+
+        d = {'reaction' : 'Total',
+             'flux'     : '1',
+             'formula'  : keggpath.GetTotalReactionString(),
+             headers[3] : float(keggpath.fluxes * params_list[-1]['gibbs energies'])}
+        dict_list.append(d)
+        
+        self.html_writer.write_table(dict_list, headers=headers, decimal=1)
+
+        concentrations = params_list[-1]['concentrations']
+
+        headers = ['compound', 'Concentration LB [M]',
+                   'Concentration [M]', 'Concentration UB [M]']
+        dict_list = []
+        for c, cid in enumerate(keggpath.cids):
+            d = {}
+            d['compound'] = keggpath.c_names[c]
+            lb, ub = keggpath.GetConcentrationBounds(cid)
+            d['Concentration LB [M]'] = '%.2e' % lb
+            d['Concentration [M]'] = '%.2e' % concentrations[c, 0]
+            d['Concentration UB [M]'] = '%.2e' % ub
+            dict_list.append(d)
+       
+        self.html_writer.write_table(dict_list, headers=headers)
+
+###############################################################################
             
 def KeggFile2ModelList(pathway_file):
     kegg_file = ParsedKeggFile.FromKeggFile(pathway_file)

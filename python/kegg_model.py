@@ -23,6 +23,7 @@ class KeggModel(object):
             self.S = np.vstack((self.S[:i,:], self.S[i+1:,:]))
             self.cids.pop(i)
     
+
     @staticmethod
     def from_file(fname, arrow='<=>', format='kegg', has_reaction_ids=False):
         """

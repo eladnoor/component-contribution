@@ -59,6 +59,7 @@ class Pathway(object):
         assert self.fluxes.shape[1] == self.Nr
         
         self.I_dir = np.matrix(np.diag(map(np.sign, self.fluxes.flat)))
+        self.Nr_active = int(sum(self.fluxes.T != 0))
         self.c_bounds = None
         self.r_bounds = None
         self.c_range = self.DEFAULT_C_RANGE
@@ -120,19 +121,37 @@ class Pathway(object):
             B is the max-min driving force variable which is being maximized
             by the LP
         """
-       
-        A = np.matrix(np.vstack([np.hstack([self.I_dir * self.dG0_r_std / default_RT, self.I_dir * self.S.T, np.ones((self.Nr, 1)) ]),
-                                 np.hstack([ np.eye(self.Nr),              np.zeros((self.Nr, self.Nc+1))]),
-                                 np.hstack([-np.eye(self.Nr),              np.zeros((self.Nr, self.Nc+1))]),
-                                 np.hstack([np.zeros((self.Nc, self.Nr)),  np.eye(self.Nc), np.zeros((self.Nc, 1))]),
-                                 np.hstack([np.zeros((self.Nc, self.Nr)), -np.eye(self.Nc), np.zeros((self.Nc, 1))])]))
-        b = np.matrix(np.vstack([-self.I_dir * self.dG0_r_prime / default_RT,
-                                 np.ones((self.Nr, 1)),
-                                 np.ones((self.Nr, 1)),
-                                  ln_conc_ub,
-                                 -ln_conc_lb]))
-        c = np.matrix(np.vstack([np.zeros((self.Nr + self.Nc, 1)),
-                                 np.ones((1, 1))]))
+        inds = np.nonzero(np.diag(self.I_dir))[0].tolist()
+        
+        # driving force
+        A11 = self.I_dir[inds] * self.dG0_r_std
+        A12 = self.I_dir[inds] * self.S.T * default_RT
+        A13 = np.ones((len(inds), 1))
+        
+        # covariance var ub and lb
+        A21 = np.eye(self.Nr)
+        A22 = np.zeros((self.Nr, self.Nc))
+        A23 = np.zeros((self.Nr, 1))
+        
+        # log conc ub and lb
+        A31 = np.zeros((self.Nc, self.Nr))
+        A32 = np.eye(self.Nc)
+        A33 = np.zeros((self.Nc, 1))
+        
+        # upper bound values
+        b1 = -self.I_dir[inds] * self.dG0_r_prime
+        b2 = np.ones((self.Nr, 1))
+        
+        A = np.matrix(np.vstack([np.hstack([ A11,  A12,  A13]),   # driving force
+                                 np.hstack([ A21,  A22,  A23]),   # covariance var ub 
+                                 np.hstack([-A21,  A22,  A23]),   # covariance var lb 
+                                 np.hstack([ A31,  A32,  A33]),   # log conc ub
+                                 np.hstack([ A31, -A32,  A33])])) # log conc lb
+
+        b = np.matrix(np.vstack([b1, b2, b2, ln_conc_ub, -ln_conc_lb]))
+
+        c = np.matrix(np.zeros((A.shape[1], 1)))
+        c[-1, 0] = 1.0
 
         # change the constaints such that reaction that have an explicit
         # r_bound will not be constrained by B, but will be constained by
@@ -142,8 +161,8 @@ class Pathway(object):
         if self.r_bounds:
             for i, r_ub in enumerate(self.r_bounds):
                 if r_ub is not None:
-                    A[i, -1] = 0
-                    b[i] += r_ub/default_RT + 1e-5 
+                    A[i, -1] = 0.0
+                    b[i, 0] += r_ub
         
         return A, b, c
    
@@ -172,9 +191,9 @@ class Pathway(object):
         A, b, c = self._MakeDrivingForceConstraints(ln_conc_lb, ln_conc_ub)
        
         w = pulp.LpVariable.dicts("w", 
-                                  ["%d" % i for i in xrange(self.Nr)],
+                                  ["%d" % i for i in xrange(self.Nr_active)],
                                   lowBound=0)
-        w = [w["%d" % i] for i in xrange(self.Nr)]
+        w = [w["%d" % i] for i in xrange(self.Nr_active)]
 
         g = pulp.LpVariable.dicts("g", 
                                   ["%d" % i for i in xrange(2*self.Nr)],
@@ -182,7 +201,7 @@ class Pathway(object):
         g = [g["%d" % i] for i in xrange(2*self.Nr)]
 
         z = pulp.LpVariable.dicts("z", 
-                                  ["%d" % i for i in xrange(2*self.Nc)],
+                                  ["%d" % i for i in xrange(self.Nc)],
                                   lowBound=0)
         z = [z["%d" % i] for i in xrange(self.Nc)]
 
@@ -231,7 +250,7 @@ class Pathway(object):
         x = y + l + [B]
         lp = pulp.LpProblem("MDF_PRIMAL", pulp.LpMaximize)
         
-        cnstr_names = ["driving_force_%02d" % j for j in xrange(self.Nr)] + \
+        cnstr_names = ["driving_force_%02d" % j for j in xrange(self.Nr_active)] + \
                       ["covariance_var_ub_%02d" % j for j in xrange(self.Nr)] + \
                       ["covariance_var_lb_%02d" % j for j in xrange(self.Nr)] + \
                       ["log_conc_ub_%02d" % j for j in xrange(self.Nc)] + \
@@ -291,14 +310,13 @@ class Pathway(object):
         lp_primal.solve(pulp.CPLEX(msg=0))
         if lp_primal.status != pulp.LpStatusOptimal:
             raise pulp.solvers.PulpSolverError("cannot solve MDF primal")
-        y = map(pulp.value, y)
-        l = map(pulp.value, l)
+        y = np.matrix(map(pulp.value, y)).T
+        l = np.matrix(map(pulp.value, l)).T
         mdf = pulp.value(B)
-        conc = np.matrix(map(np.exp, l)).T
-        dG0_r_prime = self.dG0_r_prime + np.dot(self.dG0_r_std, y).T
+        conc = np.exp(l)
+        dG0_r_prime = self.dG0_r_prime + np.dot(self.dG0_r_std, y)
 
         lp_dual, w, g, z, u = self._MakeMDFProblemDual()
-        
         lp_dual.solve(pulp.CPLEX(msg=0))
         if lp_dual.status != pulp.LpStatusOptimal:
             raise pulp.solvers.PulpSolverError("cannot solve MDF dual")
@@ -306,9 +324,10 @@ class Pathway(object):
         z = map(pulp.value, z)
         u = map(pulp.value, u)
         reaction_prices = np.matrix(w).T
+        
         compound_prices = np.matrix(z).T - np.matrix(u).T
 
-        params = {'MDF': mdf * default_RT,
+        params = {'MDF': mdf,
                   'reaction energies': dG0_r_prime,
                   'concentrations' : conc,
                   'reaction prices' : reaction_prices,
@@ -326,7 +345,7 @@ class Pathway(object):
             else:
                 min_tot_dg = pulp.value(total_dg)
     
-            params['minimum total dG'] = min_tot_dg * default_RT
+            params['minimum total dG'] = min_tot_dg
     
             lp_total, total_dg = self._GetTotalEnergyProblem(mdf - 1e-6, pulp.LpMaximize)
             lp_total.solve(pulp.CPLEX(msg=0))
@@ -337,16 +356,16 @@ class Pathway(object):
             else:
                 max_tot_dg = pulp.value(total_dg)
 
-            params['maximum total dG'] = max_tot_dg * default_RT
+            params['maximum total dG'] = max_tot_dg
             
         dG_r_prime = self.CalculateReactionEnergiesUsingConcentrations(conc)
-        params['gibbs energies raw'] = dG_r_prime + np.dot(self.dG0_r_std, y).T
+        params['gibbs energies raw'] = dG_r_prime + np.dot(self.dG0_r_std, y)
 
         # adjust dG to flux directions
         dG_r_prime_adj = self.I_dir * params['gibbs energies raw']
         params['gibbs energies'] = dG_r_prime_adj
         
-        return mdf * default_RT, params
+        return mdf, params
 
 class KeggPathway(Pathway):
    
@@ -354,7 +373,8 @@ class KeggPathway(Pathway):
                  dG0_r_prime, dG0_r_std=None,
                  rid2bounds=None,
                  cid2bounds=None,
-                 c_range=None):
+                 c_range=None,
+                 cid2name=None):
                      
         """
             S           - the stoichiometric matrix
@@ -391,6 +411,11 @@ class KeggPathway(Pathway):
         
         self.rid2bounds = rid2bounds
         self.c_range = c_range
+        
+        if cid2name is None:
+            self.c_names = self.cids
+        else:
+            self.c_names = [cid2name.get(c, c) for c in self.cids]
 
     def GetConcentrationBounds(self, cid):
         lb, ub = None, None
@@ -409,9 +434,9 @@ class KeggPathway(Pathway):
             pass
         return conc
 
-    def GetReactionString(self, r, show_cids=False):
+    def GetReactionString(self, r):
         rid = self.rids[r]
-        sparse = dict([(self.cids[c], self.S[c, r])
+        sparse = dict([(self.c_names[c], self.S[c, r])
                        for c in self.S[:, r].nonzero()[0].flat])
         if self.fluxes[0, r] >= 0:
             direction = '=>'
@@ -420,9 +445,9 @@ class KeggPathway(Pathway):
         reaction = KeggReaction(sparse, arrow=direction, rid=rid)
         return str(reaction)
 
-    def GetTotalReactionString(self, show_cids=False):
+    def GetTotalReactionString(self):
         total_S = self.S * self.fluxes.T
-        sparse = dict([(self.cids[c], total_S[c, 0])
+        sparse = dict([(self.c_names[c], total_S[c, 0])
                        for c in total_S.nonzero()[0].flat])
         reaction = KeggReaction(sparse, arrow="=>", rid="Total")
         return str(reaction)
@@ -528,7 +553,7 @@ class KeggPathway(Pathway):
             d = {}
             d['reaction'] = rid
             d['flux'] = "%g" % abs(self.fluxes[0, r])
-            d['formula'] = self.GetReactionString(r, show_cids=False)
+            d['formula'] = self.GetReactionString(r)
             d[headers[3]] = dG_r_prime_c_adj[r, 0]
             d[headers[4]] = dG_r_prime_adj[r, 0]
             d[headers[5]] = '%.3g' % reaction_shadow_prices[r, 0]
@@ -537,7 +562,7 @@ class KeggPathway(Pathway):
 
         d = {'reaction':'Total',
              'flux':'1',
-             'formula':self.GetTotalReactionString(show_cids=False),
+             'formula':self.GetTotalReactionString(),
              headers[3]: float(self.fluxes * self.dG0_r_prime),
              headers[4]: float(self.fluxes * dG_r_prime),
              headers[5]: '%.3g' % np.sum(reaction_shadow_prices[:, 0])}
@@ -556,14 +581,14 @@ class KeggPathway(Pathway):
         dict_list = []
         for c, cid in enumerate(self.cids):
             d = {}
-            d['KEGG CID'] = cid
+            d['compound'] = self.c_names[c]
             lb, ub = self.GetConcentrationBounds(cid)
             d['Concentration LB [M]'] = '%.2e' % lb
             d['Concentration [M]'] = '%.2e' % concentrations[c, 0]
             d['Concentration UB [M]'] = '%.2e' % ub
             d['shadow price'] = '%.3g' % compound_shadow_prices[c, 0]
             dict_list.append(d)
-        headers = ['KEGG CID', 'Concentration LB [M]',
+        headers = ['compound', 'Concentration LB [M]',
                    'Concentration [M]', 'Concentration UB [M]', 'shadow price']
        
         html_writer.write_table(dict_list, headers=headers)
