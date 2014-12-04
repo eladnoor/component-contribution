@@ -1,7 +1,7 @@
 import re, csv, logging
 import numpy as np
-from kegg_reaction import KeggReaction
-from compound_cacher import CompoundCacher
+from python.kegg_reaction import KeggReaction
+from python.compound_cacher import CompoundCacher
 
 class KeggModel(object):
     
