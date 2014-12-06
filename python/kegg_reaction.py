@@ -2,7 +2,7 @@ import re
 import kegg_errors
 import numpy as np
 import logging
-from compound_cacher import CompoundCacher
+from python.compound_cacher import CompoundCacher
 
 class KeggReaction(object):
 
