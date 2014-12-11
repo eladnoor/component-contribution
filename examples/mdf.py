@@ -11,8 +11,8 @@ import logging
 import numpy as np
 import matplotlib.pyplot as plt
 
-REACTION_FNAME = 'scripts/example_pathway.txt'
-HTML_FNAME = 'scripts/example_results.html'
+REACTION_FNAME = 'examples/glycolysis.txt'
+HTML_FNAME = 'res/mdf_glycolysis.html'
 
 html_writer = HtmlWriter(HTML_FNAME)
 pathways = KeggFile2ModelList(REACTION_FNAME)
@@ -25,12 +25,5 @@ mdf = MaxMinDrivingForce(p['model'], p['fluxes'], p['bounds'],
                          pH=p['pH'], I=p['I'], T=p['T'],
                          html_writer=html_writer)
 
-f_range = np.linspace(0.0, 10.0, 20)
-mdf_list = []
-for f in f_range:
-    mdf_solution, dG_r_prime = mdf.Solve(uncertainty_factor=f)
-    mdf_list.append(mdf_solution)
-    logging.info('For factor = %g, Max-min Driving Force = %.2f kJ/mol' % (f, mdf_solution))
-
-plt.plot(f_range, mdf_list, '.')
+mdf_solution, dG_r_prime = mdf.Solve(uncertainty_factor=3.0)
 plt.show()
