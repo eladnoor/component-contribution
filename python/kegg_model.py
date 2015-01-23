@@ -192,3 +192,10 @@ class KeggModel(object):
             reaction = KeggReaction(sparse)
         return reaction.write_formula()
         
+    def get_unidirectional_S(self):
+        S_plus = np.copy(self.S)
+        S_minus = np.copy(self.S)
+        S_plus[self.S < 0] = 0
+        S_minus[self.S > 0] = 0
+        return S_minus, S_plus
+        
