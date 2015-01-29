@@ -2,6 +2,7 @@ import re, csv, logging
 import numpy as np
 from python.kegg_reaction import KeggReaction
 from python.compound_cacher import CompoundCacher
+from python.kegg_errors import KeggParseException
 
 class KeggModel(object):
     
@@ -114,7 +115,11 @@ class KeggModel(object):
                 tokens = re.split('(\w+)\s+(.*)', line, maxsplit=1)
                 rid = tokens[0]
                 line = tokens[1]
-            reaction = KeggReaction.parse_formula(line, arrow, rid)
+            try:
+                reaction = KeggReaction.parse_formula(line, arrow, rid)
+            except KeggParseException as e:
+                logging.warning(str(e))
+                reaction = KeggReaction({})
             if not reaction.is_balanced(fix_water=True):
                 not_balanced_count += 1
                 logging.warning('Model contains an unbalanced reaction: ' + line)

@@ -1,8 +1,8 @@
 import re
-import kegg_errors
 import numpy as np
 import logging
 from python.compound_cacher import CompoundCacher
+from python.kegg_errors import KeggParseException
 
 class KeggReaction(object):
 
@@ -55,14 +55,14 @@ class KeggReaction(object):
                 try:
                     amount = float(tokens[0])
                 except ValueError:
-                    raise kegg_errors.KeggParseException(
+                    raise KeggParseException(
                         "Non-specific reaction: %s" % s)
                 key = tokens[1]
                 
             try:
                 compound_bag[key] = compound_bag.get(key, 0) + amount
             except ValueError:
-                raise kegg_errors.KeggParseException(
+                raise KeggParseException(
                     "Non-specific reaction: %s" % s)
         
         return compound_bag
@@ -77,11 +77,11 @@ class KeggReaction(object):
         """
         tokens = formula.split(arrow)
         if len(tokens) < 2:
-            raise ValueError('Reaction does not contain the arrow sign (%s): %s'
-                             % (arrow, formula))
+            raise KeggParseException('Reaction does not contain the arrow sign (%s): %s'
+                                     % (arrow, formula))
         if len(tokens) > 2:
-            raise ValueError('Reaction contains more than one arrow sign (%s): %s'
-                             % (arrow, formula))
+            raise KeggParseException('Reaction contains more than one arrow sign (%s): %s'
+                                     % (arrow, formula))
         
         left = tokens[0].strip()
         right = tokens[1].strip()
@@ -125,7 +125,10 @@ class KeggReaction(object):
         cids = list(self.keys())
         coeffs = np.array([self.sparse[cid] for cid in cids], ndmin=2).T
     
-        elements, Ematrix = self.ccache.get_element_matrix(cids)
+        try:
+            elements, Ematrix = self.ccache.get_element_matrix(cids)
+        except KeyError:
+            return None
         conserved = Ematrix.T * coeffs
 
         if np.any(np.isnan(conserved), 0):
