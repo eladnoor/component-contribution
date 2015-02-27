@@ -112,7 +112,7 @@ class KeggModel(object):
         for line in reaction_strings:
             rid = None
             if has_reaction_ids:
-                tokens = re.split('(\w+)\s+(.*)', line, maxsplit=1)
+                tokens = re.findall('(\w+)\s+(.*)', line.strip())[0]
                 rid = tokens[0]
                 line = tokens[1]
             try:

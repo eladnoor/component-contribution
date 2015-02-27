@@ -12,7 +12,13 @@ base_path = os.path.split(os.path.realpath(__file__))[0]
 CC_CACHE_FNAME = os.path.join(base_path, '../cache/component_contribution.mat')
 
 class ComponentContribution(object):
-    
+
+    try:
+        import oct2py
+        SVD_METHOD = 'octave'
+    except ImportError:
+        logging.warning('Oct2py is not installed, using NumPy to calculate SVD')
+        SVD_METHOD = 'numpy'
 
     def __init__(self, training_data=None):
         if training_data is None:
@@ -489,11 +495,10 @@ class ComponentContribution(object):
         return np.matrix(full_S)
         
     @staticmethod
-    def _invert_project(A, eps=1e-10, method='octave'):
+    def _invert_project(A, eps=1e-10):
         n, m = A.shape
-        if method == 'octave':
-            from oct2py import Oct2Py
-            oc = Oct2Py()
+        if ComponentContribution.SVD_METHOD == 'octave':
+            oc = oct2py.Oct2Py()
             U, S, V = oc.svd(A)
             s = np.diag(S)
             U = np.matrix(U)
@@ -503,7 +508,7 @@ class ComponentContribution(object):
             inv_A = V[:, :r] * inv_S * U[:, :r].T
             P_R   = U[:, :r] * U[:, :r].T
             P_N   = U[:, r:] * U[:, r:].T
-        elif method == 'numpy':
+        elif ComponentContribution.SVD_METHOD == 'numpy':
             # numpy.linalg.svd returns U, s, V_H such that
             # A = U * s * V_H
             # however, matlab and octave return U, S, V such that
@@ -516,14 +521,14 @@ class ComponentContribution(object):
             inv_A = V[:, :r] * inv_S * U[:, :r].T
             P_R   = U[:, :r] * U[:, :r].T
             P_N   = np.eye(n) - P_R
-        elif method == 'nosvd':
+        elif ComponentContribution.SVD_METHOD == 'nosvd':
             inv_A = A.T * np.linalg.inv(A * A.T + np.eye(n)*4e-6).T
             # then the solution for (A.T * x = b) will be given by (x = inv_A.T * b)
             P_R = A * inv_A
             P_N = np.eye(n) - P_R
             r = sum(np.abs(np.linalg.eig(P_R)[0]) > 0.5)
         else:
-            raise ValueError('method argument must be "octave", "numpy" or "nosvd"')
+            raise ValueError('SVD method must be "octave", "numpy" or "nosvd"')
 
         return inv_A, r, P_R, P_N
         
