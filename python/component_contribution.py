@@ -13,12 +13,13 @@ CC_CACHE_FNAME = os.path.join(base_path, '../cache/component_contribution.mat')
 
 class ComponentContribution(object):
 
-    try:
-        import oct2py
-        SVD_METHOD = 'octave'
-    except ImportError:
-        logging.warning('Oct2py is not installed, using NumPy to calculate SVD')
-        SVD_METHOD = 'numpy'
+    SVD_METHOD = 'numpy'
+#    try:
+#        import oct2py
+#       SVD_METHOD = 'octave'
+#   except ImportError:
+#       logging.warning('Oct2py is not installed, using NumPy to calculate SVD')
+#       SVD_METHOD = 'numpy'
 
     def __init__(self, training_data=None):
         if training_data is None:
@@ -498,6 +499,7 @@ class ComponentContribution(object):
     def _invert_project(A, eps=1e-10):
         n, m = A.shape
         if ComponentContribution.SVD_METHOD == 'octave':
+            import oct2py
             oc = oct2py.Oct2Py()
             U, S, V = oc.svd(A)
             s = np.diag(S)
