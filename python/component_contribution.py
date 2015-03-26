@@ -7,19 +7,12 @@ from compound_cacher import CompoundCacher
 import inchi2gv
 from thermodynamic_constants import default_T
 from molecule import Molecule, OpenBabelError
+from linalg import LINALG
 
 base_path = os.path.split(os.path.realpath(__file__))[0]
 CC_CACHE_FNAME = os.path.join(base_path, '../cache/component_contribution.mat')
 
 class ComponentContribution(object):
-
-    SVD_METHOD = 'numpy'
-#    try:
-#        import oct2py
-#       SVD_METHOD = 'octave'
-#   except ImportError:
-#       logging.warning('Oct2py is not installed, using NumPy to calculate SVD')
-#       SVD_METHOD = 'numpy'
 
     def __init__(self, training_data=None):
         if training_data is None:
@@ -498,39 +491,12 @@ class ComponentContribution(object):
     @staticmethod
     def _invert_project(A, eps=1e-10):
         n, m = A.shape
-        if ComponentContribution.SVD_METHOD == 'octave':
-            import oct2py
-            oc = oct2py.Oct2Py()
-            U, S, V = oc.svd(A)
-            s = np.diag(S)
-            U = np.matrix(U)
-            V = np.matrix(V)
-            r = sum(abs(s) > eps)
-            inv_S = np.matrix(np.diag([1.0/s[i] for i in xrange(r)]))
-            inv_A = V[:, :r] * inv_S * U[:, :r].T
-            P_R   = U[:, :r] * U[:, :r].T
-            P_N   = U[:, r:] * U[:, r:].T
-        elif ComponentContribution.SVD_METHOD == 'numpy':
-            # numpy.linalg.svd returns U, s, V_H such that
-            # A = U * s * V_H
-            # however, matlab and octave return U, S, V such that
-            # V needs to be transposed when multiplied:
-            # A = U * S * V.T
-            U, s, V_H = np.linalg.svd(A, full_matrices=True)
-            V = V_H.T
-            r = sum(abs(s) > eps)
-            inv_S = np.matrix(np.diag([1.0/s[i] for i in xrange(r)]))
-            inv_A = V[:, :r] * inv_S * U[:, :r].T
-            P_R   = U[:, :r] * U[:, :r].T
-            P_N   = np.eye(n) - P_R
-        elif ComponentContribution.SVD_METHOD == 'nosvd':
-            inv_A = A.T * np.linalg.inv(A * A.T + np.eye(n)*4e-6).T
-            # then the solution for (A.T * x = b) will be given by (x = inv_A.T * b)
-            P_R = A * inv_A
-            P_N = np.eye(n) - P_R
-            r = sum(np.abs(np.linalg.eig(P_R)[0]) > 0.5)
-        else:
-            raise ValueError('SVD method must be "octave", "numpy" or "nosvd"')
+        U, S, V = LINALG.svd(A)
+        inv_A = V * np.linalg.pinv(S) * U.T
+
+        r = (S > eps).sum()
+        P_R   = U[:, :r] * U[:, :r].T
+        P_N   = U[:, r:] * U[:, r:].T
 
         return inv_A, r, P_R, P_N
         
