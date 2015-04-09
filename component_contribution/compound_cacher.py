@@ -1,5 +1,5 @@
 import json, os, logging, csv, gzip, numpy
-from python.compound import Compound
+from compound import Compound
 base_path = os.path.split(os.path.realpath(__file__))[0]
 
 ### Input Files:

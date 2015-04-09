@@ -22,7 +22,7 @@ def RunCxcalc(molstring, args):
         #os.remove(temp_fname)
         res = p2.communicate()[0]
         if p2.returncode != 0:
-            raise ChemAxonError(debug_args)
+            raise ChemAxonError(str(args))
         logging.debug("OUTPUT: %s" % res)
         return res
     except OSError:

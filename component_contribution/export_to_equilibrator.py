@@ -1,6 +1,6 @@
 import json, gzip, logging, os
 import numpy as np
-from python.component_contribution import ComponentContribution
+from component_contribution import ComponentContribution
 
 if not os.path.isdir('res'):
     os.mkdir('res')

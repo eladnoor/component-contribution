@@ -1,6 +1,6 @@
 import logging, os, csv
-from python.component_contribution import ComponentContribution
-from python.thermodynamic_constants import default_T
+from component_contribution import ComponentContribution
+from thermodynamic_constants import default_T
 
 if not os.path.isdir('res'):
     os.mkdir('res')

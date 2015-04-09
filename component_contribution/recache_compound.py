@@ -5,7 +5,7 @@ Created on Thu Aug  7 21:00:31 2014
 @author: eladn
 """
 import sys
-from python.compound_cacher import CompoundCacher
+from compound_cacher import CompoundCacher
 
 compound_id = sys.argv[1]
 CompoundCacher.RebuildCompoundJSON()

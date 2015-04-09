@@ -8,14 +8,12 @@ PYTHON_SCRIPT_FNAME = 'python/component_contribution.py'
 def python_main():
     logger = logging.getLogger('')
     logger.setLevel(logging.INFO)
-    from python.component_contribution import ComponentContribution
-    from python.kegg_model import KeggModel
-    from python.thermodynamic_constants import default_RT
+    import component_contribution
+    from component_contribution.thermodynamic_constants import default_RT
 
-
-    cc = ComponentContribution.init()
+    cc = component_contribution.component_contribution.ComponentContribution.init()
     reaction_strings = open(REACTION_FNAME, 'r').readlines()
-    model = KeggModel.from_formulas(reaction_strings)
+    model = component_contribution.kegg_model.KeggModel.from_formulas(reaction_strings)
 
     model.add_thermo(cc)
     dG0_prime, dG0_std = model.get_transformed_dG0(7.0, 0.2, 298.15)
