@@ -41,10 +41,10 @@ class ComponentContribution(object):
     @staticmethod
     def init():
         if os.path.exists(CC_CACHE_FNAME):
-            logging.info('Loading component-contributions from cache')
+            logging.debug('Loading component-contributions from cache')
             return ComponentContribution.from_matfile(CC_CACHE_FNAME)
         else:
-            logging.info('Calculating the component-contributions from raw data')
+            logging.debug('Calculating the component-contributions from raw data')
             cc = ComponentContribution()
             cc.save_matfile(CC_CACHE_FNAME)
             return cc
@@ -540,3 +540,7 @@ class ComponentContribution(object):
         A_unique, P_col = ComponentContribution._row_uniq(A.T)
         return A_unique.T, P_col.T
 
+if __name__ == '__main__':
+    logger = logging.getLogger('')
+    logger.setLevel(logging.DEBUG)
+    cc = ComponentContribution.init()

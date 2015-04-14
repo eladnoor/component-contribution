@@ -117,7 +117,7 @@ class TrainingData(object):
             except ValueError:
                 raise Exception('Cannot parse row: ' + str(row))
 
-        logging.info('Successfully added %d reactions from TECRDB' % len(thermo_params))
+        logging.debug('Successfully added %d reactions from TECRDB' % len(thermo_params))
         return thermo_params
         
     @staticmethod
@@ -146,7 +146,7 @@ class TrainingData(object):
                                       'reference': row['compound_ref'],
                                       'description': row['name'] + ' formation'})
 
-        logging.info('Successfully added %d formation energies' % len(thermo_params))
+        logging.debug('Successfully added %d formation energies' % len(thermo_params))
         return thermo_params, cids_that_dont_decompose
         
     @staticmethod
@@ -176,7 +176,7 @@ class TrainingData(object):
                                   'reference': row['ref'],        
                                   'description': row['name'] + ' redox'})
 
-        logging.info('Successfully added %d redox potentials' % len(thermo_params))
+        logging.debug('Successfully added %d redox potentials' % len(thermo_params))
         return thermo_params
     
     @staticmethod
@@ -252,10 +252,10 @@ class TrainingData(object):
         self.reference = [self.reference[i] for i in rxn_inds_to_keep]
         self.description = [self.description[i] for i in rxn_inds_to_keep]
 
-        logging.info('After removing %d unbalanced reactions, the stoichiometric '
-                     'matrix contains: '
-                     '%d compounds and %d reactions' %
-                     (len(rxn_inds_to_remove), self.S.shape[0], self.S.shape[1]))
+        logging.debug('After removing %d unbalanced reactions, the stoichiometric '
+                      'matrix contains: '
+                      '%d compounds and %d reactions' %
+                      (len(rxn_inds_to_remove), self.S.shape[0], self.S.shape[1]))
 
     def reverse_transform(self):
         """
@@ -278,6 +278,6 @@ class TrainingData(object):
         
 if __name__ == '__main__':
     logger = logging.getLogger('')
-    logger.setLevel(logging.INFO)
+    logger.setLevel(logging.DEBUG)
     td = TrainingData()
     td.savecsv('res/training_data.csv')
