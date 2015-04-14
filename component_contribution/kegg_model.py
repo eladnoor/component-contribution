@@ -86,8 +86,8 @@ class KeggModel(object):
         for i, reaction in enumerate(kegg_reactions):
             S[:, i] = np.matrix(reaction.dense(cids))
         
-        logging.info('Successfully loaded %d reactions (involving %d unique compounds)' %
-                     (S.shape[1], S.shape[0]))
+        logging.debug('Successfully loaded %d reactions (involving %d unique compounds)' %
+                      (S.shape[1], S.shape[0]))
         return KeggModel(S, cids, rids)
     
     @staticmethod

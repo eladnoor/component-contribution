@@ -9,14 +9,15 @@ OUTPUT_JSON = '../equilibrator/data/cc_compounds.json.gz'
 OUTPUT_NPZ = '../equilibrator/data/cc_preprocess'
 
 if __name__ == '__main__':
-    cc = ComponentContribution()
-    cc.train()
+    logger = logging.getLogger('')
+    logger.setLevel(logging.DEBUG)
+    cc = ComponentContribution.init()
 
     # write the JSON file containing the 'additiona' data on all the compounds
     # in eQuilibrator (i.e. formula, mass, pKa values, etc.) 
     compound_json = []
     for i, compound_id in enumerate(cc.ccache.get_all_compound_ids()):
-        logging.info("exporting " + compound_id)
+        logging.debug("exporting " + compound_id)
 
         # skip compounds that cause a segmentation fault in openbabel
         if compound_id in ['C09078', 'C09093', 'C09145', 'C09246',
@@ -63,4 +64,4 @@ if __name__ == '__main__':
                         S=S, S_count=S_count, cids=cids)
                         
                         
-    print "Now run 'clear_database' and then 'load_database' in eQuilibrator"
+    logging.info("Now run 'clear_database' and then 'load_database' in eQuilibrator")

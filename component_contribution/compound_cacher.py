@@ -168,12 +168,12 @@ class CompoundCacher(object):
         
         i = 0
         for compound_id in ccache.get_all_compound_ids():
-            logging.info('Caching %s' % compound_id)
+            logging.debug('Caching %s' % compound_id)
             comp = ccache.get_compound(compound_id)
-            logging.info(str(comp))
+            logging.debug(str(comp))
             i += 1
             if i % 100 == 0:
-                logging.info('Dumping Cache ...')
+                logging.debug('Dumping Cache ...')
                 ccache.dump()
         
         ccache.dump()
@@ -182,7 +182,7 @@ class CompoundCacher(object):
         
 if __name__ == '__main__':
     logger = logging.getLogger('')
-    logger.setLevel(logging.INFO)
+    logger.setLevel(logging.DEBUG)
     
     CompoundCacher.RebuildCompoundJSON()
     CompoundCacher.BuildCache()

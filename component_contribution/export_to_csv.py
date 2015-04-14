@@ -8,12 +8,15 @@ if not os.path.isdir('res'):
 OUTPUT_CSV = 'res/cc_compounds.csv'
 
 if __name__ == '__main__':
+    logger = logging.getLogger('')
+    logger.setLevel(logging.DEBUG)
+
     cc = ComponentContribution.init()
     output_csv = csv.writer(open(OUTPUT_CSV, 'w'))
     output_csv.writerow(['Compound ID', 'nH', 'charge', 'dG0_f'])
 
     for i, compound_id in enumerate(cc.ccache.get_all_compound_ids()):
-        logging.info("exporting " + compound_id)
+        logging.debug("exporting " + compound_id)
 
         # skip compounds that cause a segmentation fault in openbabel
         if compound_id in ['C09078', 'C09093', 'C09145', 'C09246',
