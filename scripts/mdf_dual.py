@@ -8,8 +8,8 @@ from matplotlib.font_manager import FontProperties
 import types
 import pulp
 
-from python.thermodynamic_constants import default_RT
-from python.kegg_reaction import KeggReaction
+from component_contribution.thermodynamic_constants import default_RT
+from component_contribution.kegg_reaction import KeggReaction
 
 class Pathway(object):
     """Container for doing pathway-level thermodynamic analysis."""
@@ -265,7 +265,7 @@ class Pathway(object):
         
         lp.writeLP("res/mdf_primal.lp")
         
-        return lp, y, l, B
+        return lp, objective, y, l, B
 
     def _MakeMDFProblemDual(self):
         """Create a CVXOPT problem for finding the Maximal Thermodynamic
@@ -293,7 +293,7 @@ class Pathway(object):
         
         lp.writeLP("res/mdf_dual.lp")
         
-        return lp, w, g, z, u
+        return lp, objective, w, g, z, u
     
     def FindMDF(self, calculate_totals=True):
         """Find the MDF (Optimized Bottleneck Energetics).
@@ -306,7 +306,7 @@ class Pathway(object):
         Returns:
             A 3 tuple (optimal dGfs, optimal concentrations, optimal mdf).
         """
-        lp_primal, y, l, B = self._MakeMDFProblem()
+        lp_primal, primal_obj, y, l, B = self._MakeMDFProblem()
         lp_primal.solve(pulp.CPLEX(msg=0))
         if lp_primal.status != pulp.LpStatusOptimal:
             raise pulp.solvers.PulpSolverError("cannot solve MDF primal")
@@ -316,10 +316,14 @@ class Pathway(object):
         conc = np.exp(l)
         dG0_r_prime = self.dG0_r_prime + np.dot(self.dG0_r_std, y)
 
-        lp_dual, w, g, z, u = self._MakeMDFProblemDual()
+        lp_dual, dual_obj, w, g, z, u = self._MakeMDFProblemDual()
         lp_dual.solve(pulp.CPLEX(msg=0))
         if lp_dual.status != pulp.LpStatusOptimal:
             raise pulp.solvers.PulpSolverError("cannot solve MDF dual")
+        
+        if abs(pulp.value(primal_obj) - pulp.value(dual_obj)) > 1e-5:
+            raise pulp.solvers.PulpSolverError("Dual != Primal")
+
         w = map(pulp.value, w)
         z = map(pulp.value, z)
         u = map(pulp.value, u)

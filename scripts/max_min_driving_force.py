@@ -9,9 +9,9 @@ import logging, sys
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.io import savemat
-from python.thermodynamic_constants import R, default_c_range, default_c_mid
-from python.component_contribution import ComponentContribution
-from python.kegg_model import KeggModel
+from component_contribution.thermodynamic_constants import R, default_c_range, default_c_mid
+from component_contribution.component_contribution import ComponentContribution
+from component_contribution.kegg_model import KeggModel
 
 from scripts.mdf_dual import KeggPathway
 from scripts.html_writer import HtmlWriter, NullHtmlWriter
@@ -93,7 +93,7 @@ class MaxMinDrivingForce(object):
         keggpath.WriteProfileToHtmlTable(self.html_writer, params)
         keggpath.WriteConcentrationsToHtmlTable(self.html_writer, params)
 
-        return _mdf, params['gibbs energies raw']
+        return _mdf, params['gibbs energies raw'], dG0_std
 
     def SolveIterative(self, uncertainty_factor=3.0):
         S = self.model.S
@@ -218,13 +218,15 @@ def KeggFile2ModelList(pathway_file):
     return pathways
 
 if __name__ == '__main__':
-    fname = sys.argv[1]
+    #fname = sys.argv[1]
+    fname = 'mdf_pathways'
     
     REACTION_FNAME = 'scripts/%s.txt' % fname
     pathways = KeggFile2ModelList(REACTION_FNAME)
     html_writer = HtmlWriter('res/%s.html' % fname)
     cc = ComponentContribution.init()
 
+    matdict = {}
     for p in pathways:
         html_writer.write('<h2>%s</h2>' % p['entry'])
 
@@ -238,4 +240,8 @@ if __name__ == '__main__':
         #print 'dG\'0 = ' + ', '.join(map(lambda x:'%.2f' % x, dG0[:,0]))
         mdf_solution, dGm_prime, dG0_std = mdf.Solve()
         logging.info('Pathway %s: MDF = %.1f' % (p['entry'], mdf_solution))
-        savemat('res/%s.mat' % fname, {'dGm_prime':dGm_prime, 'dG0_std':dG0_std})
+        
+        matdict[p['entry'] + '.dGm_prime'] = dGm_prime
+        matdict[p['entry'] + '.dG0_std'] = dG0_std
+        
+    savemat('res/%s.mat' % fname, matdict)

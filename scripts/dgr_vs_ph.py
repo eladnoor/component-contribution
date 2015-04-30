@@ -2,8 +2,8 @@
 import sys
 import numpy as np
 from scipy.io import savemat
-from python.component_contribution import ComponentContribution
-from python.kegg_model import KeggModel
+from component_contribution.component_contribution import ComponentContribution
+from component_contribution.kegg_model import KeggModel
 
 from scripts.kegg_parser import ParsedKeggFile
 

@@ -1,5 +1,5 @@
 import csv
-from python.thermodynamic_constants import default_c0
+from component_contribution.thermodynamic_constants import default_c0
 
 class CompoundAbundance(object):
     
