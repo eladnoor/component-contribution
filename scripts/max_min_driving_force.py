@@ -76,8 +76,8 @@ class MaxMinDrivingForce(object):
                                uncertainty_factor*dG0_std,
                                cid2bounds=cid2bounds, c_range=self.c_range,
                                cid2name=self.cid2name)
-        _mdf, params = keggpath.FindMDF()
-        total_dG_prime = params['maximum total dG']
+        _mdf, params = keggpath.FindMDF(calculate_totals=True)
+        total_dG_prime = params.get('maximum total dG', np.nan)
         odfe = 100 * np.tanh(_mdf / (2*R*self.T))
         average_dG_prime = total_dG_prime/np.sum(self.fluxes)
         average_dfe = 100 * np.tanh(-average_dG_prime / (2*R*self.T))        

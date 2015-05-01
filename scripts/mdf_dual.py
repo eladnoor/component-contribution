@@ -7,6 +7,7 @@ import logging
 from matplotlib.font_manager import FontProperties
 import types
 import pulp
+import sys
 
 from component_contribution.thermodynamic_constants import default_RT
 from component_contribution.kegg_reaction import KeggReaction
@@ -35,6 +36,9 @@ class Pathway(object):
             fluxes: the list of relative fluxes through each of the reactions.
                 By default, all fluxes are 1.
         """
+        #self.pulp_solver = pulp.CPLEX(msg=0)
+        self.pulp_solver = pulp.GLPK_CMD(msg=0, options=['--xcheck'])
+        
         self.S = S
         self.Nc, self.Nr = S.shape
 
@@ -307,7 +311,7 @@ class Pathway(object):
             A 3 tuple (optimal dGfs, optimal concentrations, optimal mdf).
         """
         lp_primal, primal_obj, y, l, B = self._MakeMDFProblem()
-        lp_primal.solve(pulp.CPLEX(msg=0))
+        lp_primal.solve(self.pulp_solver)
         if lp_primal.status != pulp.LpStatusOptimal:
             raise pulp.solvers.PulpSolverError("cannot solve MDF primal")
         y = np.matrix(map(pulp.value, y)).T
@@ -317,12 +321,15 @@ class Pathway(object):
         dG0_r_prime = self.dG0_r_prime + np.dot(self.dG0_r_std, y)
 
         lp_dual, dual_obj, w, g, z, u = self._MakeMDFProblemDual()
-        lp_dual.solve(pulp.CPLEX(msg=0))
+        lp_dual.solve(self.pulp_solver)
         if lp_dual.status != pulp.LpStatusOptimal:
             raise pulp.solvers.PulpSolverError("cannot solve MDF dual")
         
-        if abs(pulp.value(primal_obj) - pulp.value(dual_obj)) > 1e-5:
-            raise pulp.solvers.PulpSolverError("Dual != Primal")
+        primal_obj = pulp.value(primal_obj)
+        dual_obj = pulp.value(dual_obj)
+        if abs(primal_obj - dual_obj) > 1e-3:
+            raise pulp.solvers.PulpSolverError("Primal != Dual (%.5f != %.5f)"
+            % (primal_obj, dual_obj))
 
         w = map(pulp.value, w)
         z = map(pulp.value, z)
@@ -340,8 +347,8 @@ class Pathway(object):
         if calculate_totals:
             # find the maximum and minimum total Gibbs energy of the pathway,
             # under the constraint that the driving force of each reaction is >= MDF
-            lp_total, total_dg = self._GetTotalEnergyProblem(mdf - 1e-6, pulp.LpMinimize)
-            lp_total.solve(pulp.CPLEX(msg=0))
+            lp_total, total_dg = self._GetTotalEnergyProblem(mdf - 1e-2, pulp.LpMinimize)
+            lp_total.solve(self.pulp_solver)
             if lp_total.status != pulp.LpStatusOptimal:
                 #raise pulp.solvers.PulpSolverError("cannot solve minimal total delta-G problem")
                 logging.warning("cannot solve minimal total delta-G problem")
@@ -351,8 +358,8 @@ class Pathway(object):
     
             params['minimum total dG'] = min_tot_dg
     
-            lp_total, total_dg = self._GetTotalEnergyProblem(mdf - 1e-6, pulp.LpMaximize)
-            lp_total.solve(pulp.CPLEX(msg=0))
+            lp_total, total_dg = self._GetTotalEnergyProblem(mdf - 1e-2, pulp.LpMaximize)
+            lp_total.solve(self.pulp_solver)
             if lp_total.status != pulp.LpStatusOptimal:
                 #raise pulp.solvers.PulpSolverError("cannot solve maximal total delta-G problem")
                 logging.warning("cannot solve maximal total delta-G problem")
