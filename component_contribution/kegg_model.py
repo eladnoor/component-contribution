@@ -149,9 +149,10 @@ class KeggModel(object):
             each estimate (i.e. a measure for the uncertainty).
         """
         dG0_prime = self.dG0 + self._get_transform_ddG0(pH=pH, I=I, T=T)
+        dG0_std = np.matrix(np.sqrt(np.diag(self.cov_dG0))).T
         U, s, V = np.linalg.svd(self.cov_dG0, full_matrices=True)
         sqrt_Sigma = np.matrix(U) * np.matrix(np.diag(s**0.5)) * np.matrix(V)
-        return dG0_prime, sqrt_Sigma
+        return dG0_prime, dG0_std, sqrt_Sigma
 
     def _get_transform_ddG0(self, pH, I, T):
         """

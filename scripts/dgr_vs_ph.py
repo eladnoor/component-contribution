@@ -44,7 +44,7 @@ if __name__ == '__main__':
         dG0_primes = []
         dG0_std = []
         for pH in pH_range:
-            dG0_prime, dG0_std = p['model'].get_transformed_dG0(pH=pH, I=I, T=T)
+            dG0_prime, dG0_std, sqrt_Sigma = p['model'].get_transformed_dG0(pH=pH, I=I, T=T)
             dG0_primes.append(dG0_prime)
             
         dG0_std = np.matrix(dG0_std)

@@ -36,8 +36,8 @@ class Pathway(object):
             fluxes: the list of relative fluxes through each of the reactions.
                 By default, all fluxes are 1.
         """
-        #self.pulp_solver = pulp.CPLEX(msg=0)
-        self.pulp_solver = pulp.GLPK_CMD(msg=0, options=['--xcheck'])
+        self.pulp_solver = pulp.CPLEX(msg=0)
+        #self.pulp_solver = pulp.GLPK_CMD(msg=0, options=['--xcheck'])
         
         self.S = S
         self.Nc, self.Nr = S.shape

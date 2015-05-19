@@ -65,16 +65,22 @@ class MaxMinDrivingForce(object):
             cid2bounds[cid] = b
         return cid2bounds
 
-    def Solve(self, uncertainty_factor=3.0):
+    def Solve(self, uncertainty_factor=3.0, diagonal_covariance=False):
         S = self.model.S
+        f = self.fluxes
         cids = self.model.cids
         rids = self.model.rids or ['R%05d' % i for i in xrange(S.shape[1])]
-        dG0_prime, dG0_std = self.model.get_transformed_dG0(pH=self.pH, I=self.I, T=self.T)
+        dG0_prime, dG0_std, sqrt_Sigma = self.model.get_transformed_dG0(pH=self.pH, I=self.I, T=self.T)
+        if diagonal_covariance:
+            sigma = uncertainty_factor*np.matrix(np.diag(dG0_std))
+        else:
+            sigma = uncertainty_factor*sqrt_Sigma
+
         cid2bounds = self.GetBounds()
 
-        keggpath = KeggPathway(S, rids, self.fluxes, cids, dG0_prime,
-                               uncertainty_factor*dG0_std,
-                               cid2bounds=cid2bounds, c_range=self.c_range,
+        keggpath = KeggPathway(S, rids, f, cids, dG0_prime, sigma,
+                               cid2bounds=cid2bounds,
+                               c_range=self.c_range,
                                cid2name=self.cid2name)
         _mdf, params = keggpath.FindMDF(calculate_totals=True)
         total_dG_prime = params.get('maximum total dG', np.nan)
@@ -95,14 +101,18 @@ class MaxMinDrivingForce(object):
 
         return _mdf, params['gibbs energies raw'], dG0_std
 
-    def SolveIterative(self, uncertainty_factor=3.0):
+    def SolveIterative(self, uncertainty_factor=3.0, diagonal_covariance=False):
         S = self.model.S
         f = self.fluxes
         rids = self.model.rids or ['R%05d' % i for i in xrange(S.shape[1])]
         cids = self.model.cids
-        dG0_prime, dG0_std = self.model.get_transformed_dG0(pH=self.pH, I=self.I, T=self.T)
-        # a conservative approach is to use the lowest dG'0 value within the
-        # 95% confidence interval.
+        dG0_prime, dG0_std, sqrt_Sigma = self.model.get_transformed_dG0(pH=self.pH, I=self.I, T=self.T)
+        if diagonal_covariance:
+            #sigma = uncertainty_factor * np.matrix(np.diag(dG0_std))
+            sigma = 0.0 * sqrt_Sigma
+            dG0_prime -= uncertainty_factor * dG0_std
+        else:
+            sigma = uncertainty_factor * sqrt_Sigma
         
         cid2bounds = self.GetBounds()
         
@@ -112,8 +122,7 @@ class MaxMinDrivingForce(object):
         iter_counters = [-1] * len(rids)
         params_list = []
         for i in xrange(len(rids)):
-            keggpath = KeggPathway(S, rids, f, cids, dG0_prime,
-                                   uncertainty_factor*dG0_std,
+            keggpath = KeggPathway(S, rids, f, cids, dG0_prime, sigma,
                                    rid2bounds=rid2bounds,
                                    cid2bounds=cid2bounds,
                                    c_range=self.c_range,
