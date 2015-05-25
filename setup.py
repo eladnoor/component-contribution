@@ -12,12 +12,12 @@ setup(
     install_requires=['scipy>=0.14.0',
                       'numpy>=1.6.2',
                       'oct2py==3.1.0'],
-    data_files=[('TECRDB', ['data/TECRDB.tsv']),
-                ('redox',  ['data/redox.tsv']),
-                ('formation_energies_transformed', ['data/formation_energies_transformed.tsv']),
-                ('equilibrator_compounds', ['data/equilibrator_compounds.json.gz']),
-                ('kegg_additions', ['data/kegg_additions.json.gz']),
-                ('kegg_compounds', ['data/kegg_compounds.json.gz']),
+    data_files=[('data', ['data/TECRDB.tsv', 
+                          'data/redox.tsv',
+                          'data/formation_energies_transformed.tsv',
+                          'data/equilibrator_compounds.json.gz',
+                          'data/kegg_additions.json.gz',
+                          'data/kegg_compounds.json.gz']),
                 ('cache', ['cache/compounds.json.gz'])
                ],
     classifiers=[
