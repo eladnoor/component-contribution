@@ -52,7 +52,7 @@ for i_cid = 1:length(target_cids)
         structure = inchi;
     end
     
-    fprintf('Using cxcalc on C%05d: %s\n', KeggSpeciespKa(i_cid).cid, structure);
+    fprintf('Using cxcalc on %s: %s\n', KeggSpeciespKa(i_cid).cid, structure);
 
     if ispc
         cmd = ['echo ' structure '|' cxcalc_bin ' pka -a ' num2str(n_pkas) ' -b ' num2str(n_pkas) ' majorms -M true --pH 7'];
@@ -78,6 +78,9 @@ for i_cid = 1:length(target_cids)
     
     if success == 0
         pkalist = regexp(cxcalc_stdout,'\n','split');
+        if ~isempty(strfind(pkalist{1,1}, 'JAVA_TOOL_OPTIONS'))
+            pkalist = pkalist(1,2:end);
+        end
         titles = regexp(pkalist{1,1}, '\t', 'split');
         vals = regexp(pkalist{1,2}, '\t', 'split');
         if all(cellfun(@isempty,vals(2:end)))
