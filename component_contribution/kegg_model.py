@@ -91,7 +91,8 @@ class KeggModel(object):
         return KeggModel(S, cids, rids)
     
     @staticmethod
-    def from_formulas(reaction_strings, arrow='<=>', has_reaction_ids=False):
+    def from_formulas(reaction_strings, arrow='<=>', has_reaction_ids=False,
+                      raise_exception=False):
         """
         parses a list of reactions in KEGG format
         
@@ -106,33 +107,42 @@ class KeggModel(object):
            S     - a stoichiometric matrix
            cids  - the KEGG compound IDs in the same order as the rows of S
         """
+        try:
+            reactions = []
+            not_balanced_count = 0
+            for line in reaction_strings:
+                rid = None
+                if has_reaction_ids:
+                    tokens = re.findall('(\w+)\s+(.*)', line.strip())[0]
+                    rid = tokens[0]
+                    line = tokens[1]
+                try:
+                    reaction = KeggReaction.parse_formula(line, arrow, rid)
+                except KeggParseException as e:
+                    logging.warning(str(e))
+                    reaction = KeggReaction({})
+                if not reaction.is_balanced(fix_water=True, raise_exception=raise_exception):
+                    not_balanced_count += 1
+                    logging.warning('Model contains an unbalanced reaction: ' + line)
+                    reaction = KeggReaction({})
+                reactions.append(reaction)
+                logging.debug('Adding reaction: ' + reaction.write_formula())
+            
+            if not_balanced_count > 0:
+                warning_str = '%d out of the %d reactions are not chemically balanced' % \
+                              (not_balanced_count, len(reaction_strings))
+                raise ValueError(warning_str)
+            return KeggModel.from_kegg_reactions(reactions, has_reaction_ids)
         
-        reactions = []
-        not_balanced_count = 0
-        for line in reaction_strings:
-            rid = None
-            if has_reaction_ids:
-                tokens = re.findall('(\w+)\s+(.*)', line.strip())[0]
-                rid = tokens[0]
-                line = tokens[1]
-            try:
-                reaction = KeggReaction.parse_formula(line, arrow, rid)
-            except KeggParseException as e:
-                logging.warning(str(e))
-                reaction = KeggReaction({})
-            if not reaction.is_balanced(fix_water=True):
-                not_balanced_count += 1
-                logging.warning('Model contains an unbalanced reaction: ' + line)
-                reaction = KeggReaction({})
-            reactions.append(reaction)
-            logging.debug('Adding reaction: ' + reaction.write_formula())
-        
-        if not_balanced_count > 0:
-            logging.warning('%d out of the %d reactions are not chemically balanced' %
-                            (not_balanced_count, len(reaction_strings)))
-        return KeggModel.from_kegg_reactions(reactions, has_reaction_ids)
+        except ValueError as e:
+            if raise_exception:
+                raise e
+            else:
+                logging.debug(str(e))
+                return None
 
     def add_thermo(self, cc):
+        # check that all CIDs in the reaction are already cached by CC
         Nc, Nr = self.S.shape
         reactions = []
         for j in xrange(Nr):
@@ -140,7 +150,7 @@ class KeggModel(object):
                       if self.S[i,j] != 0}
             reaction = KeggReaction(sparse)
             reactions.append(reaction)
-        
+            
         self.dG0, self.cov_dG0 = cc.get_dG0_r_multi(reactions)
         
     def get_transformed_dG0(self, pH, I, T):
