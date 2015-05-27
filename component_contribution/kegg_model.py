@@ -131,7 +131,7 @@ class KeggModel(object):
             if not_balanced_count > 0:
                 warning_str = '%d out of the %d reactions are not chemically balanced' % \
                               (not_balanced_count, len(reaction_strings))
-                raise ValueError(warning_str)
+                logging.debug(warning_str)
             return KeggModel.from_kegg_reactions(reactions, has_reaction_ids)
         
         except ValueError as e:
