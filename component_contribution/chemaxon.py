@@ -5,8 +5,10 @@ import openbabel
 
 if platform.system() == 'Windows':
     CXCALC_BIN = 'C:\\Program Files (x86)\\ChemAxon\\MarvinBeans\\bin\\cxcalc.bat'
+    use_shell_for_echo = True
 else:
     CXCALC_BIN = 'cxcalc'
+    use_shell_for_echo = False
 
 MID_PH = 7.0
 N_PKAS = 20
@@ -16,21 +18,21 @@ class ChemAxonError(Exception):
     pass
 
 def RunCxcalc(molstring, args):
-    devnull = open(platform.DEV_NULL, 'w')
-    try:
-        logging.debug("INPUT: echo %s | %s" % (molstring, ' '.join([CXCALC_BIN] + args)))
-        p1 = Popen(["echo", molstring], stdout=PIPE, shell=True)
-        p2 = Popen([CXCALC_BIN] + args, stdin=p1.stdout,
-                   executable=CXCALC_BIN, stdout=PIPE, stderr=devnull, shell=True)
-        #p.wait()
-        #os.remove(temp_fname)
-        res = p2.communicate()[0]
-        if p2.returncode != 0:
-            raise ChemAxonError(str(args))
-        logging.debug("OUTPUT: %s" % res)
-        return res
-    except OSError:
-        raise Exception("Marvin (by ChemAxon) must be installed to calculate pKa data.")
+    with open(platform.DEV_NULL, 'w') as dev_null:
+        try:
+            logging.debug("INPUT: echo %s | %s" % (molstring, ' '.join([CXCALC_BIN] + args)))
+            p1 = Popen(["echo", molstring], stdout=PIPE, shell=use_shell_for_echo)
+            p2 = Popen([CXCALC_BIN] + args, stdin=p1.stdout,
+                       executable=CXCALC_BIN, stdout=PIPE, stderr=dev_null, shell=False)
+            #p.wait()
+            #os.remove(temp_fname)
+            res = p2.communicate()[0]
+            if p2.returncode != 0:
+                raise ChemAxonError(str(args))
+            logging.debug("OUTPUT: %s" % res)
+            return res
+        except OSError:
+            raise Exception("Marvin (by ChemAxon) must be installed to calculate pKa data.")
 
 def ParsePkaOutput(s, n_acidic, n_basic):
     """
@@ -166,7 +168,7 @@ def GetAtomBagAndCharge(molstring):
     return atom_bag, formal_charge
 
 if __name__ == "__main__":
-   
+    logging.getLogger().setLevel(logging.WARNING)
     from molecule import Molecule
     compound_list = [('D-Erythrulose', 'InChI=1S/C4H8O4/c5-1-3(7)4(8)2-6/h3,5-7H,1-2H2/t3-/m1/s1')]
     
