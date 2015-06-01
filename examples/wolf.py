@@ -2,11 +2,14 @@ import numpy as np
 from component_contribution.thermodynamic_constants import default_RT
 from component_contribution.component_contribution import ComponentContribution
 from component_contribution.kegg_model import KeggModel
+import os
 
-REACTION_FNAME = 'wolf_reactions.txt'
+example_path = os.path.dirname(os.path.realpath(__file__))
+REACTION_FNAME = os.path.join(example_path, 'wolf_reactions.txt')
 
 cc = ComponentContribution.init()
-reaction_strings = open(REACTION_FNAME, 'r').readlines()
+with open(REACTION_FNAME, 'r') as fp:
+    reaction_strings = fp.readlines()
 model = KeggModel.from_formulas(reaction_strings, raise_exception=True)
 
 model.add_thermo(cc)
