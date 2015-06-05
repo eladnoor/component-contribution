@@ -4,3 +4,6 @@
 .spyderproject
 .pydevproject
 .project
+/build/*
+ComponentContribution.egg-info/*
+
