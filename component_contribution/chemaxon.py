@@ -1,9 +1,15 @@
-import logging, csv, re
+import logging, csv, re, platform
 import StringIO
 from subprocess import Popen, PIPE
 import openbabel
 
-CXCALC_BIN = "cxcalc"
+if platform.system() == 'Windows':
+    CXCALC_BIN = 'C:\\Program Files (x86)\\ChemAxon\\MarvinBeans\\bin\\cxcalc.bat'
+    use_shell_for_echo = True
+else:
+    CXCALC_BIN = 'cxcalc'
+    use_shell_for_echo = False
+
 MID_PH = 7.0
 N_PKAS = 20
 _obElements = openbabel.OBElementTable()
@@ -12,21 +18,21 @@ class ChemAxonError(Exception):
     pass
 
 def RunCxcalc(molstring, args):
-    devnull = open('/dev/null', 'w')
-    try:
-        logging.debug("INPUT: echo %s | %s" % (molstring, ' '.join([CXCALC_BIN] + args)))
-        p1 = Popen(["echo", molstring], stdout=PIPE)
-        p2 = Popen([CXCALC_BIN] + args, stdin=p1.stdout,
-                   executable=CXCALC_BIN, stdout=PIPE, stderr=devnull)
-        #p.wait()
-        #os.remove(temp_fname)
-        res = p2.communicate()[0]
-        if p2.returncode != 0:
-            raise ChemAxonError(str(args))
-        logging.debug("OUTPUT: %s" % res)
-        return res
-    except OSError:
-        raise Exception("Marvin (by ChemAxon) must be installed to calculate pKa data.")
+    with open(platform.DEV_NULL, 'w') as dev_null:
+        try:
+            logging.debug("INPUT: echo %s | %s" % (molstring, ' '.join([CXCALC_BIN] + args)))
+            p1 = Popen(["echo", molstring], stdout=PIPE, shell=use_shell_for_echo)
+            p2 = Popen([CXCALC_BIN] + args, stdin=p1.stdout,
+                       executable=CXCALC_BIN, stdout=PIPE, stderr=dev_null, shell=False)
+            #p.wait()
+            #os.remove(temp_fname)
+            res = p2.communicate()[0]
+            if p2.returncode != 0:
+                raise ChemAxonError(str(args))
+            logging.debug("OUTPUT: %s" % res)
+            return res
+        except OSError:
+            raise Exception("Marvin (by ChemAxon) must be installed to calculate pKa data.")
 
 def ParsePkaOutput(s, n_acidic, n_basic):
     """
@@ -60,7 +66,7 @@ def ParsePkaOutput(s, n_acidic, n_basic):
         atom_list = splitline.pop(0)
 
         if atom_list: # a comma separated list of the deprotonated atoms
-            atom_numbers = [int(x)-1 for x in atom_list.split(',')]
+            atom_numbers = [int(y)-1 for y in atom_list.split(',')]
             for i, j in enumerate(atom_numbers):
                 atom2pKa.setdefault(j, [])
                 atom2pKa[j].append((pKa_list[i], acid_or_base_list[i]))
@@ -162,12 +168,12 @@ def GetAtomBagAndCharge(molstring):
     return atom_bag, formal_charge
 
 if __name__ == "__main__":
-    
+    logging.getLogger().setLevel(logging.WARNING)
     from molecule import Molecule
-    compound_list = [('H2', 'InChI=1/H2/h1H')]
+    compound_list = [('D-Erythrulose', 'InChI=1S/C4H8O4/c5-1-3(7)4(8)2-6/h3,5-7H,1-2H2/t3-/m1/s1')]
     
     for name, inchi in compound_list:
-        print GetFormulaAndCharge(inchi)
+        print "Formula: %s\nCharge: %d" % GetFormulaAndCharge(inchi)
         diss_table, major_ms = GetDissociationConstants(inchi)
         m = Molecule.FromSmiles(major_ms)
-        print name, m.ToInChI(), str(diss_table)
+        print "Name: %s\nInChI: %s\npKas: %s" % (name, m.ToInChI(), str(diss_table))

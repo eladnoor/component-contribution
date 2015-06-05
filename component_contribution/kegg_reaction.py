@@ -113,7 +113,7 @@ class KeggReaction(object):
                 right.append(KeggReaction.write_compound_and_coeff(cid, coeff))
         return "%s %s %s" % (' + '.join(left), self.arrow, ' + '.join(right))
 
-    def _get_reaction_atom_bag(self):
+    def _get_reaction_atom_bag(self, raise_exception=False):
         """
             Use for checking if all elements are conserved.
             
@@ -122,32 +122,47 @@ class KeggReaction(object):
                 E.g. if there is one extra C on the left-hand side, the result will
                 be {'C': -1}.
         """
-        cids = list(self.keys())
-        coeffs = np.array([self.sparse[cid] for cid in cids], ndmin=2).T
-    
         try:
+            cids = list(self.keys())
+            coeffs = map(self.sparse.__getitem__, cids)
+            coeffs = np.matrix(coeffs)
+    
+            cached_cids = set(map(str, self.ccache.compound_id2inchi.keys()))
+            if not cached_cids.issuperset(cids):
+                missing_cids = set(cids).difference(cached_cids)
+                warning_str = 'The following compound IDs are not in the cache, ' + \
+                              'make sure they appear in kegg_additions.tsv and ' + \
+                              'then run compound_cacher.py: ' + \
+                              ', '.join(sorted(missing_cids))
+                raise ValueError(warning_str)
+        
             elements, Ematrix = self.ccache.get_element_matrix(cids)
-        except KeyError:
-            return None
-        conserved = Ematrix.T * coeffs
+            conserved = coeffs * Ematrix
+    
+            if np.any(np.isnan(conserved), 1):
+                warning_str = 'cannot test reaction balancing because of unspecific ' + \
+                              'compound formulas: %s' % self.write_formula()
+                raise ValueError(warning_str)
+            
+            atom_bag = {}        
+            if np.any(conserved != 0, 1):
+                logging.debug('unbalanced reaction: %s' % self.write_formula())
+                for j in np.where(conserved[:, 0])[0].flat:
+                    logging.debug('there are %d more %s atoms on the right-hand side' %
+                                  (conserved[j, 0], elements[j]))
+                    atom_bag[str(elements[j])] = conserved[j, 0]
+            
+            return atom_bag
+            
+        except ValueError as e:
+            if raise_exception:
+                raise e
+            else:
+                logging.debug(str(e))
+                return None
 
-        if np.any(np.isnan(conserved), 0):
-            logging.debug('cannot test reaction balancing because of unspecific '
-                          'compound formulas: %s' % self.write_formula())
-            return None
-        
-        atom_bag = {}        
-        if np.any(conserved != 0, 0):
-            logging.debug('unbalanced reaction: %s' % self.write_formula())
-            for j in np.where(conserved[:, 0])[0].flat:
-                logging.debug('there are %d more %s atoms on the right-hand side' %
-                              (conserved[j, 0], elements[j]))
-                atom_bag[str(elements[j])] = conserved[j, 0]
-        
-        return atom_bag
-
-    def is_balanced(self, fix_water=False):
-        reaction_atom_bag = self._get_reaction_atom_bag()
+    def is_balanced(self, fix_water=False, raise_exception=False):
+        reaction_atom_bag = self._get_reaction_atom_bag(raise_exception)
 
         if reaction_atom_bag is None: # this means some compound formulas are missing
             return False

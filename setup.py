@@ -16,7 +16,7 @@ setup(
                           'data/redox.tsv',
                           'data/formation_energies_transformed.tsv',
                           'data/equilibrator_compounds.json.gz',
-                          'data/kegg_additions.json.gz',
+                          'data/kegg_additions.tsv',
                           'data/kegg_compounds.json.gz']),
                 ('cache', ['cache/compounds.json.gz'])
                ],

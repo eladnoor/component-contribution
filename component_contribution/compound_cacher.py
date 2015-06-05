@@ -182,7 +182,7 @@ class CompoundCacher(object):
         
 if __name__ == '__main__':
     logger = logging.getLogger('')
-    logger.setLevel(logging.DEBUG)
+    logger.setLevel(logging.WARNING)
     
     CompoundCacher.RebuildCompoundJSON()
     CompoundCacher.BuildCache()

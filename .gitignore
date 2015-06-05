@@ -4,6 +4,11 @@
 .spyderproject
 .pydevproject
 .project
+<<<<<<< HEAD
 /build/*
 ComponentContribution.egg-info/*
 
+=======
+/ComponentContribution.egg-info/*
+/build/*
+>>>>>>> 94eaeffefc446a36b09b8470c22adb1342b5d8e8
