@@ -4,14 +4,11 @@
 % Input:
 %   formation_weight - the relative weight to give the formation energies (Alberty's data)
 %                      compared to the reaction measurements (TECRDB)
-function training_data = loadTrainingData(use_cached_kegg_inchis, use_cached_kegg_pkas, formation_weight)
+function training_data = loadTrainingData(use_cached_kegg_pkas, formation_weight)
 if nargin < 1
-    use_cached_kegg_inchis = true;
-end
-if nargin < 2
     use_cached_kegg_pkas = true;
 end
-if nargin < 3
+if nargin < 2
     formation_weight = 1;
 end
 

@@ -5,14 +5,14 @@ cd ../matlab;
 model = createKeggModelFromS(S, cids);
 training_data = loadTrainingData(false, false, 1);
 rt_training_data = createKeggGroupIncidenceMatrix(model, training_data);
-rt_training_data = reverseTransformTrainingData(model, rt_training_data);
+rt_training_data = reverseTransformTrainingData(model, rt_training_data, false);
 save('../examples/wolf.mat');
 
 %%
 clear all;
 load('../examples/wolf.mat');
-pH = 7.5;
-I = 0.2;
+pH = 7.0;
+I = 0.1;
 T = 298.15;
 model = addThermoToModel(model, rt_training_data);
 model = addBiochemicalEnergies(model, pH, I, T);

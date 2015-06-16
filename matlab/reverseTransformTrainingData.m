@@ -1,4 +1,4 @@
-function training_data = reverseTransformTrainingData(model, training_data, use_model_pKas_by_default)
+function training_data = reverseTransformTrainingData(training_data)
 
 if nargin < 3
     use_model_pKas_by_default = true;
@@ -19,38 +19,14 @@ for i = 1:size(training_data.S, 2) % for each reaction in S
     inds = find(training_data.S(:, i));
     reaction_ddG0s = zeros(length(inds), 1);
     for j = 1:length(inds)
-        training_diss = [];
-        model_diss = [];
+        diss = [];
 
         if inds(j) <= length(training_data.cids)
             % find the diss table from the training data structure
-            k = find(ismember(training_data.cids{inds(j)}, ...
-                              {training_data.kegg_pKa.cid}));
+            k = find(strcmp(training_data.cids{inds(j)}, ...
+                            {training_data.kegg_pKa.cid}));
             if ~isempty(k)
-                training_diss = training_data.kegg_pKa(k);
-            end
-        end
-        
-        % if this compound (whose index in the training_data is inds(j)) also appears in the model
-        % use the pKa from the model.
-        model_id = find(training_data.Model2TrainingMap == inds(j), 1);
-        if ~isempty(model_id)
-            model_diss = model.pKa(model_id);
-        else
-            model_diss.success = false;
-        end
-        
-        if use_model_pKas_by_default
-            if model_diss.success
-                diss = model_diss;
-            else
-                diss = training_diss;
-            end
-        else
-            if ~isempty(training_diss)
-                diss = training_diss;
-            else
-                diss = model_diss;
+                diss = training_data.kegg_pKa(k);
             end
         end
         

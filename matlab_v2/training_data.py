@@ -283,15 +283,3 @@ class TrainingData(object):
 
         self.dG0 = self.dG0_prime - reverse_ddG0
         
-if __name__ == '__main__':
-    import argparse
-    parser = argparse.ArgumentParser(description=
-        'Prepare all thermodynamic training data in a .mat file for running '
-        'component contribution.')
-    parser.add_argument('outfile', type=argparse.FileType('w'),
-                       help='the path to the .mat file that should be written '
-                       'containing the training data')
-    
-    args = parser.parse_args()
-    td = TrainingData()
-    td.savemat(args.outfile)

@@ -12,9 +12,9 @@ end
 [~, ~, python_bin] = getBinaryPath();
 
 if silent
-    cmd = [python_bin ' ' getBasePath() 'python/inchi2gv.py -s -i '];
+    cmd = [python_bin ' ' getBasePath() 'component_contribution/inchi2gv.py -s -i '];
 else
-    cmd = [python_bin ' ' getBasePath() 'python/inchi2gv.py -i '];
+    cmd = [python_bin ' ' getBasePath() 'component_contribution/inchi2gv.py -i '];
 end
 
 if ~ispc

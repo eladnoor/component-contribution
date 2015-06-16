@@ -61,8 +61,8 @@ Please, quote this paper if you publish work that uses component-contribution.
   * you will need to get a license to use ChemAxon (it is free for academic use)
 
 ## Installing on Ubuntu
-1. as root: `pip install -U numpy scipy oct2py`
-2. as root: `apt-get install openbabel`
+1. as root: `apt-get install openbabel octave`
+2. as root: `pip install -U numpy scipy oct2py`
 3. optional: install "Marvin Suite" by ChemAxon
   * Marvin is only required for adding structures of new compounds that are not in the KEGG database
   * [instructions](http://www.chemaxon.com/download/marvin-suite/)

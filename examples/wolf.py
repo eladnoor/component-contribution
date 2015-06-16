@@ -13,7 +13,7 @@ with open(REACTION_FNAME, 'r') as fp:
 model = KeggModel.from_formulas(reaction_strings, raise_exception=True)
 
 model.add_thermo(cc)
-dG0_prime, dG0_std, sqrt_Sigma = model.get_transformed_dG0(7.5, 0.2, 298.15)
+dG0_prime, dG0_std, sqrt_Sigma = model.get_transformed_dG0(7.0, 0.1, 298.15)
 
 mM_conc = 1e-3 * np.matrix(np.ones((len(model.cids), 1)))
 if 'C00001' in model.cids:
