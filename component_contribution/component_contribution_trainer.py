@@ -1,13 +1,13 @@
 import os, logging
 import numpy as np
 from scipy.io import savemat, loadmat
-from component_contribution import inchi2gv
-from component_contribution.training_data import TrainingData
-from component_contribution.kegg_reaction import KeggReaction
-from component_contribution.compound_cacher import CompoundCacher
-from component_contribution.thermodynamic_constants import default_T
-from component_contribution.molecule import Molecule, OpenBabelError
-from component_contribution.linalg import LINALG
+from . import inchi2gv
+from .training_data import TrainingData
+from .kegg_reaction import KeggReaction
+from .compound_cacher import CompoundCacher
+from .thermodynamic_constants import default_T
+from .molecule import Molecule, OpenBabelError
+from .linalg import LINALG
 
 base_path = os.path.split(os.path.realpath(__file__))[0]
 CC_CACHE_FNAME = os.path.join(base_path, '../cache/component_contribution.mat')

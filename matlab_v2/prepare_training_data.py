@@ -4,9 +4,6 @@ Created on Wed Jun  3 15:25:49 2015
 
 @author: noore
 """
-import sys
-sys.path.append('..')
-
 from component_contribution.component_contribution_trainer import ComponentContribution
 from scipy.io import savemat
 import argparse

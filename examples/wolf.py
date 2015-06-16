@@ -1,6 +1,6 @@
 import numpy as np
 from component_contribution.thermodynamic_constants import default_RT
-from component_contribution.component_contribution import ComponentContribution
+from component_contribution.component_contribution_trainer import ComponentContribution
 from component_contribution.kegg_model import KeggModel
 import os
 

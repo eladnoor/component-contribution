@@ -1,9 +1,9 @@
 import os, logging, csv
 import numpy as np
 from scipy.io import savemat
-from component_contribution.thermodynamic_constants import R, F
-from component_contribution.compound_cacher import CompoundCacher
-from component_contribution.kegg_reaction import KeggReaction
+from .thermodynamic_constants import R, F
+from .compound_cacher import CompoundCacher
+from .kegg_reaction import KeggReaction
 
 class TrainingData(object):
     
