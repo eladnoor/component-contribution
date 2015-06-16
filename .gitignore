@@ -4,11 +4,12 @@
 .spyderproject
 .pydevproject
 .project
-<<<<<<< HEAD
 /build/*
-ComponentContribution.egg-info/*
-
-=======
 /ComponentContribution.egg-info/*
-/build/*
->>>>>>> 94eaeffefc446a36b09b8470c22adb1342b5d8e8
+/doc/equilibrator.aux
+/doc/equilibrator.log
+/doc/equilibrator.out
+/doc/equilibrator.pdf
+/doc/equilibrator.synctex.gz
+/dist/ComponentContribution-1.0.0-py2.7.egg
+/installed.txt
