@@ -1,6 +1,6 @@
 % run a python script that generates all the required training data
 % for training CC
-
+clear all;
 [~, ~, python_bin] = getBinaryPath();
 base_path = getBasePath();
 training_data_file = [base_path 'cache/training_data_matlab.mat'];
@@ -23,3 +23,4 @@ if ~exist(cc_file, 'file')
 else
     load(cc_file);
 end
+

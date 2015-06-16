@@ -19,9 +19,12 @@ if __name__ == '__main__':
     args = parser.parse_args()
     cc = ComponentContribution()
 
-    d = {'w': cc.train_w,
-         'b': cc.train_b,
-         'G': cc.create_group_incidence_matrix(),
-         'cids': cc.train_cids,
-         'S': cc.train_S}
-    savemat(args.outfile, d, oned_as='row')
+    mdict = {
+             'w': cc.train_w,
+             'b': cc.train_b,
+             'G': cc.create_group_incidence_matrix(),
+             'cids': cc.train_cids,
+             'S': cc.train_S
+             }
+    savemat(args.outfile, mdict, appendmat=False, format='5', 
+            long_field_names=False, do_compression=True, oned_as='row')
