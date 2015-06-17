@@ -9,6 +9,7 @@ from component_contribution.kegg_reaction import KeggReaction
 from component_contribution import inchi2gv
 from scipy.io import savemat, loadmat
 import numpy as np
+import os
 import argparse
 
 def decompose_reaction(ccache, decomposer, cids, G, reaction):
@@ -53,14 +54,20 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=
         'Parse a file with a list of reactions in KEGG format and prepare '
         'the necessary matrices for running CC.')
-    parser.add_argument('--train_file', type=argparse.FileType('r'),
+    parser.add_argument('--train_file', type=str,
                        help='path to the .mat file containing the CC parameters')
-    parser.add_argument('--rxn_file', type=argparse.FileType('r'),
+    parser.add_argument('--rxn_file', type=str,
                        help='path to a text file containing the reactions')
-    parser.add_argument('--out_file', type=argparse.FileType('w'),
+    parser.add_argument('--out_file', type=str,
                        help='path to the output .mat file')
     
     args = parser.parse_args()
+    if not os.path.exists(args.train_file):
+        raise ValueError('The provided training data file is not found: %s' %
+                         args.train_file)
+    if not os.path.exists(args.rxn_file):
+        raise ValueError('The provided input text file is not found: %s' %
+                         args.rxn_file)
 
     ccache = CompoundCacher()
     groups_data = inchi2gv.init_groups_data()
@@ -71,18 +78,20 @@ if __name__ == '__main__':
     
     model_X = []
     model_G = []
-    for line in args.rxn_file.readlines():
-        reaction = KeggReaction.parse_formula(line)
-        try:
-            x, g = decompose_reaction(ccache, decomposer, cids, G, reaction)
-        except inchi2gv.GroupDecompositionError:
-            x = np.zeros((Nc, 1))
-            g = np.zeros((Ng, 1))
-        model_X.append(list(x.flat))
-        model_G.append(list(g.flat))
-    model_X = np.matrix(model_X).T
-    model_G = np.matrix(model_G).T
+    with open(args.rxn_file, 'r') as fp:
+        for line in fp.readlines():
+            reaction = KeggReaction.parse_formula(line)
+            try:
+                x, g = decompose_reaction(ccache, decomposer, cids, G, reaction)
+            except inchi2gv.GroupDecompositionError:
+                x = np.zeros((Nc, 1))
+                g = np.zeros((Ng, 1))
+            model_X.append(list(x.flat))
+            model_G.append(list(g.flat))
 
-    mdict = {'X' : model_X, 'G': model_G}
+    mdict = {
+                'X' : np.array(model_X).T,
+                'G': np.array(model_G).T
+            }
     savemat(args.out_file, mdict, appendmat=False, format='5', 
             long_field_names=False, do_compression=True, oned_as='row')

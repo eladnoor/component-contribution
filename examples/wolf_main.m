@@ -14,7 +14,7 @@ if (errcode ~= 0) || (~exist(model_file, 'file'))
     error('Could not prepare the model data for CC')
 end
 
-model = load(model_file);
+model = load(model_file, '-mat');
 cc = load(cc_file);
 
 G = model.G;
