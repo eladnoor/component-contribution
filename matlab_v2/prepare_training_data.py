@@ -13,7 +13,7 @@ if __name__ == '__main__':
         'Prepare all thermodynamic training data in a .mat file for running '
         'component contribution.')
     parser.add_argument('outfile', type=argparse.FileType('w'),
-                       help='the path to the .mat file that should be written '
+                       help='path to the .mat file that should be written '
                        'containing the training data')
     
     args = parser.parse_args()

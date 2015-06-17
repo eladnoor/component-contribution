@@ -10,7 +10,7 @@ from .molecule import Molecule, OpenBabelError
 from .linalg import LINALG
 
 base_path = os.path.split(os.path.realpath(__file__))[0]
-CC_CACHE_FNAME = os.path.join(base_path, '../cache/component_contribution.mat')
+CC_CACHE_FNAME = os.path.join(base_path, '../cache/component_contribution_python.mat')
 
 class ComponentContribution(object):
 
@@ -53,7 +53,7 @@ class ComponentContribution(object):
         if self.params is None:
             self.train()
 
-        savemat(file_name, self.params, oned_as='row')
+        savemat(file_name, self.params, oned_as='row', do_compression=True)
     
     @staticmethod
     def from_matfile(file_name, training_data=None):
@@ -539,8 +539,3 @@ class ComponentContribution(object):
     def _col_uniq(A):
         A_unique, P_col = ComponentContribution._row_uniq(A.T)
         return A_unique.T, P_col.T
-
-if __name__ == '__main__':
-    logger = logging.getLogger('')
-    logger.setLevel(logging.DEBUG)
-    cc = ComponentContribution.init()

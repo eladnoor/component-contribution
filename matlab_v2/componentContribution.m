@@ -3,7 +3,10 @@
 % G - the group incidence matrix
 % b - the observation vector (standard Gibbs energy of reactions)
 % w - the weight vector for each reaction in S
-function params = componentContribution(training_data)
+function params = componentContribution(training_data, debug_mode)
+if nargin < 2
+    debug_mode = false;
+end
 
 S = training_data.S;
 G = training_data.G;
@@ -73,32 +76,38 @@ preprocess_C1 = cov_dG0;
 preprocess_C2 = MSE_gc * P_N_rc * G * inv_GSWGS + MSE_inf * G * P_N_gc;
 preprocess_C3 = MSE_gc * inv_GSWGS + MSE_inf * P_N_gc;
 
-% Put all the return values in one structure called 'params'
-params.dG0_rc = dG0_rc;
-params.dG0_gc = dG0_gc;
-params.dG0_cc = dG0_cc;
-params.cov_dG0 = cov_dG0;
-params.V_rc = V_rc;
-params.V_gc = V_gc;
-params.V_inf = V_inf;
-params.MSE_rc = MSE_rc;
-params.MSE_gc = MSE_gc;
-params.MSE_inf = MSE_inf;
-params.P_R_rc = P_R_rc;
-params.P_R_gc = P_R_gc;
-params.P_N_rc = P_N_rc;
-params.P_N_gc = P_N_gc;
-params.inv_S = inv_S;
-params.inv_GS = inv_GS;
-params.inv_SWS = inv_SWS;
-params.inv_GSWGS = inv_GSWGS;
-params.G1 = G1;
-params.G2 = G2;
-params.G3 = G3;
-params.S_counter = S_counter;
-params.preprocess_G1 = preprocess_G1;
-params.preprocess_G2 = preprocess_G2;
-params.preprocess_G3 = preprocess_G3;
+% These are the only parameters necessary for using CC later
+params.preprocess_v_r = dG0_cc;
+params.preprocess_v_g = dG0_gc;
 params.preprocess_C1 = preprocess_C1;
 params.preprocess_C2 = preprocess_C2;
 params.preprocess_C3 = preprocess_C3;
+
+if debug_mode
+    % These parameters are not necessary for running CC later,
+    % but can be useful for debugging
+    params.dG0_rc = dG0_rc;
+    params.dG0_gc = dG0_gc;
+    params.dG0_cc = dG0_cc;
+    params.cov_dG0 = cov_dG0;
+    params.V_rc = V_rc;
+    params.V_gc = V_gc;
+    params.V_inf = V_inf;
+    params.MSE_rc = MSE_rc;
+    params.MSE_gc = MSE_gc;
+    params.MSE_inf = MSE_inf;
+    params.P_R_rc = P_R_rc;
+    params.P_R_gc = P_R_gc;
+    params.P_N_rc = P_N_rc;
+    params.P_N_gc = P_N_gc;
+    params.inv_S = inv_S;
+    params.inv_GS = inv_GS;
+    params.inv_SWS = inv_SWS;
+    params.inv_GSWGS = inv_GSWGS;
+    params.G1 = G1;
+    params.G2 = G2;
+    params.G3 = G3;
+    params.preprocess_G1 = preprocess_G1;
+    params.preprocess_G2 = preprocess_G2;
+    params.preprocess_G3 = preprocess_G3;
+end
