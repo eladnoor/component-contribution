@@ -12,7 +12,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=
         'Prepare all thermodynamic training data in a .mat file for running '
         'component contribution.')
-    parser.add_argument('out_file', type=str,
+    parser.add_argument('out_file', type=argparse.FileType('wb'),
                        help='path to the .mat file that should be written '
                        'containing the training data')
     
@@ -26,5 +26,4 @@ if __name__ == '__main__':
              'cids': cc.train_cids,
              'S': cc.train_S
              }
-    savemat(args.out_file, mdict, appendmat=False, format='5', 
-            long_field_names=False, do_compression=True, oned_as='row')
+    savemat(args.out_file, mdict, do_compression=True)
