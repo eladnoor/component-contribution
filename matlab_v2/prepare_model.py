@@ -9,7 +9,6 @@ from component_contribution.kegg_reaction import KeggReaction
 from component_contribution import inchi2gv
 from scipy.io import savemat, loadmat
 import numpy as np
-import os
 import argparse
 
 def decompose_reaction(ccache, decomposer, cids, G, reaction):

@@ -7,6 +7,7 @@ rxn_file = [orig_dir '/wolf_reactions.txt'];
 model_file = [orig_dir '/wolf.mat'];
 [cc_params, training_data_file, cc_file] = initComponentContribution();
 
+setenv('PYTHONPATH', base_path);
 cmd = sprintf('%s prepare_model.py --train_file %s --rxn_file %s --out_file %s', ...
               python_bin, training_data_file, rxn_file, model_file);
 errcode = system(cmd);
