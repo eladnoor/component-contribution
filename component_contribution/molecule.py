@@ -277,53 +277,6 @@ class Molecule(object):
         """
         return [atom.GetFormalCharge() for atom in self.GetAtoms()]
 
-    @staticmethod
-    def _GetDissociationTable(molstring, fmt='inchi', mid_pH=default_pH, 
-                              min_pKa=0, max_pKa=14, T=default_T):
-        """
-            Returns the relative potentials of pseudoisomers,
-            relative to the most abundant one at pH 7.
-        """
-        from pygibbs.dissociation_constants import DissociationTable
-        from toolbox import chemaxon
-
-        diss_table = DissociationTable()
-        try:
-            pKa_table, major_ms = chemaxon.GetDissociationConstants(molstring, 
-                                                                    mid_pH=mid_pH)
-
-            mol = Molecule.FromSmiles(major_ms)
-            nH, z = mol.GetHydrogensAndCharge()
-            diss_table.SetMolString(nH, nMg=0, s=major_ms)
-            diss_table.SetCharge(nH, z, nMg=0)
-            
-            pKa_higher = [x for x in pKa_table if mid_pH < x[0] < max_pKa]
-            pKa_lower = [x for x in pKa_table if mid_pH > x[0] > min_pKa]
-            for i, (pKa, _, smiles_above) in enumerate(sorted(pKa_higher)):
-                diss_table.AddpKa(pKa, nH_below=(nH-i), nH_above=(nH-i-1),
-                                  nMg=0, ref='ChemAxon', T=T)
-                diss_table.SetMolString((nH-i-1), nMg=0, s=smiles_above)
-    
-            for i, (pKa, smiles_below, _) in enumerate(sorted(pKa_lower, reverse=True)):
-                diss_table.AddpKa(pKa, nH_below=(nH+i+1), nH_above=(nH+i),
-                                  nMg=0, ref='ChemAxon', T=T)
-                diss_table.SetMolString((nH+i+1), nMg=0, s=smiles_below)
-        except chemaxon.ChemAxonError:
-            mol = Molecule._FromFormat(molstring, fmt)
-            diss_table.SetOnlyPseudoisomerMolecule(mol)
-            
-        return diss_table
-
-    def GetDissociationTable(self, fmt='inchi', mid_pH=default_pH, 
-                           min_pKa=0, max_pKa=14, T=default_T):
-        """
-            Returns the relative potentials of pseudoisomers,
-            relative to the most abundant one at pH 7.
-        """
-        
-        return Molecule._GetDissociationTable(self.ToInChI(), 'inchi',
-                                            mid_pH, min_pKa, max_pKa, T)
-
 if __name__ == '__main__':
     mol = Molecule.FromInChI('InChI=1S/H2/h1H')
     print mol.ExactMass()
