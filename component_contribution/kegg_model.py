@@ -23,7 +23,6 @@ class KeggModel(object):
             i = self.cids.index('C00080')
             self.S = np.vstack((self.S[:i,:], self.S[i+1:,:]))
             self.cids.pop(i)
-    
 
     @staticmethod
     def from_file(fname, arrow='<=>', format='kegg', has_reaction_ids=False):
@@ -183,9 +182,25 @@ class KeggModel(object):
         ddG0_forward = np.dot(self.S.T, ddG0_compounds)
         return ddG0_forward
         
-    def check_S_balance(self):
+    def check_S_balance(self, fix_water=False):
         elements, Ematrix = self.ccache.get_element_matrix(self.cids)
         conserved = Ematrix.T * self.S
+
+        if fix_water:
+            # This part only looks for imbalanced oxygen and uses extra
+            # H2O molecules (on either side of the reaction equation) to
+            # balance them. Keep in mind that also the e- balance is affected
+            # by the water (and hydrogen is not counted at all).
+            if 'C00001' not in self.cids:
+                self.S = np.vstack([self.S, np.zeros((1, self.S.shape[1]))])
+                self.cids.append('C00001')
+                elements, Ematrix = self.ccache.get_element_matrix(self.cids)
+            
+            i_h2o = self.cids.index('C00001')
+            add_water = -conserved[elements.index('O'), :]
+            self.S[i_h2o, :] += add_water
+            conserved += Ematrix[i_h2o, :].T * add_water
+
         rxnFil = np.any(conserved[:,range(self.S.shape[1])],axis=0)
         unbalanced_ind = np.nonzero(rxnFil)[1]
         if unbalanced_ind != []:
