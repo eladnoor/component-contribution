@@ -147,11 +147,11 @@ class KeggReaction(object):
             atom_bag = {}        
             if np.any(conserved != 0, 1):
                 logging.debug('unbalanced reaction: %s' % self.write_formula())
-                for j in np.where(conserved[:, 0])[0].flat:
-                    logging.debug('there are %d more %s atoms on the right-hand side' %
-                                  (conserved[j, 0], elements[j]))
-                    atom_bag[str(elements[j])] = conserved[j, 0]
-            
+                for j, c in enumerate(conserved.flat):
+                    if c != 0:
+                        logging.debug('there are %d more %s atoms on the right-hand side' %
+                                      (c, elements[j]))
+                        atom_bag[str(elements[j])] = c
             return atom_bag
             
         except ValueError as e:
@@ -201,3 +201,6 @@ class KeggReaction(object):
             ddG0_forward += coeff * comp.transform_pH7(pH, I, T)
         return ddG0_forward
         
+if __name__ == '__main__':
+    reaction = KeggReaction.parse_formula('C00149 <=> C00036')
+    print reaction._get_reaction_atom_bag()

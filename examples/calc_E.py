@@ -4,18 +4,19 @@ Created on Mon Jun 23 14:58:44 2014
 
 @author: eladn
 """
-from python.component_contribution import ComponentContribution
-from python.kegg_reaction import KeggReaction
+from component_contribution.component_contribution_trainer import ComponentContribution
+from component_contribution.kegg_reaction import KeggReaction
+from component_contribution.thermodynamic_constants import F, default_T
 
 #pH = 7
 I = 0.2
-T = 298.15
-F = 96.48 / 1000.0 # kJ/mol / mV
+T = default_T
 cc = ComponentContribution.init()
 
+formula = 'C00149 <=> C00036'
 #formula = 'C00033 + C00282 <=> C00084 + C00001'
 #formula = 'C00067 + C00001 <=> C00058 + C00010'
-formula = 'C00003 + C00282 <=> C00004'
+#formula = 'C00003 + C00282 <=> C00004'
 #############################################################################
 reaction = KeggReaction.parse_formula(formula)
 reaction_atom_bag = reaction._get_reaction_atom_bag()
@@ -24,15 +25,17 @@ if 'e-' in reaction_atom_bag:
     n_e = reaction_atom_bag['e-']
     del reaction_atom_bag['e-']
 if len(reaction_atom_bag) != 0:
-    raise Exception('Reaction is not balanced (not only with respect to e-)')
+    raise Exception('This is not a half-reaction (i.e. cannot be balanced by adding e-)')
+
+print reaction.write_formula() + ' + (%d) e-' % (-n_e)
 
 dG0_r, u_r = cc.get_dG0_r(reaction)
 
 for pH in xrange(6, 9):
     ddG0_r = reaction.get_transform_ddG0(pH=pH, I=I, T=T)
-    dG0_r_prime = dG0_r+ddG0_r
+    dG0_r_prime = dG0_r + ddG0_r
     E0_prime = -dG0_r_prime / (n_e*F)
-    print 'pH = %4.1f, E\'0 = %6.0f' % (pH, E0_prime)
+    print 'pH = %4.1f, E\'0 = %6.3f [V]' % (pH, E0_prime)
 
 
 """

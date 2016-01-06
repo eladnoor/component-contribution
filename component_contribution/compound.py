@@ -295,7 +295,7 @@ class Compound(object):
             Returns the transform for the MS with no charge
         """
         try:
-            return self.transform(pH, I, T, self.zs.index(0))
+            return self.transform(self.zs.index(0), pH, I, T)
         except ValueError:
             raise ValueError("The compound (%s) does not have a microspecies with 0 charge"
                              % self.compound_id)
