@@ -22,6 +22,12 @@ if __name__ == '__main__':
 				help='path to output file')
 	parser.add_argument('--ionic_strength', default=0.2, type=int,
 				help='ionic strength in molar units.')
+	parser.add_argument('--pH_min', default=5, type=int,
+				help='lowest pH to produce E0 for.')
+	parser.add_argument('--pH_max', default=9, type=int,
+				help='highest pH to produce E0 for.')
+	parser.add_argument('--pH_step', default=0.05, type=float,
+				help='pH increment.')
 
 	args = parser.parse_args()
 
@@ -29,7 +35,8 @@ if __name__ == '__main__':
 	T = default_T
 
 	cc = ComponentContribution.init()
-	pHs = np.arange(6, 9.1, 0.2)
+	pHs = np.arange(args.pH_min, args.pH_max + args.pH_step,
+					args.pH_step)
 	
 	reactions_and_energies = []
 	reader = csv.reader(args.infile)
