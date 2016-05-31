@@ -5,12 +5,12 @@ Created on Wed May 28 13:13:37 2014
 @author: eladn
 """
 
-import logging, sys
+import logging
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.io import savemat
 from component_contribution.thermodynamic_constants import R, default_c_range, default_c_mid
-from component_contribution.component_contribution import ComponentContribution
+from component_contribution.component_contribution_trainer import ComponentContribution
 from component_contribution.kegg_model import KeggModel
 
 from scripts.mdf_dual import KeggPathway
@@ -65,7 +65,7 @@ class MaxMinDrivingForce(object):
             cid2bounds[cid] = b
         return cid2bounds
 
-    def Solve(self, uncertainty_factor=3.0, diagonal_covariance=False):
+    def _Solve(self, uncertainty_factor=3.0, diagonal_covariance=False):
         S = self.model.S
         f = self.fluxes
         cids = self.model.cids
@@ -83,21 +83,28 @@ class MaxMinDrivingForce(object):
                                c_range=self.c_range,
                                cid2name=self.cid2name)
         _mdf, params = keggpath.FindMDF(calculate_totals=True)
+        return _mdf, params, keggpath
+
+    def Solve(self, uncertainty_factor=3.0, diagonal_covariance=False, verbose=True):
+        _mdf, params, keggpath = self._Solve(uncertainty_factor=uncertainty_factor,
+                                             diagonal_covariance=diagonal_covariance)
         total_dG_prime = params.get('maximum total dG', np.nan)
         odfe = 100 * np.tanh(_mdf / (2*R*self.T))
         average_dG_prime = total_dG_prime/np.sum(self.fluxes)
         average_dfe = 100 * np.tanh(-average_dG_prime / (2*R*self.T))        
-        res =  ["MDF = %.1f (avg. = %.1f) kJ/mol" % (_mdf, -average_dG_prime),
-               "ODFE = %.1f%% (avg. = %.1f%%)" % (odfe, average_dfe),
-               "Total &Delta;<sub>r</sub>G' = %.1f kJ/mol" % total_dG_prime,
-               "no. steps = %g" % np.sum(self.fluxes)]
-        self.html_writer.write_ul(res)
+
+        if verbose:
+            res =  ["MDF = %.1f (avg. = %.1f) kJ/mol" % (_mdf, -average_dG_prime),
+                   "ODFE = %.1f%% (avg. = %.1f%%)" % (odfe, average_dfe),
+                   "Total &Delta;<sub>r</sub>G' = %.1f kJ/mol" % total_dG_prime,
+                   "no. steps = %g" % np.sum(self.fluxes)]
+            self.html_writer.write_ul(res)
         
-        profile_fig = keggpath.PlotProfile(params)
-        plt.title('ODFE = %.1f%%' % odfe, figure=profile_fig)
-        self.html_writer.embed_matplotlib_figure(profile_fig, width=320, height=320)
-        keggpath.WriteProfileToHtmlTable(self.html_writer, params)
-        keggpath.WriteConcentrationsToHtmlTable(self.html_writer, params)
+            profile_fig = keggpath.PlotProfile(params)
+            plt.title('ODFE = %.1f%%' % odfe, figure=profile_fig)
+            self.html_writer.embed_matplotlib_figure(profile_fig, width=320, height=320)
+            keggpath.WriteProfileToHtmlTable(self.html_writer, params)
+            keggpath.WriteConcentrationsToHtmlTable(self.html_writer, params)
 
         return _mdf, params['gibbs energies raw'], dG0_std
 
@@ -241,12 +248,10 @@ if __name__ == '__main__':
 
         p['model'].add_thermo(cc)
 
-        dG0, u = p['model'].get_transformed_dG0(pH=p['pH'], I=p['I'], T=p['T'])
         mdf = MaxMinDrivingForce(p['model'], p['fluxes'], p['bounds'],
                                  pH=p['pH'], I=p['I'], T=p['T'],
                                  html_writer=html_writer)
 
-        #print 'dG\'0 = ' + ', '.join(map(lambda x:'%.2f' % x, dG0[:,0]))
         mdf_solution, dGm_prime, dG0_std = mdf.Solve()
         logging.info('Pathway %s: MDF = %.1f' % (p['entry'], mdf_solution))
         

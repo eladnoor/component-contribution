@@ -241,7 +241,7 @@ class Pathway(object):
         return lp, total_g
            
     def _MakeMDFProblem(self):
-        """Create a CVXOPT problem for finding the Maximal Thermodynamic
+        """Create an LP using PuLP for finding the Maximal Thermodynamic
         Driving Force (MDF).
        
         Does not set the objective function... leaves that to the caller.
@@ -272,7 +272,7 @@ class Pathway(object):
         return lp, objective, y, l, B
 
     def _MakeMDFProblemDual(self):
-        """Create a CVXOPT problem for finding the Maximal Thermodynamic
+        """Create an LP using PuLP for finding the Maximal Thermodynamic
         Driving Force (MDF).
        
         Does not set the objective function... leaves that to the caller.
