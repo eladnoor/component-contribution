@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name = 'ComponentContribution',
-    version = '1.0.2',
+    version = '1.0.3',
     author = 'Elad Noor',
     author_email='noor@imsb.biol.ethz.ch',
     description = 'Standard reaction Gibbs energy estimation for biochemical reactions',
