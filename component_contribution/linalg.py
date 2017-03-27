@@ -5,45 +5,13 @@ Created on Thu Mar 26 11:21:14 2015
 @author: noore
 """
 
-SVD_METHOD = 'dgesdd'
-#SVD_METHOD = 'dgesvd'
-
-if SVD_METHOD == 'dgesvd':
-    try:
-       import oct2py
-    except ImportError:
-       raise Exception('It seems that you do not have Octave and/or Oct2Py installed. '
-                       'Calculating the Component-Contributions requires these packages.')
-
 import numpy as np
 import scipy
 
 class LINALG(object):
 
-    @staticmethod    
-    def _svd_octave(A):
-        """
-            Uses the LAPACK dgesvd function
-        """
-        U, S, V = oct2py.Oct2Py().svd(A)
-        S = np.matrix(S)
-        U = np.matrix(U)
-        V = np.matrix(V)
-        return U, S, V
-        
     @staticmethod
-    def _svd_dgesvd(A):
-        """
-            This LAPACK function is the one that matches the matlab
-            and octave implementations, but so far I couldn't find 
-            a good python wrapper for it, except for oct2py (which
-            is difficult to install on some systems and requires
-            the entire Octave framework).
-        """
-        pass
-
-    @staticmethod
-    def _svd_dgesdd(A):
+    def svd(A):
 
         # numpy.linalg.svd returns U, s, V such that
         # A = U * s * V
@@ -63,15 +31,6 @@ class LINALG(object):
         return U, S, V.T
 
     @staticmethod
-    def svd(A):
-        if SVD_METHOD == 'dgesvd':
-            return LINALG._svd_octave(A)
-        elif SVD_METHOD == 'dgesdd':
-            return LINALG._svd_dgesdd(A)
-        else:
-            raise ValueError('SVD_METHOD must be "dgesvd" or "dgesdd"')
-            
-    @staticmethod
     def _zero_pad_S(S, cids_orig, cids_joined):
         """
             takes a stoichiometric matrix with a given list of IDs 'cids' and adds
@@ -79,14 +38,14 @@ class LINALG(object):
         """
         if not set(cids_orig).issubset(cids_joined):
             raise Exception('The full list is missing some IDs in "cids"')
-    
+
         full_S = np.zeros((len(cids_joined), S.shape[1]))
         for i, cid in enumerate(cids_orig):
             S_row = S[i, :]
             full_S[cids_joined.index(cid), :] = S_row
-        
+
         return np.matrix(full_S)
-        
+
     @staticmethod
     def _invert_project(A, eps=1e-10):
         n, m = A.shape
@@ -98,7 +57,7 @@ class LINALG(object):
         P_N   = U[:, r:] * U[:, r:].T
 
         return inv_A, r, P_R, P_N
-        
+
     @staticmethod
     def _row_uniq(A):
         """
@@ -109,10 +68,10 @@ class LINALG(object):
 
             Input:
                 A - a 2D NumPy array
-            
+
             Returns:
                 A_unique, P_row
-                
+
                 where A_unique has the same number of columns as A, but with
                 unique rows.
                 P_row is a matrix that can be used to map the original rows
@@ -131,9 +90,9 @@ class LINALG(object):
             # to this original row in A (represented as 'tup')
             i = A_unique.index(tup)
             P_col[i, j] = 1
-        
+
         return np.matrix(A_unique), P_col
-    
+
     @staticmethod
     def _col_uniq(A):
         A_unique, P_col = LINALG._row_uniq(A.T)
