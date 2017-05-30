@@ -7,8 +7,7 @@ Standard reaction Gibbs energy estimation for biochemical reactions
 * python == 2.7
 * numpy >= 1.6.2
 * scipy >= 0.14
-* oct2py >= 3.1 (dependent on Octave)
-* Open-Babel >= 2.3.1
+* python-openbabel >= 2.3.2
 * ChemAxon's Marvin >= 5.11
 
 ### Requirements (for the MATLAB version):
@@ -48,21 +47,15 @@ Please, quote this paper if you publish work that uses component-contribution.
 3. install OpenBabel python (version 1.8) bindings
   * [instructions](http://open-babel.readthedocs.org/en/latest/UseTheLibrary/PythonInstall.html#windows)
   * [installer](http://sourceforge.net/projects/openbabel/files/openbabel-python/1.8/openbabel-python-1.8.py27.exe/download)
-4. optional: install Octave
-  * Not required for the Matlab version of component-contribution
-  * [instructions](http://blink1073.github.io/oct2py/source/installation.html)
-  * there is no need to use "pip" to install oct2py as it is already part of winpython
-  * [installer](http://sourceforge.net/projects/octave/files/Octave%20Windows%20binaries/)
-  * add `octave.exe` to PATH
-5. optional: install "Marvin Suite" by ChemAxon
+4. optional: install "Marvin Suite" by ChemAxon
   * Marvin is only required for adding structures of new compounds that are not in the KEGG database
   * [instructions](http://www.chemaxon.com/download/marvin-suite/)
   * add `cxcalc.bat` to PATH
   * you will need to get a license to use ChemAxon (it is free for academic use)
 
 ## Installing on Ubuntu
-1. as root: `apt-get install openbabel octave`
-2. as root: `pip install -U numpy scipy oct2py`
+1. as root: `apt-get install openbabel`
+2. as root: `pip install -U numpy scipy`
 3. optional: install "Marvin Suite" by ChemAxon
   * Marvin is only required for adding structures of new compounds that are not in the KEGG database
   * [instructions](http://www.chemaxon.com/download/marvin-suite/)
