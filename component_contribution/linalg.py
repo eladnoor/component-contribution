@@ -78,7 +78,7 @@ class LINALG(object):
                 to the ones in A_unique (all values in P_row are 0 or 1).
         """
         # convert the rows of A into tuples so we can compare them
-        A_tuples = [tuple(A[i,:].flat) for i in xrange(A.shape[0])]
+        A_tuples = [tuple(A[i,:].flat) for i in range(A.shape[0])]
         A_unique = list(sorted(set(A_tuples), reverse=True))
 
         # create the projection matrix that maps the rows in A to rows in

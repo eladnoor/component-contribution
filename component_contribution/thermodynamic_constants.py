@@ -32,5 +32,5 @@ DH_alpha = lambda T : 1e-3*(9.20483*T) - 1e-5*(1.284668 * T**2) + 1e-8*(4.95199 
 DH_beta = 1.6
 
 # Debye-Huckel
-debye_huckel = lambda (I, T) : DH_alpha(T) * I**(0.5) / (1.0 + DH_beta * I**(0.5))
+debye_huckel = lambda I, T : DH_alpha(T) * I**(0.5) / (1.0 + DH_beta * I**(0.5))
 

@@ -1,9 +1,12 @@
 import csv, logging, types, json, itertools, sys
 import numpy as np
-from StringIO import StringIO
+try:
+    from StringIO import StringIO
+except ImportError:
+    from io import StringIO
 from optparse import OptionParser
-from thermodynamic_constants import R, default_T
-from molecule import Molecule, OpenBabelError
+from .thermodynamic_constants import R, default_T
+from .molecule import Molecule, OpenBabelError
 
 GROUP_CSV = """"NAME","PROTONS","CHARGE","MAGNESIUMS","SMARTS","FOCAL_ATOMS","REMARK","SKIP"
 "primary -Cl3",0,0,0,"Cl[CH0](Cl)Cl",0,"chlorine (attached to a primary carbon with 2 other chlorine atoms attached)",
@@ -163,7 +166,7 @@ class GroupVector(list):
         if iterable is not None:
             self.extend(iterable)
         else:
-            for _ in xrange(len(self.groups_data.all_group_names)):
+            for _ in range(len(self.groups_data.all_group_names)):
                 self.append(0)
     
     def __str__(self):
@@ -176,35 +179,35 @@ class GroupVector(list):
         return " | ".join(group_strs)
     
     def __iadd__(self, other):
-        for i in xrange(len(self.groups_data.all_group_names)):
+        for i in range(len(self.groups_data.all_group_names)):
             self[i] += other[i]
         return self
 
     def __isub__(self, other):
-        for i in xrange(len(self.groups_data.all_group_names)):
+        for i in range(len(self.groups_data.all_group_names)):
             self[i] -= other[i]
         return self
             
     def __add__(self, other):
         result = GroupVector(self.groups_data)
-        for i in xrange(len(self.groups_data.all_group_names)):
+        for i in range(len(self.groups_data.all_group_names)):
             result[i] = self[i] + other[i]
         return result
 
     def __sub__(self, other):
         result = GroupVector(self.groups_data)
-        for i in xrange(len(self.groups_data.all_group_names)):
+        for i in range(len(self.groups_data.all_group_names)):
             result[i] = self[i] - other[i]
         return result
     
     def __eq__(self, other):
-        for i in xrange(len(self.groups_data.all_group_names)):
+        for i in range(len(self.groups_data.all_group_names)):
             if self[i] != other[i]:
                 return False
         return True
     
     def __nonzero__(self):
-        for i in xrange(len(self.groups_data.all_group_names)):
+        for i in range(len(self.groups_data.all_group_names)):
             if self[i] != 0:
                 return True
         return False
@@ -240,7 +243,7 @@ class GroupVector(list):
     @staticmethod
     def FromJSONString(groups_data, s):
         v = [0] * groups_data.Count()
-        for i, x in json.loads(s).iteritems():
+        for i, x in json.loads(s).items():
             v[int(i)] = x
         return GroupVector(groups_data, v)
     
@@ -526,7 +529,7 @@ class GroupsData(object):
     def FromGroupsFile(filename, transformed=False):
         """Factory that initializes a GroupData from a CSV file."""
         assert filename
-        if type(filename) == types.StringType:
+        if type(filename) == str:
             logging.debug('Reading the list of groups from %s ... ' % filename)
             fp = open(filename, 'r')
         else:
@@ -557,10 +560,10 @@ class GroupsData(object):
                 group = Group(gid, group_name, protons, charge, mgs, str(smarts),
                               focal_atoms)
                 list_of_groups.append(group)
-            except KeyError, msg:
+            except KeyError as msg:
                 logging.error(msg)
                 raise GroupsDataError('Failed to parse row.')
-            except ValueError, msg:
+            except ValueError as msg:
                 logging.error(msg)
                 raise GroupsDataError('Wrong number of columns (%d) in one of the rows in %s: %s' %
                                       (len(row), filename, str(row)))
@@ -770,7 +773,7 @@ class GroupDecomposition(object):
                 return [[0] * num_slots]
             
             all_options = []
-            for i in xrange(total+1):
+            for i in range(total+1):
                 for opt in distribute(total-i, num_slots-1):
                     all_options.append([i] + opt)
                     
@@ -819,7 +822,7 @@ class GroupDecomposition(object):
         # A list of per-group pairs (count, # possible protonation levels).
         total_slots_pairs = [] 
 
-        for group_name, groupvec_indices in group_name_to_index.iteritems():
+        for group_name, groupvec_indices in group_name_to_index.items():
             index_vector += groupvec_indices
             total_slots_pairs.append((group_name_to_count[group_name],
                                       len(groupvec_indices)))
@@ -829,7 +832,7 @@ class GroupDecomposition(object):
         groupvec_list = []
         for assignment in multi_distribute(total_slots_pairs):
             v = [0] * len(index_vector)
-            for i in xrange(len(v)):
+            for i in range(len(v)):
                 v[index_vector[i]] = assignment[i]
             v += [1]  # add 1 for the 'origin' group
             groupvec_list.append(GroupVector(self.groups_data, v))
@@ -928,7 +931,7 @@ class GroupDecomposer(object):
     @staticmethod
     def UpdateGroupMapFromChain(group_map, chain_map):
         """Updates the group_map by adding the chain."""
-        for group, node_sets in chain_map.iteritems():
+        for group, node_sets in chain_map.items():
             group_map.get(group, []).extend(node_sets)
         return group_map
 
@@ -978,10 +981,10 @@ class GroupDecomposer(object):
                     chain_map[group].append(atoms)
         
         # For each allowed length
-        for length in xrange(1, max_length + 1):
+        for length in range(1, max_length + 1):
             # Find internal phosphate chains (ones in the middle of the molecule).
             smarts_str = GroupDecomposer._RingedPChainSmarts(length)
-            chain_map = dict((k, []) for (k, _) in group_map.iteritems())
+            chain_map = dict((k, []) for (k, _) in group_map.items())
             for pchain in mol.FindSmarts(smarts_str):
                 working_pchain = list(pchain)
                 working_pchain.pop() # Lose the last carbon
@@ -1004,7 +1007,7 @@ class GroupDecomposer(object):
 
             # Find internal phosphate chains (ones in the middle of the molecule).
             smarts_str = GroupDecomposer._InternalPChainSmarts(length)
-            chain_map = dict((k, []) for (k, _) in group_map.iteritems())
+            chain_map = dict((k, []) for (k, _) in group_map.items())
             for pchain in mol.FindSmarts(smarts_str):
                 working_pchain = list(pchain)
                 working_pchain.pop() # Lose the last carbon
@@ -1027,7 +1030,7 @@ class GroupDecomposer(object):
             
             # Find terminal phosphate chains.
             smarts_str = GroupDecomposer._TerminalPChainSmarts(length)
-            chain_map = dict((k, []) for (k, _) in group_map.iteritems())
+            chain_map = dict((k, []) for (k, _) in group_map.items())
             for pchain in mol.FindSmarts(smarts_str):
                 working_pchain = list(pchain)
                 working_pchain.pop() # Lose the carbon
@@ -1076,7 +1079,7 @@ class GroupDecomposer(object):
         groups = []
         
         def _AddCorrection(group, count):
-            l = [set() for _ in xrange(count)]
+            l = [set() for _ in range(count)]
             groups.append((group, l))
         
         for group in self.groups_data.groups:

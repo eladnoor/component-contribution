@@ -1,5 +1,8 @@
 import logging, csv, re, platform
-import StringIO
+try:
+    import StringIO
+except ImportError:
+    from io import StringIO
 from subprocess import Popen, PIPE
 import openbabel
 
@@ -89,7 +92,7 @@ def _GetDissociationConstants(molstring, n_acidic=N_PKAS, n_basic=N_PKAS,
         args += ['pka', '-a', str(n_acidic), '-b', str(n_basic),
                  'majorms', '-M', 'true', '--pH', str(pH)]
     
-    output = RunCxcalc(molstring, args)
+    output = str(RunCxcalc(molstring, args))
     atom2pKa, smiles_list = ParsePkaOutput(output, n_acidic, n_basic)
     
     all_pKas = []
@@ -162,7 +165,7 @@ def GetAtomBagAndCharge(molstring):
                 atom_bag[atom] = atom_bag.get(atom, 0) + count * times
     
     n_protons = sum([c * _obElements.GetAtomicNum(str(elem))
-                     for (elem, c) in atom_bag.iteritems()])
+                     for (elem, c) in atom_bag.items()])
     atom_bag['e-'] = n_protons - formal_charge
 
     return atom_bag, formal_charge
@@ -173,7 +176,7 @@ if __name__ == "__main__":
     compound_list = [('D-Erythrulose', 'InChI=1S/C4H8O4/c5-1-3(7)4(8)2-6/h3,5-7H,1-2H2/t3-/m1/s1')]
     
     for name, inchi in compound_list:
-        print "Formula: %s\nCharge: %d" % GetFormulaAndCharge(inchi)
+        print("Formula: %s\nCharge: %d" % GetFormulaAndCharge(inchi))
         diss_table, major_ms = GetDissociationConstants(inchi)
         m = Molecule.FromSmiles(major_ms)
-        print "Name: %s\nInChI: %s\npKas: %s" % (name, m.ToInChI(), str(diss_table))
+        print("Name: %s\nInChI: %s\npKas: %s" % (name, m.ToInChI(), str(diss_table)))

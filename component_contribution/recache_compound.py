@@ -18,4 +18,4 @@ sys.stderr.write('writing new data to cache ...\n')
 ccache.dump()
 
 d = comp.to_json_dict()
-sys.stderr.write(''.join(['%20s : %s\n' % (k,v) for (k,v) in d.iteritems()]))
+sys.stderr.write(''.join(['%20s : %s\n' % (k,v) for (k,v) in d.items()]))

@@ -1,8 +1,7 @@
 import openbabel
 import types
 import re
-import chemaxon
-from thermodynamic_constants import default_T, default_pH
+from .chemaxon import GetAtomBagAndCharge
 
 class OpenBabelError(Exception):
     pass
@@ -21,7 +20,7 @@ class Molecule(object):
     @staticmethod
     def GetAllElements():
         return [Molecule._obElements.GetSymbol(i) for i in 
-                xrange(Molecule.GetNumberOfElements())]
+                range(Molecule.GetNumberOfElements())]
 
     @staticmethod
     def GetSymbol(atomic_num):
@@ -231,7 +230,7 @@ class Molecule(object):
     
     def GetAtomBagAndCharge(self):
         inchi = self.ToInChI()
-        atom_bag, major_ms_charge = chemaxon.GetAtomBagAndCharge(inchi)
+        atom_bag, major_ms_charge = GetAtomBagAndCharge(inchi)
         return atom_bag, major_ms_charge
 
     def GetHydrogensAndCharge(self):
@@ -247,7 +246,7 @@ class Molecule(object):
         return self.obmol.NumAtoms()
 
     def GetAtoms(self):
-        return [self.obmol.GetAtom(i+1) for i in xrange(self.obmol.NumAtoms())]
+        return [self.obmol.GetAtom(i+1) for i in range(self.obmol.NumAtoms())]
     
     def FindSmarts(self, smarts):
         """
@@ -279,4 +278,4 @@ class Molecule(object):
 
 if __name__ == '__main__':
     mol = Molecule.FromInChI('InChI=1S/H2/h1H')
-    print mol.ExactMass()
+    print(mol.ExactMass())

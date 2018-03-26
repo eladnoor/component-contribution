@@ -1,8 +1,8 @@
 import re, csv, logging
 import numpy as np
-from kegg_reaction import KeggReaction
-from compound_cacher import CompoundCacher
-from kegg_errors import KeggParseException
+from .kegg_reaction import KeggReaction
+from .compound_cacher import CompoundCacher
+from .kegg_errors import KeggParseException
 
 class KeggModel(object):
     
@@ -144,8 +144,8 @@ class KeggModel(object):
         # check that all CIDs in the reaction are already cached by CC
         Nc, Nr = self.S.shape
         reactions = []
-        for j in xrange(Nr):
-            sparse = {self.cids[i]:self.S[i,j] for i in xrange(Nc)
+        for j in range(Nr):
+            sparse = {self.cids[i]:self.S[i,j] for i in range(Nc)
                       if self.S[i,j] != 0}
             reaction = KeggReaction(sparse)
             reactions.append(reaction)

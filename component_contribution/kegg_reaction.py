@@ -1,16 +1,17 @@
 import re
 import numpy as np
 import logging
-from compound_cacher import CompoundCacher
-from kegg_errors import KeggParseException
+from .compound_cacher import CompoundCacher
+from .kegg_errors import KeggParseException
 
 class KeggReaction(object):
 
     def __init__(self, sparse, arrow='<=>', rid=None):
-        for cid, coeff in sparse.iteritems():
+        for cid, coeff in sparse.items():
             if not (isinstance(coeff, float) or isinstance(coeff, int)):
                 raise ValueError('All values in KeggReaction must be integers or floats')
-        self.sparse = dict(filter(lambda (k,v):v, sparse.items()))
+        
+        self.sparse = dict([(k, v) for (k, v) in sparse.items() if v != 0])
         self.arrow = arrow
         self.rid = rid
         self.ccache = CompoundCacher()
@@ -18,8 +19,8 @@ class KeggReaction(object):
     def keys(self):
         return self.sparse.keys()
         
-    def iteritems(self):
-        return self.sparse.iteritems()
+    def items(self):
+        return self.sparse.items()
 
     def __str__(self):
         return self.write_formula()
@@ -29,7 +30,7 @@ class KeggReaction(object):
             reverse the direction of the reaction by negating all stoichiometric
             coefficients
         """
-        self.sparse = dict( (k, -v) for (k, v) in self.sparse.iteritems() )
+        self.sparse = dict( (k, -v) for (k, v) in self.sparse.items() )
 
     @staticmethod
     def parse_reaction_formula_side(s):
@@ -87,10 +88,10 @@ class KeggReaction(object):
         right = tokens[1].strip()
         
         sparse_reaction = {}
-        for cid, count in KeggReaction.parse_reaction_formula_side(left).iteritems():
+        for cid, count in KeggReaction.parse_reaction_formula_side(left).items():
             sparse_reaction[cid] = sparse_reaction.get(cid, 0) - count 
 
-        for cid, count in KeggReaction.parse_reaction_formula_side(right).iteritems():
+        for cid, count in KeggReaction.parse_reaction_formula_side(right).items():
             sparse_reaction[cid] = sparse_reaction.get(cid, 0) + count 
 
         return KeggReaction(sparse_reaction, arrow, rid=rid)
@@ -106,7 +107,7 @@ class KeggReaction(object):
         """String representation."""
         left = []
         right = []
-        for cid, coeff in sorted(self.sparse.iteritems()):
+        for cid, coeff in sorted(self.sparse.items()):
             if coeff < 0:
                 left.append(KeggReaction.write_compound_and_coeff(cid, -coeff))
             elif coeff > 0:
@@ -124,8 +125,7 @@ class KeggReaction(object):
         """
         try:
             cids = list(self.keys())
-            coeffs = map(self.sparse.__getitem__, cids)
-            coeffs = np.matrix(coeffs)
+            coeffs = np.matrix(list(map(self.sparse.__getitem__, cids)))
     
             cached_cids = set(map(str, self.ccache.compound_id2inchi.keys()))
             if not cached_cids.issuperset(cids):
@@ -181,7 +181,7 @@ class KeggReaction(object):
             
     def dense(self, cids):
         s = np.matrix(np.zeros((len(cids), 1)))
-        for cid, coeff in self.iteritems():
+        for cid, coeff in self.items():
             s[cids.index(cid), 0] = coeff
         return s
 
@@ -196,11 +196,11 @@ class KeggReaction(object):
             energy of reaction (DrG0) to get the transformed value.
         """
         ddG0_forward = 0
-        for compound_id, coeff in self.iteritems():
+        for compound_id, coeff in self.items():
             comp = self.ccache.get_compound(compound_id)
             ddG0_forward += coeff * comp.transform_pH7(pH, I, T)
         return ddG0_forward
         
 if __name__ == '__main__':
     reaction = KeggReaction.parse_formula('C00149 <=> C00036')
-    print reaction._get_reaction_atom_bag()
+    print(reaction._get_reaction_atom_bag())

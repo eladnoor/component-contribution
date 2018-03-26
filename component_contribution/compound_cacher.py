@@ -1,5 +1,5 @@
 import json, os, logging, csv, gzip, numpy
-from compound import Compound
+from .compound import Compound
 base_path = os.path.split(os.path.realpath(__file__))[0]
 
 ### Input Files:
@@ -24,16 +24,21 @@ class CompoundEncoder(json.JSONEncoder):
             return obj.to_json_dict()
         return json.JSONEncoder.default(self, obj)
 
-class Singleton(type):
-    def __init__(cls,name,bases,dic):
-        super(Singleton,cls).__init__(name,bases,dic)
-        cls.instance=None
-    def __call__(cls,*args,**kw):
-        if cls.instance is None:
-            cls.instance=super(Singleton,cls).__call__(*args,**kw)
-        return cls.instance
+class _Singleton(type):
+    """ 
+        A metaclass that creates a Singleton base class when called. 
+        Compatible with both python 2.x and 3.x
+        see https://stackoverflow.com/questions/6760685/creating-a-singleton-in-python
+    """
+    _instances = {}
+    def __call__(cls, *args, **kwargs):
+        if cls not in cls._instances:
+            cls._instances[cls] = super(_Singleton, cls).__call__(*args, **kwargs)
+        return cls._instances[cls]
     
-class CompoundCacher(object):
+class Singleton(_Singleton('SingletonMeta', (object,), {})): pass
+
+class CompoundCacher(Singleton):
     """
         CompoundCacher is a singleton that handles caching of Compound objects
         for the component-contribution package. The Compounds are retrieved by
@@ -46,7 +51,6 @@ class CompoundCacher(object):
         the cache. When the method dump() is called, all cached data is written
         to a file that will be loaded in future python sessions.
     """
-    __metaclass__ = Singleton
     
     def __init__(self, cache_fname=None):
         self.cache_fname = cache_fname
@@ -70,7 +74,7 @@ class CompoundCacher(object):
             for d in json.load(gzip.open(self.cache_fname, 'r')):
                 self.compound_ids.append(d['compound_id'])
                 self.compound_dict[d['compound_id']] = Compound.from_json_dict(d)
-
+    
     def dump(self):
         if self.need_to_update_cache_file:
             fp = gzip.open(self.cache_fname, 'w')
@@ -88,10 +92,10 @@ class CompoundCacher(object):
             inchi = self.compound_id2inchi[compound_id]
             comp = Compound.from_inchi('KEGG', compound_id, inchi)
             self.add(comp)
-
+    
         logging.debug('Cache hit: %s' % str(compound_id))
         return self.compound_dict[compound_id]
-
+    
     def remove(self, compound_id):
         if compound_id in self.compound_dict:
             del self.compound_dict[compound_id]

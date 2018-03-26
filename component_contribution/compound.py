@@ -1,8 +1,8 @@
-import openbabel, urllib, logging
-import chemaxon
+import urllib, logging
 import numpy as np
-from thermodynamic_constants import R, debye_huckel
 from scipy.misc import logsumexp
+from . import chemaxon
+from .thermodynamic_constants import R, debye_huckel
 
 MIN_PH = 0.0
 MAX_PH = 14.0
@@ -120,7 +120,7 @@ class Compound(object):
         nHs = []
         zs = []
 
-        for i in xrange(n_species):
+        for i in range(n_species):
             zs.append((i - majorMSpH7) + major_ms_charge)
             nHs.append((i - majorMSpH7) + major_ms_nH)
         
@@ -151,6 +151,7 @@ class Compound(object):
 
     @staticmethod
     def mol2inchi(s):
+        import openbabel
         openbabel.obErrorLog.SetOutputLevel(-1)
 
         conv = openbabel.OBConversion()
@@ -170,6 +171,7 @@ class Compound(object):
 
     @staticmethod
     def inchi2smiles(inchi):
+        import openbabel
         openbabel.obErrorLog.SetOutputLevel(-1)
         
         conv = openbabel.OBConversion()
@@ -188,6 +190,7 @@ class Compound(object):
             
     @staticmethod
     def smiles2smiles(smiles_in):
+        import openbabel
         openbabel.obErrorLog.SetOutputLevel(-1)
         
         conv = openbabel.OBConversion()
@@ -205,6 +208,7 @@ class Compound(object):
             return smiles_out
     @staticmethod
     def smiles2inchi(smiles):
+        import openbabel
         openbabel.obErrorLog.SetOutputLevel(-1)
         
         conv = openbabel.OBConversion()
@@ -241,7 +245,7 @@ class Compound(object):
         else:
             dG0s = -np.cumsum([0] + self.pKas) * R * T * np.log(10)
             dG0s = dG0s
-        DH = debye_huckel((I, T))
+        DH = debye_huckel(I, T)
         
         # dG0' = dG0 + nH * (R T ln(10) pH + DH) - charge^2 * DH
         pseudoisomers = np.vstack([dG0s, np.array(self.nHs), np.array(self.zs)]).T
@@ -314,10 +318,10 @@ class Compound(object):
             yield d
         
 if __name__ == '__main__':
-    import sys, json
+    import sys
     logger = logging.getLogger('')
     logger.setLevel(logging.DEBUG)
-    from python.compound_cacher import CompoundCacher, CompoundEncoder
+    from python.compound_cacher import CompoundCacher
     from python.molecule import Molecule, OpenBabelError
     ccache = CompoundCacher(cache_fname=None)
 

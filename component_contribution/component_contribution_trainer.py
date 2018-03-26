@@ -37,7 +37,7 @@ class ComponentContribution(object):
         
         self.Nc = len(self.cids_joined)
         self.Ng = len(self.group_names)
-
+        
     @staticmethod
     def init():
         if os.path.exists(CC_CACHE_FNAME):
@@ -107,7 +107,7 @@ class ComponentContribution(object):
         x_prime = []
         G_prime = []
 
-        for compound_id, coeff in reaction.iteritems():
+        for compound_id, coeff in reaction.items():
             if compound_id in self.cids_joined:
                 i = cids.index(compound_id)
                 x[i, 0] = coeff
@@ -184,7 +184,7 @@ class ComponentContribution(object):
             for j in orders:
                 if abs(weights[0, j]) < 1e-5:
                     continue
-                r = KeggReaction({cids[i]:S[i,j] for i in xrange(S.shape[0])
+                r = KeggReaction({cids[i]:S[i,j] for i in range(S.shape[0])
                                   if S[i,j] != 0})
                 analysis.append({'index': j,
                                  'w_rc': weights_rc[0, j],
@@ -331,7 +331,7 @@ class ComponentContribution(object):
             smiles_pH7 = self.ccache.get_compound(compound_id).smiles_pH7
             try:
                 group_def = self.decomposer.smiles_to_groupvec(smiles_pH7)
-                for j in xrange(len(self.group_names)):
+                for j in range(len(self.group_names)):
                     G[i, j] = group_def[j]
             except inchi2gv.GroupDecompositionError:
                 # for compounds that have no InChI or are not decomposable

@@ -31,7 +31,7 @@ class TrainingData(object):
         # CID list 'cids'.
         self.S = np.zeros((len(cids), len(thermo_params)))
         for k, d in enumerate(thermo_params):
-            for cid, coeff in d['reaction'].iteritems():
+            for cid, coeff in d['reaction'].items():
                 self.S[cids.index(cid), k] = coeff
             
         self.cids = cids
@@ -44,7 +44,7 @@ class TrainingData(object):
         self.weight = np.array([d['weight'] for d in thermo_params])
         self.reference = [d['reference'] for d in thermo_params]
         self.description = [d['description'] for d in thermo_params]
-        rxn_inds_to_balance = [i for i in xrange(len(thermo_params))
+        rxn_inds_to_balance = [i for i in range(len(thermo_params))
                                if thermo_params[i]['balance']]
 
         self.balance_reactions(rxn_inds_to_balance)
@@ -72,8 +72,8 @@ class TrainingData(object):
     def savecsv(self, fname):
         csv_output = csv.writer(open(fname, 'w'))
         csv_output.writerow(['reaction', 'T', 'I', 'pH', 'reference', 'dG0', 'dG0_prime'])
-        for j in xrange(self.S.shape[1]):
-            sparse = {self.cids[i]: self.S[i, j] for i in xrange(self.S.shape[0])}
+        for j in range(self.S.shape[1]):
+            sparse = {self.cids[i]: self.S[i, j] for i in range(self.S.shape[0])}
             r_string = KeggReaction(sparse).write_formula()
             csv_output.writerow([r_string, self.T[j], self.I[j], self.pH[j],
                                  self.reference[j], self.dG0[j], self.dG0_prime[j]])
@@ -272,7 +272,7 @@ class TrainingData(object):
         reverse_ddG0 = np.zeros(n_rxns)
         self.I[np.isnan(self.I)] = 0.25 # default ionic strength is 0.25M
         self.pMg[np.isnan(self.pMg)] = 14 # default pMg is 14
-        for i in xrange(n_rxns):
+        for i in range(n_rxns):
             for j in np.nonzero(self.S[:, i])[0]:
                 cid = self.cids[j]
                 if cid == 'C00080': # H+ should be ignored in the Legendre transform
