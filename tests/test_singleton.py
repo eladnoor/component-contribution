@@ -23,23 +23,10 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-from __future__ import absolute_import
+from component_contribution import singleton
 
 
-class _Singleton(type):
-    """
-    A metaclass that creates a Singleton base class when called.
-    Compatible with both python 2.x and 3.x
-    see https://stackoverflow.com/questions/6760685/creating-a-singleton-in-python
-    """
-    _instances = {}
-
-    def __call__(cls, **kwargs):
-        if cls not in cls._instances:
-            cls._instances[cls] = super(_Singleton, cls).__call__(**kwargs)
-        return cls._instances[cls]
-
-
-class Singleton(_Singleton('SingletonMeta', (object,), {})):
-    pass
-
+def test_singleton_behavior():
+    left = singleton.Singleton()
+    right = singleton.Singleton()
+    assert left is right

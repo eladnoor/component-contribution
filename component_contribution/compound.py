@@ -6,7 +6,7 @@ import numpy as np
 from scipy.misc import logsumexp
 
 
-from component_contribution.databases import Databases
+from component_contribution.databases import databases
 from component_contribution import chemaxon
 from component_contribution.thermodynamic_constants import R, debye_huckel
 
@@ -44,7 +44,7 @@ COMPOUND_EXCEPTIONS = {
 }
 
 class Compound(object):
-    
+
     def __init__(self, inchi_key, inchi, atom_bag, p_kas, smiles,
                  major_miscrospecies, number_of_protons, charges, compound_id=None):
         self.inchi_key = inchi_key
@@ -60,7 +60,7 @@ class Compound(object):
     @classmethod
     def get(cls, compound_id):
         database, accession = compound_id.split(":", 1)
-        molecule = Databases.get_molecule(database, accession)
+        molecule = databases.get_molecule(database, accession)
         return cls.from_inchi(compound_id, molecule)
 
     @classmethod
@@ -80,7 +80,7 @@ class Compound(object):
             # use the original InChI to get the parameters (i.e. assume it represents the major microspecies at pH 7)
             major_ms_smiles = molecule.write("smi")
             p_kas = []
-        
+
         if major_ms_smiles:
             atom_bag, major_ms_charge = chemaxon.GetAtomBagAndCharge(major_ms_smiles)
             _number_of_protons = atom_bag.get('H', 0)
@@ -94,14 +94,14 @@ class Compound(object):
             major_microspecies = 0
         else:
             major_microspecies = len([1 for pka in p_kas if pka > 7])
-            
+
         number_of_protons = []
         charges = []
 
         for i in range(n_species):
             charges.append((i - major_microspecies) + major_ms_charge)
             number_of_protons.append((i - major_microspecies) + _number_of_protons)
-        
+
         return cls(inchi_key, inchi, atom_bag, p_kas, major_ms_smiles,
                    major_microspecies, number_of_protons, charges, compound_id=compound_id)
 
@@ -115,7 +115,7 @@ class Compound(object):
                 'number_of_protons': self.number_of_protons,
                 'charges': self.charges,
                 'compound_id': self.compound_id}
-    
+
     @classmethod
     def from_json_dict(cls, data):
         return cls(data['inchi_key'], data['inchi'], data['atom_bag'], data['p_kas'], data['smiles'],
@@ -128,9 +128,9 @@ class Compound(object):
 
     def _dG0_prime_vector(self, p_h, ionic_strength, temperature):
         """
-            Calculates the difference in kJ/mol between dG'0 and 
+            Calculates the difference in kJ/mol between dG'0 and
             the dG0 of the MS with the least hydrogens (dG0[0])
-            
+
             Returns:
                 dG'0 - dG0[0]
         """
@@ -142,14 +142,14 @@ class Compound(object):
             dG0s = -np.cumsum([0] + self.p_kas) * R * temperature * np.log(10)
             dG0s = dG0s
         DH = debye_huckel(ionic_strength, temperature)
-        
+
         # dG0' = dG0 + nH * (R T ln(10) pH + DH) - charge^2 * DH
         pseudoisomers = np.vstack([dG0s, np.array(self.number_of_protons), np.array(self.charges)]).T
         dG0_prime_vector = pseudoisomers[:, 0] + \
                            pseudoisomers[:, 1] * (R * temperature * np.log(10) * p_h + DH) - \
                            pseudoisomers[:, 2]**2 * DH
         return dG0_prime_vector
-        
+
     def _transform(self, p_h, ionic_strength, temperature):
         return -R * temperature * logsumexp(self._dG0_prime_vector(p_h, ionic_strength, temperature) /
                                             (-R * temperature))
@@ -157,7 +157,7 @@ class Compound(object):
     def _ddG(self, i_from, i_to, temperature):
         """
             Calculates the difference in kJ/mol between two MSs.
-            
+
             Returns:
                 dG0[i_to] - dG0[i_from]
         """
