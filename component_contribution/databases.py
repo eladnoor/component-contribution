@@ -26,6 +26,7 @@ def get_kegg_molecule(accession):
     except requests.HTTPError as e:
         exception = KeyError(accession)
         exception.__cause__ = e
+        raise exception
 
 
 def get_hmdb_molecule(accession):
@@ -37,6 +38,7 @@ def get_hmdb_molecule(accession):
     except requests.HTTPError as e:
         exception = KeyError(accession)
         exception.__cause__ = e
+        raise exception
 
 
 def get_inchi_molecule(accession):
