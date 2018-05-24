@@ -2,7 +2,7 @@ import os, logging, csv
 import numpy as np
 from scipy.io import savemat
 from .thermodynamic_constants import R, F
-from .compound_cacher import CompoundCacher
+from .compound_cache import CompoundCache
 from .kegg_reaction import KeggReaction
 
 class TrainingData(object):
@@ -17,7 +17,7 @@ class TrainingData(object):
         self.ccache.dump()
 
     def __init__(self):
-        self.ccache = CompoundCacher()
+        self.ccache = CompoundCache()
         
         thermo_params, self.cids_that_dont_decompose = TrainingData.get_all_thermo_params()
         
@@ -278,7 +278,7 @@ class TrainingData(object):
                 if cid == 'C00080': # H+ should be ignored in the Legendre transform
                     continue
                 comp = self.ccache.get_compound(cid)
-                ddG0 = comp.transform_pH7(self.pH[i], self.I[i], self.T[i])
+                ddG0 = comp.transform_p_h_7(self.pH[i], self.I[i], self.T[i])
                 reverse_ddG0[i] = reverse_ddG0[i] + ddG0 * self.S[j, i]
 
         self.dG0 = self.dG0_prime - reverse_ddG0

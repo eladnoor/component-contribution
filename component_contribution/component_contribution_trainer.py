@@ -4,7 +4,7 @@ from scipy.io import savemat, loadmat
 from . import inchi2gv
 from .training_data import TrainingData
 from .kegg_reaction import KeggReaction
-from .compound_cacher import CompoundCacher
+from .compound_cache import CompoundCache
 from .thermodynamic_constants import default_T
 from .molecule import Molecule, OpenBabelError
 from .linalg import LINALG
@@ -30,7 +30,7 @@ class ComponentContribution(object):
         self.train_G = None
         self.params = None
 
-        self.ccache = CompoundCacher()
+        self.ccache = CompoundCache()
         self.groups_data = inchi2gv.init_groups_data()
         self.decomposer = inchi2gv.InChIDecomposer(self.groups_data)
         self.group_names = self.groups_data.GetGroupNames()
