@@ -1,8 +1,8 @@
 import urllib, logging
 import numpy as np
-from scipy.misc import logsumexp
-from . import chemaxon
+from scipy.special import logsumexp
 from .thermodynamic_constants import R, debye_huckel
+from . import chemaxon
 
 MIN_PH = 0.0
 MAX_PH = 14.0

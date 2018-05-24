@@ -1,10 +1,11 @@
-import logging, csv, re, platform
+import logging, re, platform
 try:
-    import StringIO
+    from StringIO import StringIO
 except ImportError:
     from io import StringIO
 from subprocess import Popen, PIPE
 import openbabel
+import pandas as pd
 
 if platform.system() == 'Windows':
     CXCALC_BIN = 'C:\\Program Files (x86)\\ChemAxon\\MarvinBeans\\bin\\cxcalc.bat'
@@ -29,7 +30,7 @@ def RunCxcalc(molstring, args):
                        executable=CXCALC_BIN, stdout=PIPE, stderr=dev_null, shell=False)
             #p.wait()
             #os.remove(temp_fname)
-            res = p2.communicate()[0]
+            res = p2.communicate()[0].decode('utf-8')
             if p2.returncode != 0:
                 raise ChemAxonError(str(args))
             logging.debug("OUTPUT: %s" % res)
@@ -45,7 +46,10 @@ def ParsePkaOutput(s, n_acidic, n_basic):
     """
     atom2pKa = {}
 
-    pkaline = s.split('\n')[1]
+    try:
+        pkaline = s.split('\n')[1]
+    except IndexError:
+        raise ValueError('Cannot parse pKa output: ' + s)
     splitline = pkaline.split('\t')
     splitline.pop(0)
     
@@ -133,15 +137,13 @@ def GetFormulaAndCharge(molstring):
     output = RunCxcalc(molstring, args)
     # the output is a tab separated table whose columns are:
     # id, Formula, Formal charge
-    f = StringIO.StringIO(output)
-    tsv_output = csv.reader(f, delimiter='\t')
-    headers = tsv_output.next()
-    if headers != ['id', 'Formula', 'Formal charge']:
+    output_df = pd.read_csv(StringIO(output), delimiter='\t')
+    if output_df.columns.tolist() != ['id', 'Formula', 'Formal charge']:
         raise ChemAxonError('cannot get the formula and charge for: ' + molstring)
-    _, formula, formal_charge = tsv_output.next()
 
+    formula = output_df['Formula'].iat[0]
     try:
-        formal_charge = int(formal_charge)
+        formal_charge = int(output_df['Formal charge'].iat[0])
     except ValueError:
         formal_charge = 0
     
@@ -172,9 +174,9 @@ def GetAtomBagAndCharge(molstring):
 
 if __name__ == "__main__":
     logging.getLogger().setLevel(logging.WARNING)
-    from molecule import Molecule
-    compound_list = [('D-Erythrulose', 'InChI=1S/C4H8O4/c5-1-3(7)4(8)2-6/h3,5-7H,1-2H2/t3-/m1/s1')]
-    
+    from component_contribution import Molecule
+    compound_list = [('orthophosphate', 'InChI=1S/H3O4P/c1-5(2,3)4/h(H3,1,2,3,4)/p-3'),
+                     ('D-Erythrulose', 'InChI=1S/C4H8O4/c5-1-3(7)4(8)2-6/h3,5-7H,1-2H2/t3-/m1/s1')]
     for name, inchi in compound_list:
         print("Formula: %s\nCharge: %d" % GetFormulaAndCharge(inchi))
         diss_table, major_ms = GetDissociationConstants(inchi)

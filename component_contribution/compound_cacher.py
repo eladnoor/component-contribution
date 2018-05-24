@@ -57,7 +57,7 @@ class CompoundCacher(Singleton):
         if self.cache_fname is None:
             self.cache_fname = DEFAULT_CACHE_FNAME
         
-        compounds = json.load(gzip.open(KEGG_COMPOUND_JSON_FNAME, 'r'))
+        compounds = json.load(gzip.open(KEGG_COMPOUND_JSON_FNAME, 'rt'))
         self.compound_id2inchi = { d['compound_id']: d['inchi'] 
                                    for d in compounds }
         self.need_to_update_cache_file = False
@@ -71,16 +71,16 @@ class CompoundCacher(Singleton):
         self.compound_dict = {}
         self.compound_ids = []
         if os.path.exists(self.cache_fname):
-            for d in json.load(gzip.open(self.cache_fname, 'r')):
+            for d in json.load(gzip.open(self.cache_fname, 'rt')):
                 self.compound_ids.append(d['compound_id'])
                 self.compound_dict[d['compound_id']] = Compound.from_json_dict(d)
     
     def dump(self):
         if self.need_to_update_cache_file:
-            fp = gzip.open(self.cache_fname, 'w')
+            fp = gzip.open(self.cache_fname, 'wt')
             data = sorted(self.compound_dict.values(),
                           key=lambda d:d.compound_id)
-            dict_data = map(lambda x:x.to_json_dict(), data)
+            dict_data = list(map(lambda x: x.to_json_dict(), data))
             json.dump(dict_data, fp, cls=CompoundEncoder, 
                       sort_keys=True, indent=4,  separators=(',', ': '))
             fp.close()
@@ -155,9 +155,10 @@ class CompoundCacher(Singleton):
                               'names': [d['name']],
                               'inchi': d['inchi']}
         
-        compound_json = [kegg_dict[compound_id] for compound_id in sorted(kegg_dict.keys())]
+        compound_json = [kegg_dict[compound_id]
+                         for compound_id in sorted(kegg_dict.keys())]
 
-        new_json = gzip.open(KEGG_COMPOUND_JSON_FNAME, 'w')
+        new_json = gzip.open(KEGG_COMPOUND_JSON_FNAME, 'wt')
         json.dump(compound_json, new_json, sort_keys=True, indent=4)
         new_json.close()
     
