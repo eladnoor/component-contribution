@@ -1,7 +1,7 @@
 import re
 import numpy as np
 import logging
-from .compound_cacher import CompoundCacher
+from .compound_cache import CompoundCache
 from .kegg_errors import KeggParseException
 
 class KeggReaction(object):
@@ -14,7 +14,7 @@ class KeggReaction(object):
         self.sparse = dict([(k, v) for (k, v) in sparse.items() if v != 0])
         self.arrow = arrow
         self.rid = rid
-        self.ccache = CompoundCacher()
+        self.ccache = CompoundCache()
 
     def keys(self):
         return self.sparse.keys()
@@ -132,7 +132,7 @@ class KeggReaction(object):
                 missing_cids = set(cids).difference(cached_cids)
                 warning_str = 'The following compound IDs are not in the cache, ' + \
                               'make sure they appear in kegg_additions.tsv and ' + \
-                              'then run compound_cacher.py: ' + \
+                              'then run compound_cache.py: ' + \
                               ', '.join(sorted(missing_cids))
                 raise ValueError(warning_str)
         
@@ -198,7 +198,7 @@ class KeggReaction(object):
         ddG0_forward = 0
         for compound_id, coeff in self.items():
             comp = self.ccache.get_compound(compound_id)
-            ddG0_forward += coeff * comp.transform_pH7(pH, I, T)
+            ddG0_forward += coeff * comp.transform_p_h_7(pH, I, T)
         return ddG0_forward
         
 if __name__ == '__main__':
