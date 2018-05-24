@@ -1,7 +1,7 @@
 import re, csv, logging
 import numpy as np
 from .kegg_reaction import KeggReaction
-from .compound_cacher import CompoundCacher
+from .compound_cache import CompoundCache
 from .kegg_errors import KeggParseException
 
 class KeggModel(object):
@@ -16,7 +16,7 @@ class KeggModel(object):
         assert len(self.cids) == self.S.shape[0]
         if self.rids is not None:
             assert len(self.rids) == self.S.shape[1]
-        self.ccache = CompoundCacher()
+        self.ccache = CompoundCache()
 
         # remove H+ from the stoichiometric matrix if it exists
         if 'C00080' in self.cids:
@@ -177,7 +177,7 @@ class KeggModel(object):
         ddG0_compounds = np.matrix(np.zeros((self.S.shape[0], 1)))
         for i, cid in enumerate(self.cids):
             comp = self.ccache.get_compound(cid)
-            ddG0_compounds[i, 0] = comp.transform_pH7(pH, I, T)
+            ddG0_compounds[i, 0] = comp.transform_p_h_7(pH, I, T)
         
         ddG0_forward = np.dot(self.S.T, ddG0_compounds)
         return ddG0_forward
