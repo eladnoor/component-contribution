@@ -1,3 +1,28 @@
+# -*- encoding: utf-8 -*-
+
+# The MIT License (MIT)
+#
+# Copyright (c) 2018 Novo Nordisk Foundation Center for Biosustainability,
+# Technical University of Denmark.
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+# THE SOFTWARE.
+
 import six
 
 import numpy
@@ -115,7 +140,7 @@ class CompoundCache(Singleton):
                 self.add(cpd)
 
             return cpd
-    
+
     def remove(self, inchi_key):
         if inchi_key not in self._data.index:
             raise KeyError(inchi_key)
@@ -141,7 +166,7 @@ class CompoundCache(Singleton):
             self.compound_dict[inchi_key] = cpd
 
         return cpd
-    
+
     def add(self, cpd):
         if cpd.inchi_key not in self._inchi_key_to_compound_ids:
             self._inchi_key_to_compound_ids[cpd.inchi_key] = set()
@@ -166,7 +191,7 @@ class CompoundCache(Singleton):
             atom_bag_list.append(atom_bag)
         elements.discard('H')  # don't balance H (it's enough to balance e-)
         elements = sorted(elements)
-        
+
         # create the elemental matrix, where each row is a compound and each
         # column is an element (or e-)
         element_matrix = numpy.matrix(numpy.zeros((len(atom_bag_list), len(elements))))
