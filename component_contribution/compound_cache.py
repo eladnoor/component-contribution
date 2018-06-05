@@ -126,13 +126,13 @@ class CompoundCache(Singleton):
         to_write["cross_references"] = self._serialize_cross_refs(to_write, self._inchi_key_to_compound_ids)
         to_write.to_csv(file_name)
 
-    def get_compound(self, compound_id):
+    def get_compound(self, compound_id, compute_pkas=True):
         if compound_id in self._compound_id_to_inchi_key:  # compound exists
             return self.get(self._compound_id_to_inchi_key[compound_id])
         elif compound_id in self._data.index:  # compound_id is an InChI Key and exists
             return self.get(compound_id)
         else:  # compound does not exist.
-            cpd = Compound.get(compound_id)
+            cpd = Compound.get(compound_id, compute_pkas)
             if cpd.inchi_key in self._data.index:
                 cpd = self.get(cpd.inchi_key)
                 self._compound_id_to_inchi_key[compound_id] = cpd.inchi_key

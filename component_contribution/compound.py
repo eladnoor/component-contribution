@@ -1,4 +1,28 @@
-import logging
+# -*- encoding: utf-8 -*-
+
+# The MIT License (MIT)
+#
+# Copyright (c) 2018 Novo Nordisk Foundation Center for Biosustainability,
+# Technical University of Denmark.
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+# THE SOFTWARE.
+
 
 import pybel
 
@@ -6,8 +30,9 @@ import numpy as np
 
 from scipy.special import logsumexp
 from component_contribution.thermodynamic_constants import R, debye_huckel
-from component_contribution import chemaxon
+
 from component_contribution.databases import databases
+from component_contribution.mol_utils import atom_bag_and_charge
 
 MIN_PH = 0.0
 MAX_PH = 14.0
@@ -42,6 +67,7 @@ COMPOUND_EXCEPTIONS = {
     'KEGG:C00139': ({'Fe': 1, 'e-': 25}, [], None, 0, [0], [1]) # ferredoxin(ox)
 }
 
+
 class Compound(object):
 
     def __init__(self, inchi_key, inchi, atom_bag, p_kas, smiles,
@@ -58,38 +84,32 @@ class Compound(object):
         self.charges = charges
 
     @classmethod
-    def get(cls, compound_id):
+    def get(cls, compound_id, compute_pkas=True):
         database, accession = compound_id.split(":", 1)
         molecule = databases.get_molecule(database, accession)
-        return cls.from_inchi(compound_id, molecule)
+        return cls.from_molecule(compound_id, molecule, compute_pkas)
 
     @classmethod
-    def from_inchi(cls, compound_id, molecule):
+    def from_molecule(cls, compound_id, molecule, compute_pkas=True):
         inchi = molecule.write("inchi")
         inchi_key = molecule.write("inchikey")
         if compound_id in COMPOUND_EXCEPTIONS:
             return cls(inchi_key, inchi, *COMPOUND_EXCEPTIONS[compound_id], compound_id=compound_id)
 
-        try:
-            p_kas, major_ms_smiles = chemaxon.GetDissociationConstants(inchi)
-            new_molecule = pybel.readstring("smi", major_ms_smiles)
-            major_ms_smiles = new_molecule.write("smi")
+        if compute_pkas:
+            from component_contribution import chemaxon
+            p_kas, major_ms_smiles = chemaxon.get_dissociation_constants(inchi)
+            molecule = pybel.readstring("smi", major_ms_smiles)
             p_kas = sorted([pka for pka in p_kas if MIN_PH < pka < MAX_PH], reverse=True)
-        except chemaxon.ChemAxonError:
-            logging.warning('chemaxon failed to find pKas for this molecule: ' + inchi)
-            # use the original InChI to get the parameters (i.e. assume it represents the major microspecies at pH 7)
-            major_ms_smiles = molecule.write("smi")
-            p_kas = []
-
-        if major_ms_smiles:
-            atom_bag, major_ms_charge = chemaxon.GetAtomBagAndCharge(major_ms_smiles)
-            _number_of_protons = atom_bag.get('H', 0)
         else:
-            atom_bag = {}
-            major_ms_charge = 0
-            _number_of_protons = 0
+            p_kas = []
+            major_ms_smiles = molecule.write('smi')
+
+        atom_bag, major_ms_charge = atom_bag_and_charge(molecule)
+        _number_of_protons = atom_bag.get('H', 0)
 
         n_species = len(p_kas) + 1
+
         if not p_kas:
             major_microspecies = 0
         else:
