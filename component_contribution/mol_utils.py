@@ -63,7 +63,7 @@ def atom_bag_and_charge(molecule):
 
         formal_charge += atom.formalcharge
 
-    atom_bag['e-'] = atom_bag["H"] - formal_charge
+    atom_bag['e-'] = atom_bag.get("H", 0) - formal_charge
 
     return atom_bag, formal_charge
 
