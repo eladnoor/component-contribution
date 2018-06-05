@@ -22,6 +22,8 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
+
+import six
 import openbabel
 import pybel
 
@@ -63,7 +65,9 @@ def atom_bag_and_charge(molecule):
 
         formal_charge += atom.formalcharge
 
-    atom_bag['e-'] = atom_bag.get("H", 0) - formal_charge
+    n_protons = sum([c * PERIODIC_TABLE.GetAtomicNum(elem) for (elem, c) in six.iteritems(atom_bag)])
+
+    atom_bag['e-'] = n_protons - formal_charge
 
     return atom_bag, formal_charge
 

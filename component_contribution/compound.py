@@ -102,6 +102,7 @@ class Compound(object):
             p_kas = sorted([pka for pka in p_kas if MIN_PH < pka < MAX_PH], reverse=True)
         else:
             p_kas = []
+            molecule.addh()
             major_ms_smiles = molecule.write('smi')
 
         atom_bag, major_ms_charge = atom_bag_and_charge(molecule)
