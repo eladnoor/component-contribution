@@ -1,7 +1,6 @@
-# -*- encoding: utf-8 -*-
-
 # The MIT License (MIT)
 #
+# Copyright (c) 2013 The Weizmann Institute of Science.
 # Copyright (c) 2018 Novo Nordisk Foundation Center for Biosustainability,
 # Technical University of Denmark.
 #
