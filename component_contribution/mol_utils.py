@@ -23,9 +23,15 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-import six
+""""""
+
+from __future__ import absolute_import
+
+from collections import defaultdict
+
 import openbabel
 import pybel
+from six import iteritems
 
 
 PERIODIC_TABLE = _obElements = openbabel.OBElementTable()
@@ -33,9 +39,10 @@ PERIODIC_TABLE = _obElements = openbabel.OBElementTable()
 
 def atom_bag_and_charge(molecule):
     """
-    Computes the atom bag and the formal charge of a molecule.
+    Compute the atom bag and the formal charge of a molecule.
 
-    The formal charge is calculating by summing the formal charge of each atom in the molecule.
+    The formal charge is calculated by summing the formal charge of each atom
+    in the molecule.
 
     Parameters
     ----------
@@ -44,28 +51,29 @@ def atom_bag_and_charge(molecule):
 
     Returns
     -------
-    atom_bag : dict
+    dict
         A dictionary of atom counts.
-    formal_charge : int
+    int
         The formal charge of the molecule.
 
     """
 
     assert isinstance(molecule, pybel.Molecule)
 
-    atom_bag = {}
+    atom_bag = defaultdict(int)
     formal_charge = 0
     for atom in molecule.atoms:
         assert isinstance(atom, pybel.Atom)
         symbol = PERIODIC_TABLE.GetSymbol(atom.atomicnum)
-        if symbol not in atom_bag:
-            atom_bag[symbol] = 1
-        else:
-            atom_bag[symbol] += 1
+        # if symbol not in atom_bag:
+        #     atom_bag[symbol] = 1
+        # else:
+        atom_bag[symbol] += 1
 
         formal_charge += atom.formalcharge
 
-    n_protons = sum([c * PERIODIC_TABLE.GetAtomicNum(elem) for (elem, c) in six.iteritems(atom_bag)])
+    n_protons = sum(c * PERIODIC_TABLE.GetAtomicNum(elem)
+                    for (elem, c) in iteritems(atom_bag))
 
     atom_bag['e-'] = n_protons - formal_charge
 

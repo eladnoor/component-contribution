@@ -22,15 +22,21 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
+""""""
+
+from __future__ import absolute_import
+
 import logging
 import platform
-
-import pandas
-
-from six import StringIO
 from subprocess import Popen, PIPE
 
+import pandas
+from six import StringIO
+
 from component_contribution import exceptions
+
+
+LOGGER = logging.getLogger(__name__)
 
 if platform.system() == 'Windows':
     CXCALC_BIN = 'C:\\Program Files (x86)\\ChemAxon\\MarvinBeans\\bin\\cxcalc.bat'
@@ -38,9 +44,6 @@ if platform.system() == 'Windows':
 else:
     CXCALC_BIN = 'cxcalc'
     use_shell_for_echo = False
-
-
-LOGGER = logging.getLogger(__name__)
 
 MID_PH = 7.0
 N_PKAS = 20
