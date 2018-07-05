@@ -1,6 +1,7 @@
+# -*- encoding: utf-8 -*-
+
 # The MIT License (MIT)
 #
-# Copyright (c) 2013 The Weizmann Institute of Science.
 # Copyright (c) 2018 Novo Nordisk Foundation Center for Biosustainability,
 # Technical University of Denmark.
 #
@@ -22,11 +23,19 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-from __future__ import absolute_import
-from ._version import get_versions
-__version__ = get_versions()['version']
-del get_versions
+"""Define specialized exceptions."""
 
-from component_contribution.compound_cache import CompoundCache
-from component_contribution.thermodynamic_constants import R, debye_huckel
-from component_contribution.compound import Compound
+from __future__ import absolute_import
+
+
+class ChemAxonRuntimeError(RuntimeError):
+    """"""
+    pass
+
+
+class ChemAxonNotAvailable(Exception):
+    """"""
+
+    def __init__(self):
+        """"""
+        super(ChemAxonNotAvailable, self).__init__("ChemAxon is not available.")
