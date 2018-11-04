@@ -22,14 +22,12 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-""""""
-
 from __future__ import absolute_import
 
 import logging
 import platform
-from subprocess import Popen, PIPE
 
+import subprocess
 import pandas
 from six import StringIO
 
@@ -47,7 +45,6 @@ else:
 
 MID_PH = 7.0
 N_PKAS = 20
-
 
 def run_cxcalc(molstring, args):
     """
@@ -72,21 +69,45 @@ def run_cxcalc(molstring, args):
 
     """
 
-    with open(platform.DEV_NULL, 'w') as dev_null:
+    if platform.python_version_tuple()[0] == '2':
+        with open(platform.DEV_NULL, 'w') as dev_null:
+            try:
+                LOGGER.debug("INPUT: echo %s | %s" % (molstring, ' '.join([CXCALC_BIN] + args)))
+                p1 = subprocess.Popen(["echo", molstring],
+                                      stdout=subprocess.PIPE,
+                                      shell=use_shell_for_echo)
+                p2 = subprocess.Popen([CXCALC_BIN] + args,
+                                      stdin=p1.stdout,
+                                      executable=CXCALC_BIN,
+                                      stdout=subprocess.PIPE,
+                                      stderr=dev_null, shell=False)
+    
+                res = p2.communicate()[0].decode('utf8')
+                if p2.returncode != 0:
+                    raise exceptions.ChemAxonRuntimeError(str(args))
+    
+                LOGGER.debug("OUTPUT: %s" % res)
+                return res
+            except OSError:
+                raise Exception("Marvin (by ChemAxon) must be installed to calculate pKa data.")
+    elif platform.python_version_tuple()[0] == '3':
         try:
-            LOGGER.debug("INPUT: echo %s | %s" % (molstring, ' '.join([CXCALC_BIN] + args)))
-            p1 = Popen(["echo", molstring], stdout=PIPE, shell=use_shell_for_echo)
-            p2 = Popen([CXCALC_BIN] + args, stdin=p1.stdout,
-                       executable=CXCALC_BIN, stdout=PIPE, stderr=dev_null, shell=False)
-
-            res = p2.communicate()[0].decode('utf-8')
-            if p2.returncode != 0:
+            LOGGER.debug("INPUT: %s | %s" % (molstring, ' '.join([CXCALC_BIN] + args)))
+            result = subprocess.run([CXCALC_BIN] + args,
+                                    input=molstring,
+                                    stdout=subprocess.PIPE,
+                                    stderr=None,
+                                    universal_newlines=True)
+    
+            if result.returncode != 0:
                 raise exceptions.ChemAxonRuntimeError(str(args))
-
-            LOGGER.debug("OUTPUT: %s" % res)
-            return res
+    
+            LOGGER.debug("OUTPUT: %s" % result.stdout)
+            return result.stdout
         except OSError:
             raise Exception("Marvin (by ChemAxon) must be installed to calculate pKa data.")
+    else:
+        raise Exception('Python version must be 2.x or 3.x')
 
 
 def parse_pka_output(output, n_acidic, n_basic):
@@ -213,14 +234,6 @@ def get_formula_and_charge(molstring):
         formal_charge = 0
 
     return formula, formal_charge
-
-
-try:
-    run_cxcalc("CCCC", ["formalcharge"])
-except Exception as exception:
-    new_exception = exceptions.ChemAxonNotAvailable()
-
-    raise new_exception
 
 
 if __name__ == "__main__":

@@ -1,6 +1,9 @@
 import unittest
-from component_contribution import CompoundCache, inchi2gv, GroupDecompositionError
-from weakref import ref as weakref
+from component_contribution import CompoundCache, inchi2gv, \
+    Compound, GroupDecompositionError
+
+import logging
+logging.getLogger().setLevel(logging.INFO)
 
 class TestGroupDecomposition(unittest.TestCase):
 
@@ -16,13 +19,14 @@ class TestGroupDecomposition(unittest.TestCase):
         smiles_ATP_neutral = 'Nc1c2ncn([C@@H]3O[C@H](COP(=O)(O)OP(=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]3O)c2ncn1'
 
         atp_cpd = self.ccache.get_compound('KEGG:C00002')
+        self.assertIsInstance(atp_cpd, Compound)
         self.assertEqual(inchi_ATP, atp_cpd.inchi)
-        
         self.assertDictEqual(self.decompose_inchi(inchi_ATP),
                              self.decompose_smiles(smiles_ATP_neutral))
         
     def decompose_cid(self, cid):
         cpd = self.ccache.get_compound('KEGG:' + cid)
+        self.assertIsInstance(cpd, Compound)
         groups = self.decompose_inchi(cpd.inchi)
         del cpd
         return groups

@@ -125,7 +125,7 @@ class KeggReaction(object):
         """
         try:
             cids = list(self.keys())
-            coeffs = np.matrix(list(map(self.sparse.__getitem__, cids)))
+            coeffs = np.array(list(map(self.sparse.__getitem__, cids)), ndmin=2)
     
             cached_cids = set(map(str, self.ccache.compound_id2inchi.keys()))
             if not cached_cids.issuperset(cids):
@@ -180,7 +180,7 @@ class KeggReaction(object):
         return len(self.sparse) == 0
             
     def dense(self, cids):
-        s = np.matrix(np.zeros((len(cids), 1)))
+        s = np.zeros((len(cids), 1))
         for cid, coeff in self.items():
             s[cids.index(cid), 0] = coeff
         return s

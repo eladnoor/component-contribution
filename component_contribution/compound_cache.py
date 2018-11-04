@@ -22,11 +22,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-""""""
-
 from __future__ import absolute_import
-
-from weakref import ref as weakref
 
 import numpy
 import logging
@@ -175,8 +171,6 @@ class CompoundCache(Singleton):
 
         if inchi_key in self.compound_dict:
             cpd = self.compound_dict[inchi_key]
-            if type(cpd) == weakref:
-                cpd = cpd()
         else:
             data = self._data.loc[inchi_key]
             cpd = Compound(
@@ -192,7 +186,7 @@ class CompoundCache(Singleton):
 
         self._inchi_key_to_compound_ids[cpd.inchi_key].add(cpd.compound_id)
         self._compound_id_to_inchi_key[cpd.compound_id] = cpd.inchi_key
-        self.compound_dict[cpd.inchi_key] = weakref(cpd)
+        self.compound_dict[cpd.inchi_key] = cpd
         self._data.loc[cpd.inchi_key] = [
             cpd.inchi, cpd.name, cpd.atom_bag, cpd.p_kas, cpd.smiles,
             cpd.major_microspecies, cpd.number_of_protons, cpd.charges]
@@ -214,8 +208,7 @@ class CompoundCache(Singleton):
 
         # create the elemental matrix, where each row is a compound and each
         # column is an element (or e-)
-        element_matrix = numpy.matrix(
-            numpy.zeros((len(atom_bag_list), len(elements))))
+        element_matrix = numpy.zeros((len(atom_bag_list), len(elements)))
         for i, atom_bag in enumerate(atom_bag_list):
             if atom_bag is None:
                 element_matrix[i, :] = numpy.nan

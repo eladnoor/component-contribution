@@ -81,9 +81,9 @@ class KeggModel(object):
         # stoichiometric matrix, where the rows (compounds) are according to the
         # CID list 'cids'.
         cids = sorted(cids)
-        S = np.matrix(np.zeros((len(cids), len(kegg_reactions))))
+        S = np.zeros((len(cids), len(kegg_reactions)))
         for i, reaction in enumerate(kegg_reactions):
-            S[:, i] = np.matrix(reaction.dense(cids))
+            S[:, i] = np.array(reaction.dense(cids))
         
         logging.debug('Successfully loaded %d reactions (involving %d unique compounds)' %
                       (S.shape[1], S.shape[0]))
@@ -158,9 +158,9 @@ class KeggModel(object):
             each estimate (i.e. a measure for the uncertainty).
         """
         dG0_prime = self.dG0 + self._get_transform_ddG0(pH=pH, I=I, T=T)
-        dG0_std = np.matrix(np.sqrt(np.diag(self.cov_dG0))).T
+        dG0_std = np.array(np.sqrt(np.diag(self.cov_dG0)), ndmin=2).T
         U, s, V = np.linalg.svd(self.cov_dG0, full_matrices=True)
-        sqrt_Sigma = np.matrix(U) * np.matrix(np.diag(s**0.5)) * np.matrix(V)
+        sqrt_Sigma = U @ np.diag(s**0.5) @ V
         return dG0_prime, dG0_std, sqrt_Sigma
 
     def _get_transform_ddG0(self, pH, I, T):
@@ -174,7 +174,7 @@ class KeggModel(object):
             to the chemical Gibbs energies of reaction (DrG0) to get the 
             transformed values
         """
-        ddG0_compounds = np.matrix(np.zeros((self.S.shape[0], 1)))
+        ddG0_compounds = np.zeros((self.S.shape[0], 1))
         for i, cid in enumerate(self.cids):
             comp = self.ccache.get_compound(cid)
             ddG0_compounds[i, 0] = comp.transform_p_h_7(pH, I, T)
@@ -184,7 +184,7 @@ class KeggModel(object):
         
     def check_S_balance(self, fix_water=False):
         elements, Ematrix = self.ccache.get_element_matrix(self.cids)
-        conserved = Ematrix.T * self.S
+        conserved = Ematrix.T @ self.S
 
         if fix_water:
             # This part only looks for imbalanced oxygen and uses extra
@@ -199,7 +199,7 @@ class KeggModel(object):
             i_h2o = self.cids.index('C00001')
             add_water = -conserved[elements.index('O'), :]
             self.S[i_h2o, :] += add_water
-            conserved += Ematrix[i_h2o, :].T * add_water
+            conserved += Ematrix[i_h2o, :].T @ add_water
 
         rxnFil = np.any(conserved[:,range(self.S.shape[1])],axis=0)
         unbalanced_ind = np.nonzero(rxnFil)[1]

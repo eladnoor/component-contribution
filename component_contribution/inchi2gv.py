@@ -262,7 +262,7 @@ class GroupVector(list):
         return tuple(biochemical_vector)        
 
     def ToArray(self):
-        return np.matrix(self.Flatten())
+        return np.array(self.Flatten(), ndmin=2)
 
 class GroupsDataError(Exception):
     pass
