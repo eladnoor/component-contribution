@@ -29,6 +29,7 @@ from __future__ import absolute_import
 from weakref import ref as weakref
 
 import numpy
+import logging
 from six import string_types, iteritems
 from pandas import DataFrame, read_csv, concat
 
@@ -139,11 +140,14 @@ class CompoundCache(Singleton):
 
     def get_compound(self, compound_id, compute_pkas=True):
         if compound_id in self._compound_id_to_inchi_key:  # compound exists
+            logging.debug('Cache hit for %s' % compound_id)
             return self.get(self._compound_id_to_inchi_key[compound_id])
         # compound_id is an InChI Key and exists
         elif compound_id in self._data.index:
+            logging.debug('Cache hit for InChiKey %s' % compound_id)
             return self.get(compound_id)
         else:  # compound does not exist.
+            logging.debug('Cache miss, calculating pKas for %s' % compound_id)
             cpd = Compound.get(compound_id, compute_pkas)
             if cpd.inchi_key in self._data.index:
                 cpd = self.get(cpd.inchi_key)
@@ -171,6 +175,8 @@ class CompoundCache(Singleton):
 
         if inchi_key in self.compound_dict:
             cpd = self.compound_dict[inchi_key]
+            if type(cpd) == weakref:
+                cpd = cpd()
         else:
             data = self._data.loc[inchi_key]
             cpd = Compound(

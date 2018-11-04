@@ -105,8 +105,8 @@ class Compound(object):
 
     @classmethod
     def from_molecule(cls, compound_id, molecule, compute_pkas=True):
-        inchi = molecule.write("inchi")
-        inchi_key = molecule.write("inchikey")
+        inchi = molecule.write("inchi").strip()
+        inchi_key = molecule.write("inchikey").strip()
         if compound_id in COMPOUND_EXCEPTIONS:
             return cls(inchi_key, inchi, *COMPOUND_EXCEPTIONS[compound_id],
                        compound_id=compound_id)

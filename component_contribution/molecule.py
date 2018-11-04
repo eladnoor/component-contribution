@@ -1,7 +1,8 @@
 import openbabel
 import types
 import re
-from .chemaxon import GetAtomBagAndCharge
+from collections import defaultdict
+from component_contribution import chemaxon
 
 class OpenBabelError(Exception):
     pass
@@ -28,7 +29,7 @@ class Molecule(object):
             
     @staticmethod
     def GetAtomicNum(elem):
-        if type(elem) == types.UnicodeType:
+        if type(elem) == str:
             elem = str(elem)
         return Molecule._obElements.GetAtomicNum(elem)
     
@@ -228,9 +229,31 @@ class Molecule(object):
     def GetExactMass(self):
         return self.obmol.GetExactMass()
     
+    @staticmethod
+    def _FormulaToAtomBag(formula, formal_charge=0):
+        atom_bag = defaultdict(int)
+        for mol_formula_times in formula:
+            for times, mol_formula in re.findall('^(\d+)?(\w+)', mol_formula_times):
+                if not times:
+                    times = 1
+                else:
+                    times = int(times)
+                for atom, count in re.findall("([A-Z][a-z]*)([0-9]*)", mol_formula):
+                    if count == '':
+                        count = 1
+                    else:
+                        count = int(count)
+                    atom_bag[atom] += count * times
+        
+        n_protons = sum([c * Molecule.GetAtomicNum(elem)
+                         for (elem, c) in atom_bag.items()])
+        atom_bag['e-'] = n_protons - formal_charge
+        return atom_bag
+    
     def GetAtomBagAndCharge(self):
         inchi = self.ToInChI()
-        atom_bag, major_ms_charge = GetAtomBagAndCharge(inchi)
+        formula, major_ms_charge = chemaxon.get_formula_and_charge(inchi)
+        atom_bag = Molecule._FormulaToAtomBag(formula, major_ms_charge)
         return atom_bag, major_ms_charge
 
     def GetHydrogensAndCharge(self):
@@ -277,5 +300,15 @@ class Molecule(object):
         return [atom.GetFormalCharge() for atom in self.GetAtoms()]
 
 if __name__ == '__main__':
-    mol = Molecule.FromInChI('InChI=1S/H2/h1H')
-    print(mol.ExactMass())
+    import logging
+    LOGGER = logging.getLogger(__name__)
+    LOGGER.setLevel(logging.WARNING)
+
+    compound_list = [('orthophosphate', 'InChI=1S/H3O4P/c1-5(2,3)4/h(H3,1,2,3,4)/p-3'),
+                     ('D-Erythrulose', 'InChI=1S/C4H8O4/c5-1-3(7)4(8)2-6/h3,5-7H,1-2H2/t3-/m1/s1')]
+    for name, inchi in compound_list:
+        mol = Molecule.FromInChI(inchi)
+        formula = mol.GetFormula()
+        atom_bag, charge = mol.GetAtomBagAndCharge()
+        print("Name: %s\nInChI: %s\nFormula: %s\nCharge: %s" 
+              % (name, inchi, formula, charge))

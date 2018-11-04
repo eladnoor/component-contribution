@@ -225,11 +225,10 @@ except Exception as exception:
 
 if __name__ == "__main__":
     LOGGER.setLevel(logging.WARNING)
-    from component_contribution import Molecule
     compound_list = [('orthophosphate', 'InChI=1S/H3O4P/c1-5(2,3)4/h(H3,1,2,3,4)/p-3'),
                      ('D-Erythrulose', 'InChI=1S/C4H8O4/c5-1-3(7)4(8)2-6/h3,5-7H,1-2H2/t3-/m1/s1')]
     for name, inchi in compound_list:
-        print("Formula: %s\nCharge: %d" % get_formula_and_charge(inchi))
+        formula, charge = get_formula_and_charge(inchi)
         diss_table, major_ms = get_dissociation_constants(inchi)
-        m = Molecule.FromSmiles(major_ms)
-        print("Name: %s\nInChI: %s\npKas: %s" % (name, m.ToInChI(), str(diss_table)))
+        print("Name: %s\nInChI: %s\nFormula: %s\nCharge: %s\npKas: %s" %
+              (name, inchi, formula, charge, str(diss_table)))

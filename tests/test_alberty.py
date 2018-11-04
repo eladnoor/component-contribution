@@ -14,18 +14,13 @@ class TestAlbertyTransform(unittest.TestCase):
         self.assertEqual(self.atp_comp.major_microspecies, 2)
         
     def test_transform(self):
-        pH = 7.0
-        I = 0.2
         T = 300.0
+        ddG_ref_list = [0, 72.3, 114.9, 143.2, 162.1, 171.0, 176.2]
+
+        self.assertEqual(len(self.atp_comp.number_of_protons),
+                         len(ddG_ref_list))
         
-        species_transform_values = [(0, 406.3),
-                                    (1, 478.6),
-                                    (2, 521.2),
-                                    (3, 549.5),
-                                    (4, 568.4),
-                                    (5, 577.3),
-                                    (6, 582.5)]
-        
-        for i, t in species_transform_values:
-            self.assertAlmostEqual(self.atp_comp.transform(i, pH, I, T), t, 1)
+        ddG_res_list = [self.atp_comp._ddG(0, i, T) for i in range(7)]
+        for i in range(7):
+            self.assertAlmostEqual(ddG_ref_list[i], ddG_res_list[i], 1)
 
