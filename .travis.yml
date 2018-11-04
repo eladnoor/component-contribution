@@ -16,9 +16,6 @@ addons:
       - libopenbabel-dev
       - swig
 
-virtualenv:
-      system_site_packages: true
-
 env:
   global:
     - LD_PRELOAD=/lib/x86_64-linux-gnu/libSegFault.so
