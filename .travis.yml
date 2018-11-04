@@ -16,11 +16,6 @@ addons:
       - libopenbabel-dev
       - swig
 
-env:
-  global:
-    - LD_PRELOAD=/lib/x86_64-linux-gnu/libSegFault.so
-    - SEGFAULT_SIGNALS=all
-
 install:
   - pip install -r requirements.txt
 
