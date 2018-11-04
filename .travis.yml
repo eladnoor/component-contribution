@@ -1,12 +1,15 @@
 language: python
-sudo: false
+sudo: true
 cache: pip
+
 git:
   depth: 2
+
 env:
   global:
     - LD_PRELOAD=/lib/x86_64-linux-gnu/libSegFault.so
     - SEGFAULT_SIGNALS=all
+
 matrix:
   fast_finish: true
   include:
@@ -26,16 +29,27 @@ matrix:
       python: '3.6'
       env:
         - TOXENV=py36
+
+addons:
+  apt:
+    packages:
+      - libopenbabel-dev
+
+virtualenv:
+      system_site_packages: true
+
 before_install:
   - python -V
   - uname -a
   - lsb_release -a
-  - sudo apt-get update
-  - sudo apt-get install libopenbabel-dev
+  - sudo apt-get -qq -y update
+  
 install:
   - travis_retry pip install -U pip setuptools wheel tox
+
 script:
   - travis_wait tox
+
 deploy:
   - provider: pypi
     skip_cleanup: true
