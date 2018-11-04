@@ -14,7 +14,7 @@ matrix:
       python: '3.5'
       env:
         - TOXENV=flake8
-    - os: 'linux'
+    - os: 'linux'g
       python: '2.7'
       env:
         - TOXENV=py27
@@ -30,6 +30,11 @@ before_install:
   - python -V
   - uname -a
   - lsb_release -a
+addons:
+  apt:
+    update: true
+  packages:
+  - libopenbabel-dev
 install:
   - travis_retry pip install -U pip setuptools wheel tox
 script:
