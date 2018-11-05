@@ -1,17 +1,19 @@
 import os, logging, csv
 import numpy as np
+import pandas as pd
 from scipy.io import savemat
 from .thermodynamic_constants import R, F
 from .compound_cache import CompoundCache
 from .kegg_reaction import KeggReaction
+from pkg_resources import resource_stream
 
 class TrainingData(object):
     
     # a dictionary of the filenames of the training data and the relative 
-    # weight of each one    
-    FNAME_DICT = {'TECRDB' : ('../data/TECRDB.tsv', 1.0),
-                  'FORMATION' : ('../data/formation_energies_transformed.tsv', 1.0),
-                  'REDOX' : ('../data/redox.tsv', 1.0)}
+    # weight of each one
+    FNAME_DICT = {'TECRDB' : ('data/TECRDB.csv', 1.0),
+                  'FORMATION' : ('data/formation_energies_transformed.csv', 1.0),
+                  'REDOX' : ('data/redox.csv', 1.0)}
 
     def __del__(self):
         self.ccache.dump()
@@ -19,33 +21,36 @@ class TrainingData(object):
     def __init__(self):
         self.ccache = CompoundCache()
         
-        thermo_params, self.cids_that_dont_decompose = TrainingData.get_all_thermo_params()
+        thermo_df, self.cids_that_dont_decompose = \
+            TrainingData.get_all_thermo_params()
         
         cids = set()
-        for d in thermo_params:
-            cids = cids.union(d['reaction'].keys())
+        for rxn in thermo_df['reaction']:
+            cids = cids.union(rxn.keys())
         cids = sorted(cids)
         
         # convert the list of reactions in sparse notation into a full
         # stoichiometric matrix, where the rows (compounds) are according to the
         # CID list 'cids'.
-        self.S = np.zeros((len(cids), len(thermo_params)))
-        for k, d in enumerate(thermo_params):
-            for cid, coeff in d['reaction'].items():
+        self.S = np.zeros((len(cids), thermo_df.shape[0]))
+        for k, rxn in enumerate(thermo_df['reaction'].values):
+            for cid, coeff in rxn.items():
                 self.S[cids.index(cid), k] = coeff
             
         self.cids = cids
 
-        self.dG0_prime = np.array([d['dG\'0'] for d in thermo_params])
-        self.T = np.array([d['T'] for d in thermo_params])
-        self.I = np.array([d['I'] for d in thermo_params])
-        self.pH = np.array([d['pH'] for d in thermo_params])
-        self.pMg = np.array([d['pMg'] for d in thermo_params])
-        self.weight = np.array([d['weight'] for d in thermo_params])
-        self.reference = [d['reference'] for d in thermo_params]
-        self.description = [d['description'] for d in thermo_params]
-        rxn_inds_to_balance = [i for i in range(len(thermo_params))
-                               if thermo_params[i]['balance']]
+        self.dG0_prime = np.array(thermo_df["dG'0"])
+        self.T = np.array(thermo_df["T"])
+        self.I = np.array(thermo_df["I"])
+        self.pH = np.array(thermo_df["pH"])
+        self.pMg = np.array(thermo_df["pMg"])
+        self.weight = np.array(thermo_df["weight"])
+        self.reference = thermo_df["reference"].tolist()
+        self.description = thermo_df["description"].tolist()
+        
+        balance = thermo_df["balance"].tolist()
+        rxn_inds_to_balance = \
+            [i for i in range(thermo_df.shape[0]) if balance[i]]
 
         self.balance_reactions(rxn_inds_to_balance)
         
@@ -89,102 +94,94 @@ class TrainingData(object):
             return float(s)
 
     @staticmethod
-    def read_tecrdb(fname, weight):
-        """Read the raw data of TECRDB (NIST)"""
-        thermo_params = [] # columns are: reaction, dG'0, T, I, pH, pMg, weight, balance?
+    def read_tecrdb(resource_name, weight):
+        """
+            Read the raw data of TECRDB (NIST)
+        """
+        
+        tecr_df = pd.read_csv(resource_stream('component_contribution',
+                                              '/data/TECRDB.csv'))
 
-        headers = ["URL", "REF_ID", "METHOD", "EVAL", "EC", "ENZYME NAME",
-                   "REACTION IN KEGG IDS", "REACTION IN COMPOUND NAMES",
-                   "K", "K'", "T", "I", "pH", "pMg"]
+        for col in ["T", "I", "pH", "pMg", "K'"]:
+            tecr_df[col] = tecr_df[col].apply(float)
+        
+        # remove rows with missing crucial data
+        tecr_df = tecr_df[~pd.isnull(tecr_df[["K'", "T", "pH"]]).any(axis=1)]
+        
+        # calculate the dG'0 from the Keq and T
+        tecr_df["dG'0"] = -R * tecr_df["T"] * np.log(tecr_df["K'"])
+        
+        # parse the reaction
+        tecr_df['reaction'] = tecr_df['REACTION IN KEGG IDS'].apply(lambda r:
+            KeggReaction.parse_formula(r, arrow='='))
 
-        for row_list in csv.reader(open(fname, 'r'), delimiter='\t'):
-            if row_list == []:
-                continue
-            row = dict(zip(headers, row_list))
-            if (row['K\''] == '') or (row['T'] == '') or (row['pH'] == ''):
-                continue
-            
-            # parse the reaction
-            reaction = KeggReaction.parse_formula(row['REACTION IN KEGG IDS'], arrow='=')
+        tecr_df.rename(columns={'REF_ID': 'reference',
+                                'REACTION IN COMPOUND NAMES': 'description'},
+                       inplace=True)
+        tecr_df['weight'] = weight
+        tecr_df['balance'] = True
+        tecr_df.drop(["URL", "METHOD", "K", "K'", "EVAL", "EC", "ENZYME NAME",
+                      "REACTION IN KEGG IDS"],
+                     axis=1, inplace=True)
 
-            # calculate dG'0
-            dG0_prime = -R * TrainingData.str2double(row['T']) * \
-                             np.log(TrainingData.str2double(row['K\''])) 
-            try:
-                thermo_params.append({'reaction': reaction,
-                                      'dG\'0' : dG0_prime,
-                                      'T': TrainingData.str2double(row['T']), 
-                                      'I': TrainingData.str2double(row['I']),
-                                      'pH': TrainingData.str2double(row['pH']),
-                                      'pMg': TrainingData.str2double(row['pMg']),
-                                      'weight': weight,
-                                      'balance': True,
-                                      'reference': row['REF_ID'],
-                                      'description': row['REACTION IN COMPOUND NAMES']})
-            except ValueError:
-                raise Exception('Cannot parse row: ' + str(row))
-
-        logging.debug('Successfully added %d reactions from TECRDB' % len(thermo_params))
-        return thermo_params
+        logging.debug('Successfully added %d reactions from TECRDB' % 
+                      tecr_df.shape[0])
+        return tecr_df
         
     @staticmethod
-    def read_formations(fname, weight):
-        """Read the Formation Energy data"""
+    def read_formations(resource_name, weight):
+        """
+            Read the Formation Energy data
+        """
         
-        # columns are: reaction, dG'0, T, I, pH, pMg, weight, balance?
-        thermo_params = []
-        cids_that_dont_decompose = set()
-        
-        # fields are: cid, name, dG'0, pH, I, pMg, T, decompose?,
-        #             compound_ref, remark
-        for row in csv.DictReader(open(fname, 'r'), delimiter='\t'):
-            if int(row['decompose']) == 0:
-                cids_that_dont_decompose.add(row['cid'])
-            if row['dG\'0'] != '':
-                rxn = KeggReaction({row['cid'] : 1})
-                thermo_params.append({'reaction': rxn,
-                                      'dG\'0' : TrainingData.str2double(row['dG\'0']),
-                                      'T': TrainingData.str2double(row['T']), 
-                                      'I': TrainingData.str2double(row['I']),
-                                      'pH': TrainingData.str2double(row['pH']),
-                                      'pMg': TrainingData.str2double(row['pMg']),
-                                      'weight': weight,
-                                      'balance': False,
-                                      'reference': row['compound_ref'],
-                                      'description': row['name'] + ' formation'})
+        formation_df = pd.read_csv(resource_stream('component_contribution',
+                                                   '/data/formation_energies_transformed.csv'))
 
-        logging.debug('Successfully added %d formation energies' % len(thermo_params))
-        return thermo_params, cids_that_dont_decompose
+        cids_that_dont_decompose = set(
+            formation_df.loc[formation_df['decompose'] == 0, 'cid'])
+
+        for col in ["dG'0", "T", "I", "pH", "pMg"]:
+            formation_df[col] = formation_df[col].apply(float)
+
+        formation_df = formation_df[~pd.isnull(formation_df["dG'0"])]
+        formation_df['reaction'] = formation_df['cid'].apply(
+                lambda c: KeggReaction({c: 1}))
+
+        formation_df['weight'] = weight
+        formation_df['balance'] = False
+        formation_df['description'] = formation_df['name'] + ' formation'
+        formation_df.rename(columns={'compound_ref': 'reference'}, inplace=True)
+        formation_df.drop(['name', 'cid', 'remark', 'decompose'],
+                          axis=1, inplace=True)
+
+        logging.debug('Successfully added %d formation energies' % 
+                      formation_df.shape[0])
+        return formation_df, cids_that_dont_decompose
         
     @staticmethod
-    def read_redox(fname, weight):
-        """Read the Reduction potential data"""
-        # columns are: reaction, dG'0, T, I, pH, pMg, weight, balance?
-        thermo_params = []
+    def read_redox(resource_name, weight):
+        """
+            Read the Reduction potential data
+        """
+        redox_df = pd.read_csv(resource_stream('component_contribution',
+                                               '/data/redox.csv'))
         
-        # fields are: name, CID_ox, nH_ox, charge_ox, CID_red,
-        #             nH_red, charge_red, E'0, pH, I, pMg, T, ref
-        for row in csv.DictReader(open(fname, 'r'), delimiter='\t'):
-            delta_nH = TrainingData.str2double(row['nH_red']) - \
-                       TrainingData.str2double(row['nH_ox'])
-            delta_charge = TrainingData.str2double(row['charge_red']) - \
-                           TrainingData.str2double(row['charge_ox'])
-            delta_e = delta_nH - delta_charge
-            dG0_prime = -F * TrainingData.str2double(row['E\'0']) * delta_e
-            rxn = KeggReaction({row['CID_ox'] : -1, row['CID_red'] : 1})
-            thermo_params.append({'reaction': rxn,
-                                  'dG\'0' : dG0_prime,
-                                  'T': TrainingData.str2double(row['T']), 
-                                  'I': TrainingData.str2double(row['I']),
-                                  'pH': TrainingData.str2double(row['pH']),
-                                  'pMg': TrainingData.str2double(row['pMg']),
-                                  'weight': weight,
-                                  'balance': False,
-                                  'reference': row['ref'],        
-                                  'description': row['name'] + ' redox'})
+        delta_nH = redox_df['nH_red'] - redox_df['nH_ox']
+        delta_charge = redox_df['charge_red'] - redox_df['charge_ox']
+        delta_e = delta_nH - delta_charge
+        redox_df["dG'0"] = -F * redox_df["E'0"] * delta_e
+        redox_df['reaction'] = [KeggReaction({row['CID_ox'] : -1, row['CID_red'] : 1})
+                                for _, row in redox_df.iterrows()]
+        redox_df['weight'] = weight
+        redox_df['balance'] = False
+        redox_df['description'] = redox_df['name'] + ' redox'
+        redox_df.rename(columns={'ref': 'reference'}, inplace=True)
+        redox_df.drop(['name', 'CID_ox', 'CID_red', 'charge_ox', 'charge_red',
+                       'nH_ox', 'nH_red', "E'0"], axis=1, inplace=True)
 
-        logging.debug('Successfully added %d redox potentials' % len(thermo_params))
-        return thermo_params
+        logging.debug('Successfully added %d redox potentials' % 
+                      redox_df.shape[0])
+        return redox_df
     
     @staticmethod
     def get_all_thermo_params():
@@ -192,25 +189,26 @@ class TrainingData(object):
     
         fname, weight = TrainingData.FNAME_DICT['TECRDB']
         fname = os.path.join(base_path, fname)
-        tecrdb_params = TrainingData.read_tecrdb(fname, weight)
+        tecr_df = TrainingData.read_tecrdb(fname, weight)
         
         fname, weight = TrainingData.FNAME_DICT['FORMATION']
         fname = os.path.join(base_path, fname)
-        formation_params, cids_that_dont_decompose = TrainingData.read_formations(fname, weight)
+        formation_df, cids_that_dont_decompose = TrainingData.read_formations(fname, weight)
         
         fname, weight = TrainingData.FNAME_DICT['REDOX']
         fname = os.path.join(base_path, fname)
-        redox_params = TrainingData.read_redox(fname, weight)
+        redox_df = TrainingData.read_redox(fname, weight)
         
-        thermo_params = tecrdb_params + formation_params + redox_params
-        return thermo_params, cids_that_dont_decompose
+        thermo_df = pd.concat([tecr_df, formation_df, redox_df], sort=False)
+        return thermo_df, cids_that_dont_decompose
     
     def balance_reactions(self, rxn_inds_to_balance):
         """
             use the chemical formulas from the InChIs to verify that each and every
             reaction is balanced
         """
-        elements, Ematrix = self.ccache.get_element_matrix(self.cids)
+        elements, Ematrix = self.ccache.get_element_matrix(
+            map(lambda s: 'KEGG:' + s, self.cids))
         cpd_inds_without_formula = list(np.nonzero(np.any(np.isnan(Ematrix), 1))[0].flat)
         Ematrix[np.isnan(Ematrix)] = 0
 
