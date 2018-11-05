@@ -23,7 +23,7 @@
 
 from __future__ import absolute_import
 
-from pybel import readstring
+import pybel
 from requests import get
 
 from component_contribution.singleton import Singleton
@@ -49,7 +49,7 @@ def get_kegg_molecule(accession):
     response = get(
         "http://rest.kegg.jp/get/cpd:{}/mol".format(accession))
     response.raise_for_status()
-    return readstring("mol", response.text)
+    return pybel.readstring("mol", str(response.text))
 
 
 def get_hmdb_molecule(accession):
@@ -59,11 +59,11 @@ def get_hmdb_molecule(accession):
         "http://www.hmdb.ca/structures/metabolites/HMDB{:0>7}.mol".format(
             accession[4:]))
     response.raise_for_status()
-    return readstring("mol", response.text)
+    return pybel.readstring("mol", str(response.text))
 
 
 def get_inchi_molecule(accession):
-    return readstring("inchi", accession)
+    return pybel.readstring("inchi", accession)
 
 
 def get_chebi_molecule(accession):
