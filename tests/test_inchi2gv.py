@@ -1,6 +1,4 @@
 import unittest
-from component_contribution import CompoundCache, inchi2gv, \
-    Compound, GroupDecompositionError
 
 import logging
 logging.getLogger().setLevel(logging.INFO)
@@ -9,6 +7,8 @@ class TestGroupDecomposition(unittest.TestCase):
 
     def __init__(self, *args, **kwargs):
         super(TestGroupDecomposition, self).__init__(*args, **kwargs)
+        from component_contribution import CompoundCache, inchi2gv
+
         self.ccache = CompoundCache()
         groups_data = inchi2gv.init_groups_data()
         self.group_names = groups_data.GetGroupNames()
@@ -17,6 +17,7 @@ class TestGroupDecomposition(unittest.TestCase):
     def test_atp_major_ms(self):
         inchi_ATP = 'InChI=1S/C10H16N5O13P3/c11-8-5-9(13-2-12-8)15(3-14-5)10-7(17)6(16)4(26-10)1-25-30(21,22)28-31(23,24)27-29(18,19)20/h2-4,6-7,10,16-17H,1H2,(H,21,22)(H,23,24)(H2,11,12,13)(H2,18,19,20)/t4-,6-,7-,10-/m1/s1'
         smiles_ATP_neutral = 'Nc1c2ncn([C@@H]3O[C@H](COP(=O)(O)OP(=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]3O)c2ncn1'
+        from component_contribution import Compound
 
         atp_cpd = self.ccache.get_compound('KEGG:C00002')
         self.assertIsInstance(atp_cpd, Compound)
@@ -25,6 +26,7 @@ class TestGroupDecomposition(unittest.TestCase):
                              self.decompose_smiles(smiles_ATP_neutral))
         
     def decompose_cid(self, cid):
+        from component_contribution import Compound
         cpd = self.ccache.get_compound('KEGG:' + cid)
         self.assertIsInstance(cpd, Compound)
         groups = self.decompose_inchi(cpd.inchi)
@@ -32,6 +34,7 @@ class TestGroupDecomposition(unittest.TestCase):
         return groups
     
     def decompose_inchi(self, inchi):
+        from component_contribution import GroupDecompositionError
         try:
             gr = self.decomposer.inchi_to_groupvec(inchi)
             return dict(filter(lambda x: x[1], zip(self.group_names, gr)))
@@ -39,6 +42,7 @@ class TestGroupDecomposition(unittest.TestCase):
             return None
 
     def decompose_smiles(self, smiles):
+        from component_contribution import GroupDecompositionError
         try:
             gr = self.decomposer.smiles_to_groupvec(smiles)
             return dict(filter(lambda x: x[1], zip(self.group_names, gr)))

@@ -1,10 +1,10 @@
 import unittest
-from component_contribution import CompoundCache
 
 class TestAlbertyTransform(unittest.TestCase):
 
     def __init__(self, *args, **kwargs):
         super(TestAlbertyTransform, self).__init__(*args, **kwargs)
+        from component_contribution import CompoundCache
         self.ccache = CompoundCache()
         self.atp_comp = self.ccache.get_compound('KEGG:C00002')
 

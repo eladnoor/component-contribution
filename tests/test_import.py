@@ -3,10 +3,10 @@ from distutils.version import StrictVersion
 
 class TestDependenceis(unittest.TestCase):
 
-    def test_openbabel(self):
+    def test_pybel(self):
         # Test that openbabel can be imported
         try:
-            import openbabel
+            import pybel
         except ImportError:
             self.fail('''OpenBabel is not installed, or was installed without 
                          python bindings. Please go to http://openbabel.org/wiki/Python
