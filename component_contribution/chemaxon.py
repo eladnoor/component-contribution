@@ -29,7 +29,7 @@ import platform
 
 import subprocess
 import pandas
-from six import StringIO
+from six import StringIO, PY2
 
 from component_contribution import exceptions
 
@@ -45,6 +45,13 @@ else:
 
 MID_PH = 7.0
 N_PKAS = 20
+
+
+class ChemAxonNotFoundError(ImportError):
+    def __init__(self):
+        super(ChemAxonNotFoundError, self).__init__(
+            "Marvin cxcalc was not found on your system. "
+            "Please install it from https://chemaxon.com/")
 
 def run_cxcalc(molstring, args):
     """
@@ -68,10 +75,9 @@ def run_cxcalc(molstring, args):
         If the command fails.
 
     """
-
-    if platform.python_version_tuple()[0] == '2':
-        with open(platform.DEV_NULL, 'w') as dev_null:
-            try:
+    try:
+        if PY2:
+            with open(platform.DEV_NULL, 'w') as dev_null:
                 LOGGER.debug("INPUT: echo %s | %s" % (molstring, ' '.join([CXCALC_BIN] + args)))
                 p1 = subprocess.Popen(["echo", molstring],
                                       stdout=subprocess.PIPE,
@@ -88,10 +94,7 @@ def run_cxcalc(molstring, args):
     
                 LOGGER.debug("OUTPUT: %s" % res)
                 return res
-            except OSError:
-                raise Exception("Marvin (by ChemAxon) must be installed to calculate pKa data.")
-    elif platform.python_version_tuple()[0] == '3':
-        try:
+        else:
             LOGGER.debug("INPUT: %s | %s" % (molstring, ' '.join([CXCALC_BIN] + args)))
             result = subprocess.run([CXCALC_BIN] + args,
                                     input=molstring,
@@ -104,11 +107,9 @@ def run_cxcalc(molstring, args):
     
             LOGGER.debug("OUTPUT: %s" % result.stdout)
             return result.stdout
-        except OSError:
-            raise Exception("Marvin (by ChemAxon) must be installed to calculate pKa data.")
-    else:
-        raise Exception('Python version must be 2.x or 3.x')
 
+    except OSError:
+        raise ChemAxonNotFoundError()
 
 def parse_pka_output(output, n_acidic, n_basic):
     """

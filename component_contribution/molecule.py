@@ -1,5 +1,4 @@
 import openbabel
-import types
 import re
 from collections import defaultdict
 from component_contribution import chemaxon

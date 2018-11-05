@@ -32,3 +32,4 @@ from component_contribution.thermodynamic_constants import R, debye_huckel
 from component_contribution.compound import Compound
 from component_contribution.molecule import Molecule
 from component_contribution.inchi2gv import GroupDecompositionError
+from component_contribution.chemaxon import ChemAxonNotFoundError
