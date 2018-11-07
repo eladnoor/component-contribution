@@ -6,7 +6,6 @@ class TestAlbertyTransform(unittest.TestCase):
     def __init__(self, *args, **kwargs):
         super(TestAlbertyTransform, self).__init__(*args, **kwargs)
         self.ccache = CompoundCache()
-        self.ccache.load()
         try:
             self.atp_comp = self.ccache.get_compound('KEGG:C00002')
             self.missing_chemaxon = False
