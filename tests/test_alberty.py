@@ -6,6 +6,7 @@ class TestAlbertyTransform(unittest.TestCase):
     def __init__(self, *args, **kwargs):
         super(TestAlbertyTransform, self).__init__(*args, **kwargs)
         self.ccache = CompoundCache()
+        self.ccache.load()
         try:
             self.atp_comp = self.ccache.get_compound('KEGG:C00002')
             self.missing_chemaxon = False
@@ -31,4 +32,3 @@ class TestAlbertyTransform(unittest.TestCase):
         ddG_res_list = [self.atp_comp._ddG(0, i, T) for i in range(7)]
         for i in range(7):
             self.assertAlmostEqual(ddG_ref_list[i], ddG_res_list[i], 1)
-

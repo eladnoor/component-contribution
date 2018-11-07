@@ -1,4 +1,4 @@
-import csv, logging, types, json, itertools, sys
+import csv, logging, json, itertools, sys
 import numpy as np
 try:
     from StringIO import StringIO
@@ -172,7 +172,7 @@ class GroupVector(list):
     def __str__(self):
         """Return a sparse string representation of this group vector."""
         group_strs = []
-        gv_flat = self.Flatten()
+        gv_flat = self.flat
         for i, name in enumerate(self.groups_data.GetGroupNames()):
             if gv_flat[i]:
                 group_strs.append('%s x %d' % (name, gv_flat[i]))
@@ -247,7 +247,8 @@ class GroupVector(list):
             v[int(i)] = x
         return GroupVector(groups_data, v)
     
-    def Flatten(self):
+    @property
+    def flat(self):
         if not self.groups_data.transformed:
             return tuple(self)
         
@@ -261,8 +262,8 @@ class GroupVector(list):
             biochemical_vector[new_index] += x
         return tuple(biochemical_vector)        
 
-    def ToArray(self):
-        return np.array(self.Flatten(), ndmin=2)
+    def as_array(self):
+        return np.array(self.flat)
 
 class GroupsDataError(Exception):
     pass
@@ -1215,6 +1216,6 @@ if __name__ == "__main__":
             sys.exit(-1)
         if options.list_groups:
             sys.stdout.write(', '.join(groups_data.GetGroupNames()) + '\n')
-        sys.stdout.write(', '.join("%g" % i for i in groupvec.Flatten()) + '\n')
+        sys.stdout.write(', '.join("%g" % i for i in groupvec.flat) + '\n')
     else:
         sys.stdout.write('\n'.join(groups_data.GetGroupNames()))

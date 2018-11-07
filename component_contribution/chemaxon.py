@@ -190,6 +190,9 @@ def get_dissociation_constants(molstring, n_acidic=N_PKAS, n_basic=N_PKAS, p_h=M
     major_ms : string
         SMILES string of the major pseudoisomer at pH.
     """
+    if not molstring:
+        raise ValueError('Empty molstring, cannot calculate pKas')
+    
     args = []
     if n_acidic + n_basic > 0:
         args += ['pka', '-a', str(n_acidic), '-b', str(n_basic), 'majorms', '-M', 'true', '--pH', str(p_h)]

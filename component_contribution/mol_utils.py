@@ -58,14 +58,15 @@ def atom_bag_and_charge(molecule):
 
     atom_bag = defaultdict(int)
     formal_charge = 0
+    
+    # Make all hydrogens explicit so we can properly count them
+    molecule = molecule.clone
+    molecule.addh()
+    
     for atom in molecule.atoms:
         assert isinstance(atom, pybel.Atom)
         symbol = PERIODIC_TABLE.GetSymbol(atom.atomicnum)
-        # if symbol not in atom_bag:
-        #     atom_bag[symbol] = 1
-        # else:
         atom_bag[symbol] += 1
-
         formal_charge += atom.formalcharge
 
     n_protons = sum(c * PERIODIC_TABLE.GetAtomicNum(elem)
@@ -99,4 +100,3 @@ def remove_atoms(molecule, indices):
         molecule.OBMol.DeleteAtom(molecule.OBMol.GetAtom(i+1))
     molecule.OBMol.EndModify()
     return molecule
-

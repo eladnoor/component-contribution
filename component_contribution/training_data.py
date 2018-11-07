@@ -1,4 +1,4 @@
-import os, logging, csv
+import logging
 import numpy as np
 import pandas as pd
 from scipy.io import savemat
@@ -8,93 +8,63 @@ from .kegg_reaction import KeggReaction
 from pkg_resources import resource_stream
 
 class TrainingData(object):
-    
-    # a dictionary of the filenames of the training data and the relative 
-    # weight of each one
-    FNAME_DICT = {'TECRDB' : ('data/TECRDB.csv', 1.0),
-                  'FORMATION' : ('data/formation_energies_transformed.csv', 1.0),
-                  'REDOX' : ('data/redox.csv', 1.0)}
-
-    def __del__(self):
-        self.ccache.dump()
 
     def __init__(self):
         self.ccache = CompoundCache()
         
-        thermo_df, self.cids_that_dont_decompose = \
+        logging.info('Reading the training data files')
+        self.thermo_df, cids_that_dont_decompose = \
             TrainingData.get_all_thermo_params()
         
-        cids = set()
-        for rxn in thermo_df['reaction']:
+        cids = set(['C00001', 'C00080'])
+        for rxn in self.thermo_df['reaction']:
             cids = cids.union(rxn.keys())
-        cids = sorted(cids)
+        cids = sorted(map(lambda s: 'KEGG:' + s, cids))
         
         # convert the list of reactions in sparse notation into a full
         # stoichiometric matrix, where the rows (compounds) are according to the
         # CID list 'cids'.
-        self.S = np.zeros((len(cids), thermo_df.shape[0]))
-        for k, rxn in enumerate(thermo_df['reaction'].values):
+        self.S = pd.DataFrame(index=cids,
+                              columns=range(self.thermo_df.shape[0]),
+                              dtype=float).fillna(0)
+
+        cids_that_dont_decompose.update(['C00001', 'C00080'])
+        self.cids_that_dont_decompose = list(map(lambda s: 'KEGG:' + s,
+                                                 cids_that_dont_decompose))
+        
+        for k, rxn in enumerate(self.thermo_df['reaction'].values):
             for cid, coeff in rxn.items():
-                self.S[cids.index(cid), k] = coeff
-            
-        self.cids = cids
-
-        self.dG0_prime = np.array(thermo_df["dG'0"])
-        self.T = np.array(thermo_df["T"])
-        self.I = np.array(thermo_df["I"])
-        self.pH = np.array(thermo_df["pH"])
-        self.pMg = np.array(thermo_df["pMg"])
-        self.weight = np.array(thermo_df["weight"])
-        self.reference = thermo_df["reference"].tolist()
-        self.description = thermo_df["description"].tolist()
+                self.S.at['KEGG:' + cid, k] = coeff
         
-        balance = thermo_df["balance"].tolist()
-        rxn_inds_to_balance = \
-            [i for i in range(thermo_df.shape[0]) if balance[i]]
-
-        self.balance_reactions(rxn_inds_to_balance)
+        logging.info('Balancing all reactions in the training dataset')
+        self.balance_reactions()
         
+        logging.info('Applying the reverse Legendre transform on all dG0_prime values')
         self.reverse_transform()
 
-    def savemat(self, file_name):
-        """
-            Write all training data to a Matlab file.
-            
-            Arguments:
-                file_name - str or file-like object to which data will be written
-        """
-        d = {'dG0_prime': self.dG0_prime,
-             'dG0': self.dG0,
-             'T': self.T,
-             'I': self.I,
-             'pH': self.pH,
-             'pMg': self.pMg,
-             'weight': self.weight,
-             'cids': self.cids,
-             'S': self.S}
-        savemat(file_name, d, oned_as='row')
+#        self.dG0_prime = np.array(thermo_df["dG0_prime"])
+#        self.T = np.array(thermo_df["T"])
+#        self.I = np.array(thermo_df["I"])
+#        self.pH = np.array(thermo_df["pH"])
+#        self.pMg = np.array(thermo_df["pMg"])
+#        self.weight = np.array(thermo_df["weight"])
+#        self.reference = thermo_df["reference"].tolist()
+#        self.description = thermo_df["description"].tolist()
 
-    def savecsv(self, fname):
-        csv_output = csv.writer(open(fname, 'w'))
-        csv_output.writerow(['reaction', 'T', 'I', 'pH', 'reference', 'dG0', 'dG0_prime'])
-        for j in range(self.S.shape[1]):
-            sparse = {self.cids[i]: self.S[i, j] for i in range(self.S.shape[0])}
-            r_string = KeggReaction(sparse).write_formula()
-            csv_output.writerow([r_string, self.T[j], self.I[j], self.pH[j],
-                                 self.reference[j], self.dG0[j], self.dG0_prime[j]])
+    @property
+    def cids(self):
+        return self.S.index
+    
+    @property
+    def dG0(self):
+        return self.thermo_df['dG0']
+
+    @property
+    def weight(self):
+        return self.thermo_df['weight']
 
     @staticmethod
-    def str2double(s):
-        """
-            casts a string to float, but if the string is empty return NaN
-        """
-        if s == '':
-            return np.nan
-        else:
-            return float(s)
-
-    @staticmethod
-    def read_tecrdb(resource_name, weight):
+    def read_tecrdb():
         """
             Read the raw data of TECRDB (NIST)
         """
@@ -118,7 +88,6 @@ class TrainingData(object):
         tecr_df.rename(columns={'REF_ID': 'reference',
                                 'REACTION IN COMPOUND NAMES': 'description'},
                        inplace=True)
-        tecr_df['weight'] = weight
         tecr_df['balance'] = True
         tecr_df.drop(["URL", "METHOD", "K", "K'", "EVAL", "EC", "ENZYME NAME",
                       "REACTION IN KEGG IDS"],
@@ -129,7 +98,7 @@ class TrainingData(object):
         return tecr_df
         
     @staticmethod
-    def read_formations(resource_name, weight):
+    def read_formations():
         """
             Read the Formation Energy data
         """
@@ -147,7 +116,6 @@ class TrainingData(object):
         formation_df['reaction'] = formation_df['cid'].apply(
                 lambda c: KeggReaction({c: 1}))
 
-        formation_df['weight'] = weight
         formation_df['balance'] = False
         formation_df['description'] = formation_df['name'] + ' formation'
         formation_df.rename(columns={'compound_ref': 'reference'}, inplace=True)
@@ -159,7 +127,7 @@ class TrainingData(object):
         return formation_df, cids_that_dont_decompose
         
     @staticmethod
-    def read_redox(resource_name, weight):
+    def read_redox():
         """
             Read the Reduction potential data
         """
@@ -172,7 +140,6 @@ class TrainingData(object):
         redox_df["dG'0"] = -F * redox_df["E'0"] * delta_e
         redox_df['reaction'] = [KeggReaction({row['CID_ox'] : -1, row['CID_red'] : 1})
                                 for _, row in redox_df.iterrows()]
-        redox_df['weight'] = weight
         redox_df['balance'] = False
         redox_df['description'] = redox_df['name'] + ' redox'
         redox_df.rename(columns={'ref': 'reference'}, inplace=True)
@@ -185,103 +152,128 @@ class TrainingData(object):
     
     @staticmethod
     def get_all_thermo_params():
-        base_path = os.path.split(os.path.realpath(__file__))[0]
-    
-        fname, weight = TrainingData.FNAME_DICT['TECRDB']
-        fname = os.path.join(base_path, fname)
-        tecr_df = TrainingData.read_tecrdb(fname, weight)
+        tecr_df = TrainingData.read_tecrdb()
+        tecr_df['weight'] = 1.0
         
-        fname, weight = TrainingData.FNAME_DICT['FORMATION']
-        fname = os.path.join(base_path, fname)
-        formation_df, cids_that_dont_decompose = TrainingData.read_formations(fname, weight)
+        formation_df, cids_that_dont_decompose = TrainingData.read_formations()
+        formation_df['weight'] = 1.0
         
-        fname, weight = TrainingData.FNAME_DICT['REDOX']
-        fname = os.path.join(base_path, fname)
-        redox_df = TrainingData.read_redox(fname, weight)
+        redox_df = TrainingData.read_redox()
+        redox_df['weight'] = 1.0
         
         thermo_df = pd.concat([tecr_df, formation_df, redox_df], sort=False)
+        thermo_df.reset_index(drop=True, inplace=True)
+
+        thermo_df['I'].fillna(0.25, inplace=True) # default ionic strength is 0.25M
+        thermo_df['pMg'].fillna(14, inplace=True) # default pMg is 14
+        
+        thermo_df.rename(columns={"dG'0": 'dG0_prime'}, inplace=True)
+
         return thermo_df, cids_that_dont_decompose
     
-    def balance_reactions(self, rxn_inds_to_balance):
+    def balance_reactions(self):
         """
-            use the chemical formulas from the InChIs to verify that each and every
-            reaction is balanced
+            use the chemical formulas from the InChIs to verify that each and
+            every reaction is balanced
         """
-        elements, Ematrix = self.ccache.get_element_matrix(
-            map(lambda s: 'KEGG:' + s, self.cids))
-        cpd_inds_without_formula = list(np.nonzero(np.any(np.isnan(Ematrix), 1))[0].flat)
-        Ematrix[np.isnan(Ematrix)] = 0
 
-        S_without_formula = self.S[cpd_inds_without_formula, :]
-        rxn_inds_without_formula = np.nonzero(np.any(S_without_formula != 0, 0))[0]
-        rxn_inds_to_balance = set(rxn_inds_to_balance).difference(rxn_inds_without_formula)
+        element_df = self.ccache.get_element_data_frame(self.cids)
+        
+        # find all reactions that contain only compounds that have formulae
+        cpd_with_formulae = (element_df != 0).any(axis=1)
+        logging.info('# compounds without a formula: %d'
+                     % sum(~cpd_with_formulae))
+        
+        rxn_with_formulae = (self.S.loc[~cpd_with_formulae, :] == 0).all(axis=0)
+        logging.info('# reactions with full formulae: %d'
+                     % sum(rxn_with_formulae))
 
-        # need to check that all elements are balanced (except H, but including e-)
-        # if only O is not balanced, add water molecules
-        if 'O' in elements:
-            i_H2O = self.cids.index('C00001')
-            j_O = elements.index('O')
-            conserved = np.dot(Ematrix.T, self.S)
-            for k in rxn_inds_to_balance:
-                self.S[i_H2O, k] = self.S[i_H2O, k] - conserved[j_O, k]
+        # recalculate final conservation matrix
+        to_balance = self.thermo_df['balance'].copy()
+        logging.info('# reactions we need to check for balacne: %d'
+                     % to_balance.sum())
+        
+        to_balance = to_balance & rxn_with_formulae
+        logging.info('# -> of which also have a formulae: %d'
+                     % to_balance.sum())
 
-        # recalculate conservation matrix
-        conserved = Ematrix.T * self.S
-        
-        rxn_inds_to_remove = [k for k in rxn_inds_to_balance 
-                              if np.any(conserved[:, k] != 0, 0)]
-        
-        for k in rxn_inds_to_remove:
-            sprs = {}
-            for i in np.nonzero(self.S[:, k])[0]:
-                sprs[self.cids[i]] = self.S[i, k]
-            reaction = KeggReaction(sprs)
-            logging.debug('unbalanced reaction #%d: %s' %
-                          (k, reaction.write_formula()))
-            for j in np.where(conserved[:, k])[0].flat:
-                logging.debug('there are %d more %s atoms on the right-hand side' %
-                              (conserved[j, k], elements[j]))
-        
-        rxn_inds_to_keep = \
-            set(range(self.S.shape[1])).difference(rxn_inds_to_remove)
-        
-        rxn_inds_to_keep = sorted(rxn_inds_to_keep)
-        
-        self.S = self.S[:, rxn_inds_to_keep]
-        self.dG0_prime = self.dG0_prime[rxn_inds_to_keep]
-        self.T = self.T[rxn_inds_to_keep]
-        self.I = self.I[rxn_inds_to_keep]
-        self.pH = self.pH[rxn_inds_to_keep]
-        self.pMg = self.pMg[rxn_inds_to_keep]
-        self.weight = self.weight[rxn_inds_to_keep]
-        self.reference = [self.reference[i] for i in rxn_inds_to_keep]
-        self.description = [self.description[i] for i in rxn_inds_to_keep]
+        # balance O atoms using water
+        self.S.loc['KEGG:C00001', to_balance] -= element_df['O'].T @ self.S.loc[:, to_balance]
 
-        logging.debug('After removing %d unbalanced reactions, the stoichiometric '
-                      'matrix contains: '
-                      '%d compounds and %d reactions' %
-                      (len(rxn_inds_to_remove), self.S.shape[0], self.S.shape[1]))
+        # balance H atoms using protons
+        self.S.loc['KEGG:C00080', to_balance] -= element_df['H'].T @ self.S.loc[:, to_balance]
+        
+        imbalance_matrix = element_df.T @ self.S
+        to_remove = to_balance & imbalance_matrix.any(axis=0)
+        logging.info('# --> of which are not balanced and should be removed: %d'
+                     % to_remove.sum())
+        
+        if to_remove.sum() > 0:
+            for i, row in self.S.loc[:, to_remove].T.iterrows():
+                sprs = {cid: coeff for cid,coeff in row.items() if coeff != 0}
+                reaction = KeggReaction(sprs)
+                logging.warning('unbalanced reaction #%s: %s' %
+                                (i, reaction.write_formula()))
+                for j, v in imbalance_matrix[i].items():
+                    logging.warning('there are %d more %s atoms on the right-hand side' %
+                                  (v, j))
+            self.S = self.S.loc[:, ~to_remove]
+            self.S.columns = range(self.S.shape[1])
+        
+        self.S.drop('KEGG:C00080', axis=0, inplace=True)
+        self.thremo_df = self.thermo_df.loc[self.S.columns, :]
+
+        logging.info('After removing %d unbalanced reactions, the stoichiometric '
+                     'matrix contains: '
+                     '%d compounds and %d reactions' %
+                     (sum(to_remove), self.S.shape[0], self.S.shape[1]))
 
     def reverse_transform(self):
         """
             Calculate the reverse transform for all reactions in training_data.
         """
-        n_rxns = self.S.shape[1]
-        reverse_ddG0 = np.zeros(n_rxns)
-        self.I[np.isnan(self.I)] = 0.25 # default ionic strength is 0.25M
-        self.pMg[np.isnan(self.pMg)] = 14 # default pMg is 14
-        for i in range(n_rxns):
-            for j in np.nonzero(self.S[:, i])[0]:
-                cid = self.cids[j]
-                if cid == 'C00080': # H+ should be ignored in the Legendre transform
-                    continue
+        self.thermo_df['dG0'] = self.thermo_df['dG0_prime']
+        
+        for i, row in self.S.T.iterrows():
+            for cid, coeff in row[row != 0].items():
+                if cid == 'KEGG:C00080': # H+ should be ignored in the Legendre transform
+                    raise ValueError('You must drop H+ from the compound list')
                 comp = self.ccache.get_compound(cid)
-                ddG0 = comp.transform_p_h_7(self.pH[i], self.I[i], self.T[i])
-                reverse_ddG0[i] = reverse_ddG0[i] + ddG0 * self.S[j, i]
+                ddG0 = comp.transform_p_h_7(self.thermo_df.at[i, 'pH'],
+                                            self.thermo_df.at[i, 'I'],
+                                            self.thermo_df.at[i, 'T'])
+                self.thermo_df.at[i, 'dG0'] += ddG0 * coeff
 
-        self.dG0 = self.dG0_prime - reverse_ddG0
+    def savemat(self, file_name):
+        """
+            Write all training data to a Matlab file.
+            
+            Arguments:
+                file_name - str or file-like object to which data will be written
+        """
+        d = {'dG0_prime': self.dG0_prime,
+             'dG0': self.dG0,
+             'T': self.T,
+             'I': self.I,
+             'pH': self.pH,
+             'pMg': self.pMg,
+             'weight': self.weight,
+             'cids': self.cids,
+             'S': self.S.values}
+        savemat(file_name, d, oned_as='row')
+
+    def to_data_frame(self):
+        df = self.thermo_df.copy()
+        
+        for i, row in self.S.T.iterrows():
+            sprs = {cid: coeff for cid,coeff in row.items() if coeff != 0}
+            formula = KeggReaction(sprs).write_formula()
+            df.at[i, 'formula'] = formula
+
+        return df
         
 if __name__ == '__main__':
+    logging.getLogger().setLevel(logging.INFO)
     import argparse
     parser = argparse.ArgumentParser(description=
         'Prepare all thermodynamic training data in a .mat file for running '
@@ -292,4 +284,6 @@ if __name__ == '__main__':
     
     args = parser.parse_args()
     td = TrainingData()
-    td.savemat(args.outfile)
+    #td.savemat(args.outfile)
+    td.to_data_frame().to_csv(args.outfile)
+    

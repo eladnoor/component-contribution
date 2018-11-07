@@ -24,7 +24,7 @@
 from __future__ import absolute_import
 
 import pybel
-from requests import get
+from requests import get, exceptions
 
 from component_contribution.singleton import Singleton
 
@@ -46,10 +46,15 @@ class DatabaseInterface(Singleton):
 
 
 def get_kegg_molecule(accession):
-    response = get(
-        "http://rest.kegg.jp/get/cpd:{}/mol".format(accession))
-    response.raise_for_status()
-    return pybel.readstring("mol", str(response.text))
+    try:
+        response = get(
+            "http://rest.kegg.jp/get/cpd:{}/mol".format(accession))
+        response.raise_for_status()
+        molstring = str(response.text)
+    except exceptions.HTTPError:
+        return None
+        
+    return pybel.readstring("mol", molstring)
 
 
 def get_hmdb_molecule(accession):

@@ -71,7 +71,7 @@ class KeggReaction(object):
     @staticmethod
     def parse_formula(formula, arrow='<=>', rid=None):
         """ 
-            Parses a two-sided formula such as: 2 C00001 => C00002 + C00003 
+            Parses a two-sided formula such as: 2 KEGG:C00001 => KEGG:C00002 + KEGG:C00003 
             
             Return:
                 The set of substrates, products and the direction of the reaction
@@ -136,8 +136,8 @@ class KeggReaction(object):
                               ', '.join(sorted(missing_cids))
                 raise ValueError(warning_str)
         
-            elements, Ematrix = self.ccache.get_element_matrix(cids)
-            conserved = coeffs * Ematrix
+            element_df = self.ccache.get_element_data_frame(cids)
+            conserved = coeffs @ element_df.as_matrix()
     
             if np.any(np.isnan(conserved), 1):
                 warning_str = 'cannot test reaction balancing because of unspecific ' + \
@@ -150,8 +150,8 @@ class KeggReaction(object):
                 for j, c in enumerate(conserved.flat):
                     if c != 0:
                         logging.debug('there are %d more %s atoms on the right-hand side' %
-                                      (c, elements[j]))
-                        atom_bag[str(elements[j])] = c
+                                      (c, element_df.columns[j]))
+                        atom_bag[str(element_df.columns[j])] = c
             return atom_bag
             
         except ValueError as e:

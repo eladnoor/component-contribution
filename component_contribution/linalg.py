@@ -64,11 +64,11 @@ class LINALG(object):
     def _invert_project(A, eps=1e-10):
         n, m = A.shape
         U, S, V = LINALG.svd(A)
-        inv_A = V * np.linalg.pinv(S) * U.T
+        inv_A = V @ np.linalg.pinv(S) @ U.T
 
         r = (S > eps).sum()
-        P_R   = U[:, :r] * U[:, :r].T
-        P_N   = U[:, r:] * U[:, r:].T
+        P_R   = U[:, :r] @ U[:, :r].T
+        P_N   = U[:, r:] @ U[:, r:].T
 
         return inv_A, r, P_R, P_N
 

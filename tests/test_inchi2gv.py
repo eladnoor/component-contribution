@@ -12,6 +12,7 @@ class TestGroupDecomposition(unittest.TestCase):
         super(TestGroupDecomposition, self).__init__(*args, **kwargs)
 
         self.ccache = CompoundCache()
+        self.ccache.load()
         groups_data = inchi2gv.init_groups_data()
         self.group_names = groups_data.GetGroupNames()
         self.decomposer = inchi2gv.InChIDecomposer(groups_data)

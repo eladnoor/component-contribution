@@ -182,38 +182,6 @@ class KeggModel(object):
         ddG0_forward = np.dot(self.S.T, ddG0_compounds)
         return ddG0_forward
         
-    def check_S_balance(self, fix_water=False):
-        elements, Ematrix = self.ccache.get_element_matrix(self.cids)
-        conserved = Ematrix.T @ self.S
-
-        if fix_water:
-            # This part only looks for imbalanced oxygen and uses extra
-            # H2O molecules (on either side of the reaction equation) to
-            # balance them. Keep in mind that also the e- balance is affected
-            # by the water (and hydrogen is not counted at all).
-            if 'C00001' not in self.cids:
-                self.S = np.vstack([self.S, np.zeros((1, self.S.shape[1]))])
-                self.cids.append('C00001')
-                elements, Ematrix = self.ccache.get_element_matrix(self.cids)
-            
-            i_h2o = self.cids.index('C00001')
-            add_water = -conserved[elements.index('O'), :]
-            self.S[i_h2o, :] += add_water
-            conserved += Ematrix[i_h2o, :].T @ add_water
-
-        rxnFil = np.any(conserved[:,range(self.S.shape[1])],axis=0)
-        unbalanced_ind = np.nonzero(rxnFil)[1]
-        if unbalanced_ind != []:
-            logging.warning('There are (%d) unbalanced reactions in S. ' 
-                            'Setting their coefficients to 0.' % 
-                            len(unbalanced_ind.flat))
-            if self.rids is not None:
-                logging.warning('These are the unbalanced reactions: ' +
-                                ', '.join([self.rids[i] for i in unbalanced_ind.flat]))
-                    
-            self.S[:, unbalanced_ind] = 0
-        return self
-
     def write_reaction_by_index(self, r):
         sparse = dict([(cid, self.S[i, r]) for i, cid in enumerate(self.cids)
                        if self.S[i, r] != 0])
