@@ -106,7 +106,13 @@ class Compound(object):
             inchi = COMPOUND_ADDITIONS.at[compound_id, 'inchi']
             molecule = pybel.readstring("inchi", inchi)
         else:
-            database, accession = compound_id.split(":", 1)
+            try:
+                database, accession = compound_id.split(":", 1)
+            except ValueError:
+                # assume by default that this is a KEGG compound ID
+                database = 'KEGG'
+                accession = compound_id
+                
             molecule = databases.get_molecule(database, accession)
         return cls.from_molecule(compound_id, molecule, compute_pkas)
 

@@ -129,7 +129,6 @@ class CompoundCache(Singleton):
                 self._compound_id_to_inchi_key[compound_id] = cpd.inchi_key
             else:
                 self.add(cpd)
-
             return cpd
 
     def remove(self, inchi_key):

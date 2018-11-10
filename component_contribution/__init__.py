@@ -30,6 +30,7 @@ del get_versions
 from component_contribution.compound_cache import CompoundCache
 from component_contribution.thermodynamic_constants import R, debye_huckel
 from component_contribution.compound import Compound
-from component_contribution.molecule import Molecule
+from component_contribution.reaction import Reaction
 from component_contribution.inchi2gv import GroupDecompositionError
 from component_contribution.chemaxon import ChemAxonNotFoundError
+from component_contribution.component_contribution_trainer import ComponentContribution

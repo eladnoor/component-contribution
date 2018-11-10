@@ -1,8 +1,9 @@
 import os, logging, gzip, json
 import numpy as np
+import pandas as pd
 from . import inchi2gv
-from .training_data import TrainingData
-from .kegg_reaction import KeggReaction
+from .training_data import FullTrainingData
+from . import Reaction
 from .compound_cache import CompoundCache
 from .thermodynamic_constants import default_T
 from .molecule import Molecule, OpenBabelError
@@ -12,58 +13,53 @@ base_path = os.path.split(os.path.realpath(__file__))[0]
 CC_CACHE_FNAME = os.path.join(base_path, '../cache/component_contribution.npz')
 
 class ComponentContribution(object):
+    
+    MSE_inf = 1e10
 
-    def __init__(self, cache_file_name=None):
+    def __init__(self, cache_file_name=CC_CACHE_FNAME, training_data=None):
         self.ccache = CompoundCache()
         self.groups_data = inchi2gv.init_groups_data()
         self.decomposer = inchi2gv.InChIDecomposer(self.groups_data)
         self.group_names = self.groups_data.GetGroupNames()
         
-        if cache_file_name is None:
-            training_data = TrainingData()
-            self.params = None
-            self.train_cids = list(training_data.cids)
-            self.cids_joined = list(training_data.cids)
-    
-            self.train_S = training_data.S.values
-            self.model_S_joined = self.train_S
-            self.train_S_joined = self.model_S_joined
+        if cache_file_name and os.path.exists(cache_file_name):
+            if training_data is not None:
+                logging.warning('You provided both an existing cache file, and '
+                                'a training dataset for ComponentContribution. '
+                                'The training data will be ignored.')
             
-            self.train_b = training_data.dG0.values
-            self.train_w = training_data.weight.values
-            self.train_G = None
-    
-            self.Nc = len(self.cids_joined)
-            self.Ng = len(self.group_names)
-            self.train()
-            
-            ComponentContribution.save_params(self.params, CC_CACHE_FNAME)
-        else:
-            self.params = ComponentContribution.load_params(CC_CACHE_FNAME)
-            self.train_cids = self.params['train_cids'].tolist()
-            self.cids_joined = self.params['cids'].tolist()
-
-            self.model_S_joined = self.params['model_S']
-            self.train_S = self.params['train_S']
-            self.train_S_joined = self.params['train_S']
-
+            logging.info('Loading component-contributions params from: %s'
+                         % cache_file_name)
+            self.params  = self.load_params(cache_file_name)
+            self.cids    = self.params['cids'].tolist()
+            self.train_S = self.params['S']
             self.train_b = self.params['b']
             self.train_w = self.params['w']
             self.train_G = self.params['G']
-
-            self.Nc = len(self.cids_joined)
-            self.Ng = len(self.group_names)
-        
-
-    @staticmethod
-    def init():
-        if os.path.exists(CC_CACHE_FNAME):
-            logging.info('Loading component-contributions from cache')
-            return ComponentContribution(CC_CACHE_FNAME)
+            self.Nc      = len(self.cids)
+            self.Ng      = len(self.group_names)
         else:
             logging.info('Calculating the component-contributions from raw data')
-            return ComponentContribution()
-
+            if training_data is None:
+                training_data = FullTrainingData()
+            
+            self.params  = None
+            self.cids    = training_data.cids
+            self.train_S = training_data.stoichiometric_matrix
+            self.train_b = training_data.dG0
+            self.train_w = training_data.weight
+            self.train_G = self.create_group_incidence_matrix()
+            self.Nc      = len(self.cids)
+            self.Ng      = len(self.group_names)
+            self.params = self.train(self.train_S, self.train_G,
+                                     self.train_b, self.train_w)
+            self.params['cids'] = self.cids
+            
+            if cache_file_name:
+                logging.info('Saving component-contributions params to: %s'
+                             % cache_file_name)
+                self.save_params(self.params, cache_file_name)
+        
     @staticmethod
     def save_params(params, file_name):
         np.savez_compressed(file_name, **params)
@@ -85,8 +81,8 @@ class ComponentContribution(object):
         if self.params is None:
             self.train()
         
-        if compound_id in self.cids_joined:
-            i = self.cids_joined.index(compound_id)
+        if compound_id in self.cids:
+            i = self.cids.index(compound_id)
             return self.params['dG0_cc'][i, 0]
         else:
             # Decompose the compound and calculate the 'formation energy'
@@ -96,7 +92,7 @@ class ComponentContribution(object):
             # since we artifically added fictive groups to represent all the 
             # non-decomposable compounds. Therefore, we truncate the 
             # dG0_gc vector since here we only use GC for compounds which
-            # are not in cids_joined anyway.
+            # are not in cids anyway.
             comp = self.ccache.get_compound(compound_id)
             try:
                 group_vec = self.decomposer.smiles_to_groupvec(comp.smiles)
@@ -106,23 +102,18 @@ class ComponentContribution(object):
             except inchi2gv.GroupDecompositionError:
                 return np.nan
 
-    def _decompose_reaction(self, reaction):
-        if self.params is None:
-            self.train()
-        
-        cids = list(self.params['cids'])
-        G = self.params['G']
-
+    def _decompose_reaction(self, reaction, raise_exception=True):
         # calculate the reaction stoichiometric vector and the group incidence
         # vector (x and g)
-        x = np.zeros((self.Nc, 1))
-        x_prime = []
-        G_prime = []
+        x = np.zeros(self.Nc)
+        g = np.zeros(self.Ng)
 
         for compound_id, coeff in reaction.items():
-            if compound_id in self.cids_joined:
-                i = cids.index(compound_id)
-                x[i, 0] = coeff
+            if compound_id in ['C00080', 'KEGG:C00080']:
+                continue
+            if compound_id in self.cids:
+                i = self.cids.index(compound_id)
+                x[i] = coeff
             else:
                 # Decompose the compound and calculate the 'formation energy'
                 # using the group contributions.
@@ -131,49 +122,46 @@ class ComponentContribution(object):
                 # since we artifically added fictive groups to represent all the 
                 # non-decomposable compounds. Therefore, we truncate the 
                 # dG0_gc vector since here we only use GC for compounds which
-                # are not in cids_joined anyway.
-                x_prime.append(coeff)
+                # are not in cids anyway.
                 comp = self.ccache.get_compound(compound_id)
-                group_vec = self.decomposer.smiles_to_groupvec(comp.smiles)
-                G_prime.append(group_vec.as_array())
-
-        if x_prime != []:
-            g = x_prime @ np.vstack(G_prime)
-        else:
-            g = np.zeros((1, 1))
-
-        g.resize((G.shape[1], 1))
-
+                try:
+                    g += self.decomposer.smiles_to_groupvec(comp.smiles).as_array()
+                except inchi2gv.GroupDecompositionError as exception:
+                    if raise_exception:
+                        logging.warning('Compound %s cannot be decomposed and is '
+                                        'also not in the training set' % compound_id)
+                        raise exception
+                    else:
+                        return np.zeros(self.Nc), np.zeros(self.Ng)
+                    
         return x, g
 
-    def get_dG0_r(self, reaction, include_analysis=False):
+    def get_dG0_r(self, reaction, raise_exception=False, include_analysis=False):
         """
             Arguments:
                 reaction - a KeggReaction object
             
             Returns:
-                the CC estimation for this reaction's untransformed dG0 (i.e.
-                using the major MS at pH 7 for each of the reactants)
+                dG0_cc   - the CC estimation for this reaction's untransformed
+                           dG0 (i.e. using the major MS at pH 7 for each of the
+                           reactants)
+                sigma_cc - the standard error of the estimate. multiply by
+                           1.96 to get the 95% confidence interval.
         """
         try:
-            x, g = self._decompose_reaction(reaction)
-        except inchi2gv.GroupDecompositionError:
+            dG0_cc, U = self.get_dG0_r_multi([reaction], raise_exception=True)
+            dG0_cc = dG0_cc[0]
+            sigma_cc = np.sqrt(U[0, 0])
+        except inchi2gv.GroupDecompositionError as exception:
+            if raise_exception:
+                raise exception
             if not include_analysis:
-                return 0, 1e5
+                return 0, np.sqrt(self.params['MSE_inf'])
             else:
-                return 0, 1e5, []
-
-        v_r = self.params['preprocess_v_r']
-        v_g = self.params['preprocess_v_g']
-        C1  = self.params['preprocess_C1']
-        C2  = self.params['preprocess_C2']
-        C3  = self.params['preprocess_C3']
-
-        dG0_cc = v_r @ x + v_g @ g
-        s_cc_sqr = float(x.T @ C1 @ x + 2 * x.T @ C2 @ g + g.T @ C3 @ g)
+                return 0, np.sqrt(self.params['MSE_inf']), []
 
         if not include_analysis:
-            return dG0_cc, np.sqrt(s_cc_sqr)
+            return dG0_cc, sigma_cc
         else:
             # Analyse the contribution of each training observation to this 
             # reaction's dG0 estimate.
@@ -184,9 +172,11 @@ class ComponentContribution(object):
             S_count = self.params['preprocess_S_count']
             cids = self.params['cids']
             
+            x, g = self._decompose_reaction(reaction)
+            
             # dG0_cc = (x*G1 + x*G2 + g*G3)*b
-            weights_rc = (x.T @ G1).round(5)
-            weights_gc = (x.T @ G2 + g.T @ G3).round(5)
+            weights_rc = (x @ G1).round(5)
+            weights_gc = (x @ G2 + g @ G3[0:self.Ng, :]).round(5)
             weights = weights_rc + weights_gc
     
             orders = sorted(range(weights.shape[1]),
@@ -196,37 +186,40 @@ class ComponentContribution(object):
             for j in orders:
                 if abs(weights[0, j]) < 1e-5:
                     continue
-                r = KeggReaction({cids[i]:S[i,j] for i in range(S.shape[0])
-                                  if S[i,j] != 0})
+                r = Reaction({cids[i]:S[i,j] for i in range(S.shape[0])
+                              if S[i,j] != 0})
                 analysis.append({'index': j,
                                  'w_rc': weights_rc[0, j],
                                  'w_gc': weights_gc[0, j],
                                  'reaction': r,
                                  'count': int(S_count[0, j])})
 
-            return dG0_cc, np.sqrt(s_cc_sqr), analysis
+            return dG0_cc, sigma_cc, analysis
 
-    def get_dG0_r_multi(self, reactions):
+    def get_dG0_r_multi(self, reactions, raise_exception=False):
         """
             Arguments:
                 reaction - a KeggReaction object
             
             Returns:
-                the CC estimation for this reaction's untransformed dG0 (i.e.
-                using the major MS at pH 7 for each of the reactants)
+                dG0_cc - a NumPy array containing the CC estimates for 
+                         this reaction's untransformed dG0
+                         (i.e. using the major MS at pH 7 for each of the
+                         reactants)
+                U      - the covariance matrix of the standard errors of the 
+                         estimates. one can use the eigenvectors of the matrix
+                         to define a confidence high-dimensional space, or use
+                         U as the covariance of a Gaussian used for sampling 
+                         (where dG0_cc is the mean of that Gaussian).
         """
-        X = []
-        G = []
-        for reaction in reactions:
-            try:
-                x, g = self._decompose_reaction(reaction)
-            except inchi2gv.GroupDecompositionError:
-                x = np.zeros((self.Nc, 1))
-                g = np.zeros((self.params['G'].shape[1], 1))
-            X.append(list(x.flat))
-            G.append(list(g.flat))
-        X = X.T
-        G = G.T
+        Nr = len(reactions)
+        X = np.zeros((self.Nc, Nr))
+        G = np.zeros((self.train_G.shape[1], Nr))
+        for i, reaction in enumerate(reactions):
+            x, g = self._decompose_reaction(reaction,
+                                            raise_exception=raise_exception)
+            X[:, i] = x
+            G[:self.Ng, i] = g
         
         v_r = self.params['preprocess_v_r']
         v_g = self.params['preprocess_v_g']
@@ -238,6 +231,11 @@ class ComponentContribution(object):
         U = X.T @ C1 @ X + X.T @ C2 @ G + G.T @ C2.T @ X + G.T @ C3 @ G
         return dG0_cc, U
 
+    def get_dG0_r_prime(self, reaction, pH, I, T, raise_exception=False):
+        dG0_cc, sigma_cc = self.get_dG0_r(reaction, raise_exception)
+        dG0_prime = dG0_cc + reaction.get_transform_ddG0(pH, I, T)
+        return dG0_prime, sigma_cc
+    
     def save_preprocessing_data(self, npz_file_name):
         """
             write an NPZ file (Numpy binary files) of preprocessed data needed for
@@ -295,8 +293,8 @@ class ComponentContribution(object):
         d = {'compound_id': compound_id, 'inchi_key': comp.inchi_key}
         gv = None
         
-        if compound_id in self.cids_joined:
-            i = self.cids_joined.index(compound_id)
+        if compound_id in self.cids:
+            i = self.cids.index(compound_id)
             gv = self.params['G'][i, :]
             major_ms_dG0_f = self.params['dG0_cc'][i]
             d['compound_index'] = i
@@ -347,70 +345,46 @@ class ComponentContribution(object):
             
         return d
     
-    def estimate_kegg_model(self, model_S, model_cids):
-    
-        # standardize the CID list of the training data and the model
-        # and create new (larger) matrices for each one
-        cids_new = [cid for cid in model_cids if cid not in self.train_cids]
-
-        self.cids_joined += cids_new
-        self.Nc = len(self.cids_joined)
-                
-        self.model_S_joined = LINALG._zero_pad_S(
-            model_S, model_cids, self.cids_joined)
-
-        self.train_S_joined = LINALG._zero_pad_S(
-            self.train_S, self.train_cids, self.cids_joined)
-
-        self.train()
-        
-        dG0_cc = self.params['dG0_cc']
-        cov_dG0 = self.params['cov_dG0']
-        MSE_kerG = self.params['MSE_kerG']
-        
-        model_dG0 = self.model_S_joined.T @ dG0_cc
-        model_cov_dG0 = self.model_S_joined.T @ cov_dG0 @ self.model_S_joined 
-
-        return model_dG0, model_cov_dG0, MSE_kerG
-    
     def create_group_incidence_matrix(self):
         """
             Initialize G matrix, and then use the python script "inchi2gv.py" to
             decompose each of the compounds that has an InChI and save the
             decomposition as a row in the G matrix.
         """
-
-        G = np.zeros((self.Nc, self.Ng))
-        cpd_inds_without_gv = []
-        
+            
+        gv_data = []
         # decompose the compounds in the training_data and add to G
-        for i, compound_id in enumerate(self.cids_joined):
+        for compound_id in self.cids:
             smiles = self.ccache.get_compound(compound_id).smiles
             try:
-                group_def = self.decomposer.smiles_to_groupvec(smiles)
-                for j in range(len(self.group_names)):
-                    G[i, j] = group_def[j]
+                gv_data.append(list(self.decomposer.smiles_to_groupvec(smiles).flat))
             except inchi2gv.GroupDecompositionError:
-                # for compounds that have no InChI or are not decomposable
-                # add a unique 1 in a new column
-                cpd_inds_without_gv.append(i)
+                gv_data.append([0] * len(self.group_names))
 
-        N_non_decomposable = len(cpd_inds_without_gv)
-        add_G = np.zeros((self.Nc, N_non_decomposable))
-        for j, i in enumerate(cpd_inds_without_gv):
-            add_G[i, j] = 1
-        return np.hstack([G, add_G])
+        G = pd.DataFrame(index=self.cids,
+                         columns=self.group_names,
+                         dtype=float,
+                         data=gv_data)
+        
+        for compound_id in G.index[(G == 0).all(1)]:
+            # add a column for this compound, representing itself
+            # as a new group
+            G[compound_id] = 0.0
+            
+            # place a single '1' for this compound group decomposition
+            G.at[compound_id, compound_id] = 1.0
+
+        return G.values
     
-    def train(self):
+    @staticmethod
+    def train(S, G, b, w):
         """
             Estimate standard Gibbs energies of formation
         """
-        self.train_G = self.create_group_incidence_matrix()
-
-        S = self.train_S_joined
-        G = self.train_G
-        b = self.train_b
-        w = self.train_w
+        assert type(S) == np.ndarray
+        assert type(G) == np.ndarray
+        assert type(b) == np.ndarray
+        assert type(w) == np.ndarray
         
         m, n = S.shape
         assert G.shape[0] == m
@@ -451,7 +425,7 @@ class ComponentContribution(object):
         e_kerG = e_gc[kerG_inds]
         MSE_kerG = float((e_kerG.T @ e_kerG) / len(kerG_inds))
 
-        MSE_inf = 1e10
+        MSE_inf = ComponentContribution.MSE_inf
 
         # Calculate the uncertainty covariance matrices
         # [inv_S_orig, ~, ~, ~] = invertProjection(S);
@@ -489,49 +463,65 @@ class ComponentContribution(object):
         preprocess_C3 = MSE_gc * inv_GSWGS + MSE_inf * P_N_gc
 
         # Put all the calculated data in 'params' for the sake of debugging
-        self.params = {'b':              self.train_b,
-                       'train_S':        self.train_S_joined,
-                       'model_S':        self.model_S_joined,
-                       'train_cids':     self.train_cids,
-                       'cids':           self.cids_joined,
-                       'w':              self.train_w,
-                       'G':              self.train_G,
-                       'dG0_rc':         dG0_rc,
-                       'dG0_gc':         dG0_gc,
-                       'dG0_cc':         dG0_cc,
-                       'cov_dG0':        cov_dG0,
-                       'V_rc':           V_rc,
-                       'V_gc':           V_gc,
-                       'V_inf':          V_inf,
-                       'MSE_rc':         MSE_rc,
-                       'MSE_gc':         MSE_gc,
-                       'MSE_kerG':       MSE_kerG,
-                       'MSE_inf':        MSE_inf,
-                       'P_R_rc':         P_R_rc,
-                       'P_R_gc':         P_R_gc,
-                       'P_N_rc':         P_N_rc,
-                       'P_N_gc':         P_N_gc,
-                       'inv_S':          inv_S,
-                       'inv_GS':         inv_GS,
-                       'inv_SWS':        inv_SWS,
-                       'inv_GSWGS':      inv_GSWGS,
-                       'preprocess_v_r': dG0_cc,
-                       'preprocess_v_g': dG0_gc,
-                       'G1':             G1,
-                       'G2':             G2,
-                       'G3':             G3,
-                       'preprocess_G1':  preprocess_G1,
-                       'preprocess_G2':  preprocess_G2,
-                       'preprocess_G3':  preprocess_G3,
-                       'preprocess_S':   S_uniq,
-                       'preprocess_S_count': S_counter,
-                       'preprocess_C1':  preprocess_C1,
-                       'preprocess_C2':  preprocess_C2,
-                       'preprocess_C3':  preprocess_C3}
+        params  = {'b':              b,
+                   'S':              S,
+                   'w':              w,
+                   'G':              G,
+                   'dG0_rc':         dG0_rc,
+                   'dG0_gc':         dG0_gc,
+                   'dG0_cc':         dG0_cc,
+                   'cov_dG0':        cov_dG0,
+                   'V_rc':           V_rc,
+                   'V_gc':           V_gc,
+                   'V_inf':          V_inf,
+                   'MSE_rc':         MSE_rc,
+                   'MSE_gc':         MSE_gc,
+                   'MSE_kerG':       MSE_kerG,
+                   'MSE_inf':        MSE_inf,
+                   'P_R_rc':         P_R_rc,
+                   'P_R_gc':         P_R_gc,
+                   'P_N_rc':         P_N_rc,
+                   'P_N_gc':         P_N_gc,
+                   'inv_S':          inv_S,
+                   'inv_GS':         inv_GS,
+                   'inv_SWS':        inv_SWS,
+                   'inv_GSWGS':      inv_GSWGS,
+                   'preprocess_v_r': dG0_cc,
+                   'preprocess_v_g': dG0_gc,
+                   'G1':             G1,
+                   'G2':             G2,
+                   'G3':             G3,
+                   'preprocess_G1':  preprocess_G1,
+                   'preprocess_G2':  preprocess_G2,
+                   'preprocess_G3':  preprocess_G3,
+                   'preprocess_S':   S_uniq,
+                   'preprocess_S_count': S_counter,
+                   'preprocess_C1':  preprocess_C1,
+                   'preprocess_C2':  preprocess_C2,
+                   'preprocess_C3':  preprocess_C3}
+        return params
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.INFO)
-    cc = ComponentContribution.init()
+    cc = ComponentContribution()
 
-    r = KeggReaction.parse_formula('KEGG:C00002 + KEGG:C00001 <=> KEGG:C00008 + KEGG:C00009')
-    print('dG0_r = ', cc.get_dG0_r(r))
+    get_dG0_prime = lambda r: cc.get_dG0_r_prime(r, pH=7.0, I=0.25, T=298.15)
+
+    formulas = ['KEGG:C05394 + KEGG:C00001 <=> KEGG:C00257',
+                'KEGG:C00031 + KEGG:C00003 + KEGG:C00001 <=> KEGG:C00257 + KEGG:C00004',
+                'KEGG:C15602 <=> KEGG:C00004',
+                'KEGG:C13626 + KEGG:C00003 <=> KEGG:C13628 + KEGG:C00004',
+                'KEGG:C00002 + KEGG:C00001 <=> KEGG:C00008 + KEGG:C00009']
+
+    reactions = list(map(Reaction.parse_formula, formulas))
+    for r in reactions:
+        print("formula = %s" % r.write_formula())
+        if not r.is_balanced():
+            print('this reaction is not balanced')
+            continue
+        print("dG0 = %.2f [kJ/mol] +- %.2f" % cc.get_dG0_r(r))
+        print("dG'0 = %.2f [kJ/mol] +- %.2f" % get_dG0_prime(r))
+        print('multi = ', cc.get_dG0_r_multi([r], raise_exception=True))
+    print('U = ', cc.get_dG0_r_multi(reactions, raise_exception=True)[1].round(2))
+    
+    

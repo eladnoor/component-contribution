@@ -49,7 +49,7 @@ N_PKAS = 20
 
 class ChemAxonNotFoundError(ImportError):
     def __init__(self):
-        super(ChemAxonNotFoundError, self).__init__(
+        super().__init__(
             "Marvin cxcalc was not found on your system. "
             "Please install it from https://chemaxon.com/")
 
