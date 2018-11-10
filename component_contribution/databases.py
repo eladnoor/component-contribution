@@ -26,10 +26,7 @@ from __future__ import absolute_import
 import pybel
 from requests import get, exceptions
 
-from component_contribution.singleton import Singleton
-
-
-class DatabaseInterface(Singleton):
+class DatabaseInterface():
 
     def __init__(self):
         self._registry = {}
