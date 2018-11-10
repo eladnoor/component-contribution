@@ -11,7 +11,7 @@ PLoS Comput Biol 9:e1003098, DOI: 10.1371/journal.pcbi.1003098
 Please, quote this paper if you publish work that uses component-contribution.
 
 ## Requirements (for the python version):
-* python 2.7 or 3.5+
+* python 3.5+
 * (optional) ChemAxon's Marvin >= 5.11
 * from PyPI:
   - numpy>=1.14.0
