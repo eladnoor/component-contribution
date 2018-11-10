@@ -29,6 +29,7 @@ import pybel
 from scipy.special import logsumexp
 from pkg_resources import resource_stream
 import pandas as pd
+from collections import defaultdict
 
 from component_contribution.databases import databases
 from component_contribution.mol_utils import atom_bag_and_charge
@@ -89,6 +90,14 @@ class Compound(object):
     def __init__(self, inchi_key, inchi, atom_bag, p_kas, smiles,
                  major_microspecies, number_of_protons, charges,
                  compound_id=None):
+        assert type(atom_bag) in [dict, defaultdict]
+        assert type(p_kas) == list
+        if not type(major_microspecies) in [int, np.int64]:
+            raise AssertionError('major_ms is not an integer, but a %s' %
+                                 type(major_microspecies))
+        assert type(number_of_protons) == list
+        assert type(charges) == list
+        
         self.inchi_key = inchi_key
         self.compound_id = compound_id
         self.name = compound_id

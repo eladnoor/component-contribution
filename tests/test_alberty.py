@@ -24,15 +24,14 @@
 # THE SOFTWARE.
 
 import unittest
-from component_contribution import CompoundCache, ChemAxonNotFoundError
+from component_contribution import ccache, ChemAxonNotFoundError
 
 class TestAlbertyTransform(unittest.TestCase):
 
     def __init__(self, *args, **kwargs):
         super(TestAlbertyTransform, self).__init__(*args, **kwargs)
-        self.ccache = CompoundCache()
         try:
-            self.atp_comp = self.ccache.get_compound('KEGG:C00002')
+            self.atp_comp = ccache.get_compound('KEGG:C00002')
             self.missing_chemaxon = False
         except ChemAxonNotFoundError:
             self.missing_chemaxon = True

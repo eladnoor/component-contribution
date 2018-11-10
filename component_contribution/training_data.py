@@ -3,14 +3,13 @@ import numpy as np
 import pandas as pd
 from scipy.io import savemat
 from .thermodynamic_constants import R, F
-from .compound_cache import CompoundCache
+from .compound_cache import ccache
 from . import Reaction
 from pkg_resources import resource_stream
 
 class TrainingData(object):
     
     def __init__(self):
-        self.ccache = CompoundCache()
         self.S = None # a DataFrame containing the stoichiometric matrix
         self.reaction_df = None # a DataFrame containing all the reaction data 
     
@@ -53,7 +52,7 @@ class TrainingData(object):
             every reaction is balanced
         """
 
-        element_df = self.ccache.get_element_data_frame(self.cids)
+        element_df = ccache.get_element_data_frame(self.cids)
         
         # find all reactions that contain only compounds that have formulae
         cpd_with_formulae = (element_df != 0).any(axis=1)

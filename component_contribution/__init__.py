@@ -27,10 +27,11 @@ from ._version import get_versions
 __version__ = get_versions()['version']
 del get_versions
 
-from component_contribution.compound_cache import CompoundCache
+from component_contribution.compound_cache import ccache
 from component_contribution.thermodynamic_constants import R, debye_huckel
 from component_contribution.compound import Compound
 from component_contribution.reaction import Reaction
 from component_contribution.inchi2gv import GroupDecompositionError
 from component_contribution.chemaxon import ChemAxonNotFoundError
 from component_contribution.component_contribution_trainer import ComponentContribution
+from component_contribution.training_data import FullTrainingData

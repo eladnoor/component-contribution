@@ -4,7 +4,7 @@ import pandas as pd
 from . import inchi2gv
 from .training_data import FullTrainingData
 from . import Reaction
-from .compound_cache import CompoundCache
+from .compound_cache import ccache
 from .thermodynamic_constants import default_T
 from .molecule import Molecule, OpenBabelError
 from .linalg import LINALG
@@ -17,7 +17,6 @@ class ComponentContribution(object):
     MSE_inf = 1e10
 
     def __init__(self, cache_file_name=CC_CACHE_FNAME, training_data=None):
-        self.ccache = CompoundCache()
         self.groups_data = inchi2gv.init_groups_data()
         self.decomposer = inchi2gv.InChIDecomposer(self.groups_data)
         self.group_names = self.groups_data.GetGroupNames()
@@ -93,7 +92,7 @@ class ComponentContribution(object):
             # non-decomposable compounds. Therefore, we truncate the 
             # dG0_gc vector since here we only use GC for compounds which
             # are not in cids anyway.
-            comp = self.ccache.get_compound(compound_id)
+            comp = ccache.get_compound(compound_id)
             try:
                 group_vec = self.decomposer.smiles_to_groupvec(comp.smiles)
                 g = group_vec.as_array()
@@ -123,7 +122,7 @@ class ComponentContribution(object):
                 # non-decomposable compounds. Therefore, we truncate the 
                 # dG0_gc vector since here we only use GC for compounds which
                 # are not in cids anyway.
-                comp = self.ccache.get_compound(compound_id)
+                comp = ccache.get_compound(compound_id)
                 try:
                     g += self.decomposer.smiles_to_groupvec(comp.smiles).as_array()
                 except inchi2gv.GroupDecompositionError as exception:
@@ -251,7 +250,7 @@ class ComponentContribution(object):
         # write the JSON file containing the 'additiona' data on all the compounds
         # in eQuilibrator (i.e. formula, mass, pKa values, etc.)
         compound_json = []
-        for i, compound_id in enumerate(self.ccache.all_compound_ids()):
+        for i, compound_id in enumerate(ccache.all_compound_ids()):
             logging.debug("exporting " + compound_id)
     
             # skip compounds that cause a segmentation fault in openbabel
@@ -289,7 +288,7 @@ class ComponentContribution(object):
         if self.params is None:
             self.train()
 
-        comp = self.ccache.get_compound(compound_id)
+        comp = ccache.get_compound(compound_id)
         d = {'compound_id': compound_id, 'inchi_key': comp.inchi_key}
         gv = None
         
@@ -355,7 +354,7 @@ class ComponentContribution(object):
         gv_data = []
         # decompose the compounds in the training_data and add to G
         for compound_id in self.cids:
-            smiles = self.ccache.get_compound(compound_id).smiles
+            smiles = ccache.get_compound(compound_id).smiles
             try:
                 gv_data.append(list(self.decomposer.smiles_to_groupvec(smiles).flat))
             except inchi2gv.GroupDecompositionError:
@@ -502,8 +501,12 @@ class ComponentContribution(object):
         return params
 
 if __name__ == '__main__':
-    logging.getLogger().setLevel(logging.INFO)
+    logging.getLogger().setLevel(logging.DEBUG)
     cc = ComponentContribution()
+
+    ccache.get_compound('KEGG:C15602')
+    ccache.get_compound('KEGG:C13626')
+    ccache.get_compound('KEGG:C13628')
 
     get_dG0_prime = lambda r: cc.get_dG0_r_prime(r, pH=7.0, I=0.25, T=298.15)
 
@@ -521,7 +524,7 @@ if __name__ == '__main__':
             continue
         print("dG0 = %.2f [kJ/mol] +- %.2f" % cc.get_dG0_r(r))
         print("dG'0 = %.2f [kJ/mol] +- %.2f" % get_dG0_prime(r))
-        print('multi = ', cc.get_dG0_r_multi([r], raise_exception=True))
-    print('U = ', cc.get_dG0_r_multi(reactions, raise_exception=True)[1].round(2))
+        print('multi = ', cc.get_dG0_r_multi([r], raise_exception=False))
+    print('U = ', cc.get_dG0_r_multi(reactions, raise_exception=False)[1].round(2))
     
     

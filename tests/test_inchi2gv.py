@@ -24,7 +24,7 @@
 # THE SOFTWARE.
 
 import unittest
-from component_contribution import Compound, CompoundCache, inchi2gv, \
+from component_contribution import Compound, ccache, inchi2gv, \
     GroupDecompositionError, ChemAxonNotFoundError
 
 class TestGroupDecomposition(unittest.TestCase):
@@ -32,7 +32,6 @@ class TestGroupDecomposition(unittest.TestCase):
     def __init__(self, *args, **kwargs):
         super(TestGroupDecomposition, self).__init__(*args, **kwargs)
 
-        self.ccache = CompoundCache()
         groups_data = inchi2gv.init_groups_data()
         self.group_names = groups_data.GetGroupNames()
         self.decomposer = inchi2gv.InChIDecomposer(groups_data)
@@ -43,14 +42,14 @@ class TestGroupDecomposition(unittest.TestCase):
         self.assertDictEqual(self.decompose_inchi(inchi_ATP),
                              self.decompose_smiles(smiles_ATP_neutral))
         try:
-            atp_cpd = self.ccache.get_compound('KEGG:C00002')
+            atp_cpd = ccache.get_compound('KEGG:C00002')
             self.assertIsInstance(atp_cpd, Compound)
             self.assertEqual(inchi_ATP, atp_cpd.inchi)
         except ChemAxonNotFoundError:
             self.skipTest('cannot test without ChemAxon')
         
     def decompose_cid(self, cid):
-        cpd = self.ccache.get_compound('KEGG:' + cid)
+        cpd = ccache.get_compound('KEGG:' + cid)
         self.assertIsInstance(cpd, Compound)
         groups = self.decompose_inchi(cpd.inchi)
         del cpd

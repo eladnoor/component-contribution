@@ -1,7 +1,7 @@
 import re
 import numpy as np
 import logging
-from .compound_cache import CompoundCache
+from .compound_cache import ccache
 from .exceptions import ParseException
 
 class Reaction(object):
@@ -14,7 +14,6 @@ class Reaction(object):
         self.sparse = dict([(k, v) for (k, v) in sparse.items() if v != 0])
         self.arrow = arrow
         self.rid = rid
-        self.ccache = CompoundCache()
 
     def keys(self):
         return self.sparse.keys()
@@ -126,7 +125,7 @@ class Reaction(object):
         cids = list(self.keys())
         coeffs = np.array(list(map(self.sparse.__getitem__, cids)))
 
-        element_df = self.ccache.get_element_data_frame(cids)
+        element_df = ccache.get_element_data_frame(cids)
         if element_df.shape[1] == 0 or np.any( (element_df == 0).all(axis=1) ):
             warning_str = 'cannot generate the reaction atom bag because ' + \
                           'compounds have unspecific formulas: ' + \
@@ -197,7 +196,7 @@ class Reaction(object):
         for compound_id, coeff in self.items():
             if compound_id in ['C00080', 'KEGG:C00080']:
                 continue # H+ is ignored in the Legendre transform
-            comp = self.ccache.get_compound(compound_id)
+            comp = ccache.get_compound(compound_id)
             ddG0_forward += coeff * comp.transform_p_h_7(pH, I, T)
         return ddG0_forward
         

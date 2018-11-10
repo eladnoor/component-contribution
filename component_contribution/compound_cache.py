@@ -30,14 +30,13 @@ from six import string_types
 import pandas as pd
 from collections import defaultdict
 
-from component_contribution.compound import Compound
-from component_contribution.singleton import Singleton
+from .compound import Compound
 
 import os
 base_path = os.path.split(os.path.realpath(__file__))[0]
 DEFAULT_CACHE_FNAME = os.path.join(base_path, '../cache/compounds.csv') 
 
-class CompoundCache(Singleton):
+class CompoundCache(object):
     """
     CompoundCache is a singleton that handles caching of Compound objects for
     the component-contribution package.  The Compounds are retrieved by their ID
@@ -57,7 +56,7 @@ class CompoundCache(Singleton):
     
     SERIALIZE_COLUMNS = ["atom_bag", "p_kas", "number_of_protons", "charges"]
 
-    def __init__(self, cache_file_name=None):
+    def __init__(self, cache_file_name=DEFAULT_CACHE_FNAME):
         # a lookup table for compound IDs
         self._compound_id_to_inchi_key = dict()
         
@@ -67,23 +66,27 @@ class CompoundCache(Singleton):
         # an internal cache for Compound objects that have already been created
         self.compound_dict = {} 
 
-        if not os.path.exists(DEFAULT_CACHE_FNAME):
+        # a flag telling the Cache that it needs to rewrite itself in the
+        # filesystem. updated any time a new compound is cached.
+        self.requires_update = False
+
+        if not os.path.exists(cache_file_name):
             self._data = pd.DataFrame(columns=self.COLUMNS)
             self._data.index.name = 'inchi_key'
-            self.to_data_frame.to_csv(DEFAULT_CACHE_FNAME)
+            self.requires_update = True
         else:
-            self._data = pd.read_csv(DEFAULT_CACHE_FNAME, index_col=0)
-            
-            for col in self.SERIALIZE_COLUMNS:
-                self._data[col] = self._data[col].apply(json.loads)
-            
-            self._read_cross_refs(self._data)
-            self._data.drop('cross_references', axis=1, inplace=True)
-            self._data['inchi'].fillna('', inplace=True)
-            self._data['smiles'].fillna('', inplace=True)
+            self.from_data_frame(pd.read_csv(cache_file_name, index_col=0))
 
-    def _read_cross_refs(self, data):
-        for inchi_key, row in data.iterrows():
+    #def __del__(self):
+    #    self.dump()
+
+    def dump(self, cache_file_name=DEFAULT_CACHE_FNAME):
+        if self.requires_update:
+            self.to_data_frame().to_csv(cache_file_name)
+            self.requires_update = False
+
+    def _read_cross_refs(self, df):
+        for inchi_key, row in df.iterrows():
             for compound_id in row.cross_references.split(";"):
                 self._compound_id_to_inchi_key[compound_id] = inchi_key
                 self._inchi_key_to_compound_ids[inchi_key].add(compound_id)
@@ -93,15 +96,9 @@ class CompoundCache(Singleton):
 
     def to_data_frame(self):
         """
-        Writes the cache to a file.
-
-        Parameters
-        ----------
-        file_name : str
-            The file name.
-
+            Creates a DataFrame with all the data of the cache
         """
-        df = pd.DataFrame(self._data)
+        df = self._data.copy()
 
         df['cross_references'] = \
             df.index.map(self._inchi_key_to_compound_ids.get)
@@ -109,9 +106,28 @@ class CompoundCache(Singleton):
             ';'.join)
 
         for col in self.SERIALIZE_COLUMNS:
-            df[col].apply(json.dumps, inplace=True)
+            df[col] = df[col].apply(json.dumps)
 
         return df
+
+    def from_data_frame(self, df):
+        """
+            Reads all the cached data from a DataFrame
+    
+            Arguments:
+                df - a DataFrame created earlier by to_data_frame()
+
+        """
+        self._data = df.copy()
+        
+        for col in self.SERIALIZE_COLUMNS:
+            self._data[col] = self._data[col].apply(json.loads)
+        
+        self._read_cross_refs(df)
+        self._data.drop('cross_references', axis=1, inplace=True)
+        self._data['major_ms'] = self._data['major_ms'].apply(int)
+        self._data['inchi'].fillna('', inplace=True)
+        self._data['smiles'].fillna('', inplace=True)
 
     def get_compound(self, compound_id, compute_pkas=True):
         if compound_id in self._compound_id_to_inchi_key:  # compound exists
@@ -125,10 +141,15 @@ class CompoundCache(Singleton):
             logging.debug('Cache miss, calculating pKas for %s' % compound_id)
             cpd = Compound.get(compound_id, compute_pkas)
             if cpd.inchi_key in self._data.index:
+                logging.debug('Adding a cross-link from %s to %s' %
+                              (compound_id, cpd.inchi_key))
                 cpd = self.get(cpd.inchi_key)
                 self._compound_id_to_inchi_key[compound_id] = cpd.inchi_key
             else:
+                logging.debug('Adding the new InChiKey to the cache: %s'
+                              % cpd.inchi_key)
                 self.add(cpd)
+            self.requires_update = True
             return cpd
 
     def remove(self, inchi_key):
@@ -150,10 +171,10 @@ class CompoundCache(Singleton):
         if inchi_key in self.compound_dict:
             cpd = self.compound_dict[inchi_key]
         else:
-            data = self._data.loc[inchi_key]
+            data = self._data.loc[inchi_key, :]
             cpd = Compound(
                 inchi_key, data.inchi, data.atom_bag, data.p_kas, data.smiles,
-                data.major_ms, data.number_of_protons, data.charges)
+                int(data.major_ms), data.number_of_protons, data.charges)
             self.compound_dict[inchi_key] = cpd
 
         return cpd
@@ -165,9 +186,9 @@ class CompoundCache(Singleton):
         self._inchi_key_to_compound_ids[cpd.inchi_key].add(cpd.compound_id)
         self._compound_id_to_inchi_key[cpd.compound_id] = cpd.inchi_key
         self.compound_dict[cpd.inchi_key] = cpd
-        self._data.loc[cpd.inchi_key] = [
+        self._data.loc[cpd.inchi_key, :] = [
             cpd.inchi, cpd.name, cpd.atom_bag, cpd.p_kas, cpd.smiles,
-            cpd.major_microspecies, cpd.number_of_protons, cpd.charges]
+            int(cpd.major_microspecies), cpd.number_of_protons, cpd.charges]
 
     def get_element_data_frame(self, compound_ids):
         if isinstance(compound_ids, string_types):
@@ -190,21 +211,27 @@ class CompoundCache(Singleton):
         
         return element_df
 
-if __name__ == '__main__':
-    logging.getLogger().setLevel(logging.DEBUG)
-    ccache = CompoundCache()
 
-    # find out all the KEGG compound IDs that are used in the training data
-    # and add them to the cache
-    from component_contribution.training_data import TrainingData
-    thermo_df, _ = TrainingData.get_all_thermo_params()
-    cids = set(['C00001', 'C00080'])
-    for rxn in thermo_df['reaction']:
-        cids = cids.union(rxn.keys())
-    cids = sorted(cids)
+# this is the only place where one should use the constructore.
+# we wish to only have one instance of the cache (i.e. use it as a singleton)
+ccache = CompoundCache()
+
+
+if __name__ == '__main__':
+    from .training_data import FullTrainingData
+    logging.getLogger().setLevel(logging.DEBUG)
+
+    ccache.get_compound('KEGG:C13626')
+
+    # Cache all the compounds that are part of the training data.
+    # Calling the constructor here,
+    # already invokes queries for all the relevant compounds (since their
+    # structure is needed in order to balance the reactions and the pKas
+    # are needed in order to perform the reverse Legendre transform).
+    td = FullTrainingData()
     
-    for cid in cids:
-        ccache.get_compound('KEGG:%s' % cid)
     
     ccache.dump()
+    
+    
     
