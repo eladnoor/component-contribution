@@ -264,7 +264,20 @@ class FullTrainingData(TrainingData):
     @staticmethod
     def read_formations():
         """
-            Read the Formation Energy data
+        Read the Formation Energy data from literature data [1-6]
+
+        Returns
+        -------
+        pandas.DataFrame
+        
+        References
+        ----------
+        .. [1] Alberty (2006)
+        .. [2] Maden (2000)
+        .. [3] Thauer (1977)
+        .. [4] Wagman (1982)
+        .. [5] Dolfing (1992)
+        .. [6] Dolfing (1994)
         """
         
         formation_df = pd.read_csv(resource_stream('component_contribution',
@@ -293,7 +306,22 @@ class FullTrainingData(TrainingData):
     @staticmethod
     def read_redox():
         """
-            Read the Reduction potential data
+        Read the Reduction potential from literature data [1-8]
+ 
+        Returns
+        -------
+        pandas.DataFrame
+        
+        References
+        ----------
+        .. [1] CRC biochemistry (2010)
+        .. [2] Prince (1987)
+        .. [3] Thauer (1977)
+        .. [4] CRC biochemistry (2010)
+        .. [5] Alberty (2006)
+        .. [6] Deppenmeier (2008)
+        .. [7] Saeki (1985)
+        .. [8] Unden (1997)
         """
         redox_df = pd.read_csv(resource_stream('component_contribution',
                                                '/data/redox.csv'))
