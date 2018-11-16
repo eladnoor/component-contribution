@@ -1,3 +1,30 @@
+# -*- encoding: utf-8 -*-
+
+# The MIT License (MIT)
+#
+# Copyright (c) 2013 The Weizmann Institute of Science.
+# Copyright (c) 2018 Novo Nordisk Foundation Center for Biosustainability,
+# Technical University of Denmark.
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+# THE SOFTWARE.
+
+from __future__ import absolute_import
 import logging
 import numpy as np
 import pandas as pd
@@ -6,6 +33,8 @@ from .thermodynamic_constants import R, F
 from .compound_cache import ccache
 from . import Reaction
 from pkg_resources import resource_stream
+
+LOGGER = logging.getLogger(__name__)
 
 class TrainingData(object):
     
@@ -184,9 +213,26 @@ class FullTrainingData(TrainingData):
     @staticmethod
     def read_tecrdb():
         """
-            Read the raw data of TECRDB (NIST)
+        Load a data frame with information from the TECRdb (NIST).
+
+        The component-contribution package distributes data tables with
+        information on the 'thermodynamics of enzyme-catalyzed reactions'[1, 2]_
+        that are used as training data.
+
+        Returns
+        -------
+        pandas.DataFrame
+
+        References
+        ----------
+        .. [1] Goldberg, Robert N., Yadu B. Tewari, and Talapady N. Bhat.
+               “Thermodynamics of Enzyme-Catalyzed Reactions—a Database for
+               Quantitative Biochemistry.” Bioinformatics 20, no. 16 (November 1,
+               2004): 2874–77. https://doi.org/10.1093/bioinformatics/bth314.
+        .. [2] http://xpdb.nist.gov/enzyme_thermodynamics/
+
         """
-        
+
         tecr_df = pd.read_csv(resource_stream('component_contribution',
                                               '/data/TECRDB.csv'))
 
@@ -291,7 +337,7 @@ class FullTrainingData(TrainingData):
     
         
 if __name__ == '__main__':
-    logging.getLogger().setLevel(logging.INFO)
+    LOGGER.setLevel(logging.INFO)
     import argparse
     parser = argparse.ArgumentParser(description=
         'Prepare all thermodynamic training data in a .mat file for running '
