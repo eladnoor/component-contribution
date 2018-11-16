@@ -1,5 +1,6 @@
 component-contribution
 ======================
+[![Join the chat at https://gitter.im/equilibrator-devs/component-contribution](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/equilibrator-devs/component-contribution?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
 Standard reaction Gibbs energy estimation for biochemical reactions.
 For more information on the method behind component-contribution, please view our open access paper:
