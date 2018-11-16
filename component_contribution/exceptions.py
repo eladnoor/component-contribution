@@ -1,5 +1,3 @@
-# -*- encoding: utf-8 -*-
-
 # The MIT License (MIT)
 #
 # Copyright (c) 2018 Novo Nordisk Foundation Center for Biosustainability,
@@ -38,4 +36,18 @@ class ChemAxonNotAvailable(Exception):
 
     def __init__(self):
         """"""
-        super(ChemAxonNotAvailable, self).__init__("ChemAxon is not available.")
+        super().__init__("ChemAxon is not available.")
+
+class ParseException(Exception):
+    pass
+        
+class NonCompoundException(Exception):
+    pass
+
+class ReactionNotBalancedException(Exception):
+    def __init__(self, msg, atom_bag=None):
+        Exception.__init__(self, msg)
+        self.atom_bag = atom_bag or {}
+    
+class MissingModuleException(Exception):
+    pass

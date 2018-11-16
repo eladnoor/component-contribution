@@ -22,18 +22,19 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-""""""
-
 from __future__ import absolute_import
 
 import numpy as np
 import pybel
 from scipy.special import logsumexp
+from pkg_resources import resource_stream
+import pandas as pd
+from collections import defaultdict
 
 from component_contribution.databases import databases
 from component_contribution.mol_utils import atom_bag_and_charge
 from component_contribution.thermodynamic_constants import R, debye_huckel
-
+from component_contribution import chemaxon
 
 MIN_PH = 0.0
 MAX_PH = 14.0
@@ -80,12 +81,23 @@ COMPOUND_EXCEPTIONS = {
     'KEGG:C00139': ({'Fe': 1, 'e-': 25}, [], None, 0, [0], [1])
 }
 
+COMPOUND_ADDITIONS = pd.read_csv(
+    resource_stream('component_contribution', '/data/compound_additions.csv')).set_index('cid')
+
 
 class Compound(object):
 
     def __init__(self, inchi_key, inchi, atom_bag, p_kas, smiles,
-                 major_miscrospecies, number_of_protons, charges,
+                 major_microspecies, number_of_protons, charges,
                  compound_id=None):
+        assert type(atom_bag) in [dict, defaultdict]
+        assert type(p_kas) == list
+        if not type(major_microspecies) in [int, np.int64]:
+            raise AssertionError('major_ms is not an integer, but a %s' %
+                                 type(major_microspecies))
+        assert type(number_of_protons) == list
+        assert type(charges) == list
+        
         self.inchi_key = inchi_key
         self.compound_id = compound_id
         self.name = compound_id
@@ -93,26 +105,50 @@ class Compound(object):
         self.atom_bag = atom_bag
         self.p_kas = p_kas
         self.smiles = smiles
-        self.major_microspecies = major_miscrospecies
+        self.major_microspecies = major_microspecies
         self.number_of_protons = number_of_protons
         self.charges = charges
 
     @classmethod
     def get(cls, compound_id, compute_pkas=True):
-        database, accession = compound_id.split(":", 1)
-        molecule = databases.get_molecule(database, accession)
+        if compound_id in COMPOUND_ADDITIONS.index:
+            inchi = COMPOUND_ADDITIONS.at[compound_id, 'inchi']
+            molecule = pybel.readstring("inchi", inchi)
+        else:
+            try:
+                database, accession = compound_id.split(":", 1)
+            except ValueError:
+                # assume by default that this is a KEGG compound ID
+                database = 'KEGG'
+                accession = compound_id
+                
+            molecule = databases.get_molecule(database, accession)
         return cls.from_molecule(compound_id, molecule, compute_pkas)
 
     @classmethod
     def from_molecule(cls, compound_id, molecule, compute_pkas=True):
-        inchi = molecule.write("inchi")
-        inchi_key = molecule.write("inchikey")
+        if molecule is not None:
+            inchi = molecule.write("inchi").strip()
+            inchi_key = molecule.write("inchikey").strip()
+        else:
+            inchi = ''
+            inchi_key = ''
+            
+        if not inchi_key:
+            # probably a compound without an explicit chemical structure
+            # or formula. we thus use the compound_id instead of the InChIKey
+            # TODO: find a way to map these compounds between different databases
+                        
+            return cls(inchi_key=compound_id, inchi='', atom_bag={}, p_kas=[],
+                       smiles=None, major_microspecies=0,
+                       number_of_protons=[], charges=[],
+                       compound_id=compound_id)
+        
         if compound_id in COMPOUND_EXCEPTIONS:
             return cls(inchi_key, inchi, *COMPOUND_EXCEPTIONS[compound_id],
                        compound_id=compound_id)
 
         if compute_pkas:
-            from component_contribution import chemaxon
             p_kas, major_ms_smiles = chemaxon.get_dissociation_constants(inchi)
             molecule = pybel.readstring("smi", major_ms_smiles)
             p_kas = sorted([pka for pka in p_kas if MIN_PH < pka < MAX_PH],
@@ -177,7 +213,7 @@ class Compound(object):
             Returns:
                 dG'0 - dG0[0]
         """
-        if self.inchi is None:
+        if not self.inchi:
             return 0
         elif not self.p_kas:
             dG0s = np.zeros((1, 1))

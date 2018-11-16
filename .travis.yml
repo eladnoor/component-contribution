@@ -1,51 +1,22 @@
 language: python
 sudo: false
-cache: pip
-git:
-  depth: 2
-env:
-  global:
-    - LD_PRELOAD=/lib/x86_64-linux-gnu/libSegFault.so
-    - SEGFAULT_SIGNALS=all
-matrix:
-  fast_finish: true
-  include:
-    - os: 'linux'
-      python: '3.5'
-      env:
-        - TOXENV=flake8
-    - os: 'linux'
-      python: '2.7'
-      env:
-        - TOXENV=py27
-    - os: 'linux'
-      python: '3.5'
-      env:
-        - TOXENV=py35
-    - os: 'linux'
-      python: '3.6'
-      env:
-        - TOXENV=py36
-before_install:
-  - python -V
-  - uname -a
-  - lsb_release -a
+dist: trusty
+
+python:
+  - 3.5
+  - 3.6
+
+cache:
+  pip: true
+
+addons:
+  apt:
+    packages:
+      - libopenbabel-dev
+      - swig
+
 install:
-  - travis_retry pip install -U pip setuptools wheel tox
+  - pip install -r requirements.txt
+
 script:
-  - travis_wait tox
-deploy:
-  - provider: pypi
-    skip_cleanup: true
-    distributions: sdist bdist_wheel
-    on:
-      tags: true
-      repo: eladnoor/component-contribution
-      python: '3.6'
-      condition: $TRAVIS_OS_NAME == "linux"
-    user: $PYPI_USERNAME
-    password: $PYPI_PASSWORD
-notifications:
-  email:
-    on_success: never
-    on_failure: never  # Temporary fix until test suite is implemented.
+  - python -m unittest discover tests

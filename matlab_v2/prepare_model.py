@@ -5,7 +5,7 @@ Created on Wed Jun 17 09:53:00 2015
 @author: noore
 """
 from component_contribution.compound_cacher import CompoundCacher
-from component_contribution.kegg_reaction import KeggReaction
+from component_contribution import Reaction
 from component_contribution import inchi2gv
 from scipy.io import savemat, loadmat
 import numpy as np
@@ -72,7 +72,7 @@ if __name__ == '__main__':
     model_X = []
     model_G = []
     for line in args.rxn_file.readlines():
-        reaction = KeggReaction.parse_formula(line)
+        reaction = Reaction.parse_formula(line)
         try:
             x, g = decompose_reaction(ccache, decomposer, cids, G, reaction)
         except inchi2gv.GroupDecompositionError:

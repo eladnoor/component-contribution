@@ -1,5 +1,3 @@
-# -*- encoding: utf-8 -*-
-
 # The MIT License (MIT)
 #
 # Copyright (c) 2018 Novo Nordisk Foundation Center for Biosustainability,
@@ -22,8 +20,6 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
-
-""""""
 
 from __future__ import absolute_import
 
@@ -62,14 +58,15 @@ def atom_bag_and_charge(molecule):
 
     atom_bag = defaultdict(int)
     formal_charge = 0
+    
+    # Make all hydrogens explicit so we can properly count them
+    molecule = molecule.clone
+    molecule.addh()
+    
     for atom in molecule.atoms:
         assert isinstance(atom, pybel.Atom)
         symbol = PERIODIC_TABLE.GetSymbol(atom.atomicnum)
-        # if symbol not in atom_bag:
-        #     atom_bag[symbol] = 1
-        # else:
         atom_bag[symbol] += 1
-
         formal_charge += atom.formalcharge
 
     n_protons = sum(c * PERIODIC_TABLE.GetAtomicNum(elem)
@@ -103,4 +100,3 @@ def remove_atoms(molecule, indices):
         molecule.OBMol.DeleteAtom(molecule.OBMol.GetAtom(i+1))
     molecule.OBMol.EndModify()
     return molecule
-

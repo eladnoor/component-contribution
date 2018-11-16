@@ -1,34 +1,31 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Thu Mar 26 11:21:14 2015
+# The MIT License (MIT)
+#
+# Copyright (c) 2018 Novo Nordisk Foundation Center for Biosustainability,
+# Technical University of Denmark.
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+# THE SOFTWARE.
 
-@author: noore
-"""
-
-import numpy as np
-import scipy
+from numpy import array, zeros, fill_diagonal
+from scipy.linalg import svd
+from numpy.linalg import pinv
 
 class LINALG(object):
-
-    @staticmethod
-    def svd(A):
-
-        # numpy.linalg.svd returns U, s, V such that
-        # A = U * s * V
-
-        # however, matlab and octave return U, S, V such that
-        # V needs to be conjugate transposed when multiplied:
-        # A = U * S * V.H
-
-        # we would like to stick to the latter standard, so we return
-        # the transposed V here (assuming it is real)
-
-        U, s, V = scipy.linalg.svd(A, full_matrices=True)
-        S = np.matrix(np.zeros(A.shape))
-        np.fill_diagonal(S, s)
-        U = np.matrix(U)
-        V = np.matrix(V)
-        return U, S, V.T
 
     @staticmethod
     def _zero_pad_S(S, cids_orig, cids_joined):
@@ -39,22 +36,24 @@ class LINALG(object):
         if not set(cids_orig).issubset(cids_joined):
             raise Exception('The full list is missing some IDs in "cids"')
 
-        full_S = np.zeros((len(cids_joined), S.shape[1]))
+        full_S = zeros((len(cids_joined), S.shape[1]))
         for i, cid in enumerate(cids_orig):
             S_row = S[i, :]
             full_S[cids_joined.index(cid), :] = S_row
 
-        return np.matrix(full_S)
+        return full_S
 
     @staticmethod
     def _invert_project(A, eps=1e-10):
         n, m = A.shape
-        U, S, V = LINALG.svd(A)
-        inv_A = V * np.linalg.pinv(S) * U.T
+        U, s, Vh = svd(A, full_matrices=True)
+        S = zeros(A.shape)
+        fill_diagonal(S, s)
+        inv_A = Vh.T @ pinv(S) @ U.T
 
         r = (S > eps).sum()
-        P_R   = U[:, :r] * U[:, :r].T
-        P_N   = U[:, r:] * U[:, r:].T
+        P_R   = U[:, :r] @ U[:, :r].T
+        P_N   = U[:, r:] @ U[:, r:].T
 
         return inv_A, r, P_R, P_N
 
@@ -83,7 +82,7 @@ class LINALG(object):
 
         # create the projection matrix that maps the rows in A to rows in
         # A_unique
-        P_col = np.matrix(np.zeros((len(A_unique), len(A_tuples))))
+        P_col = zeros((len(A_unique), len(A_tuples)))
 
         for j, tup in enumerate(A_tuples):
             # find the indices of the unique row in A_unique which correspond
@@ -91,9 +90,10 @@ class LINALG(object):
             i = A_unique.index(tup)
             P_col[i, j] = 1
 
-        return np.matrix(A_unique), P_col
+        return array(A_unique, ndmin=2), P_col
 
     @staticmethod
     def _col_uniq(A):
         A_unique, P_col = LINALG._row_uniq(A.T)
         return A_unique.T, P_col.T
+
