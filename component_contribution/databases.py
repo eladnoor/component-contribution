@@ -25,6 +25,7 @@ from __future__ import absolute_import
 
 import pybel
 from requests import get, exceptions
+from bioservices.chebi import ChEBI
 
 class DatabaseInterface():
 
@@ -69,8 +70,14 @@ def get_inchi_molecule(accession):
 
 
 def get_chebi_molecule(accession):
-    raise NotImplementedError("Coming soon!")
+    entity = ChEBI().getCompleteEntity(accession)
+    if entity is None:
+        return None
+    return get_inchi_molecule(entity.inchi)
 
+
+def get_metanetx_molecule(accession):
+    pass
 
 databases = DatabaseInterface()
 databases.register("KEGG", get_kegg_molecule)
