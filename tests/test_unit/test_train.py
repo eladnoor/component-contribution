@@ -22,40 +22,55 @@
 # THE SOFTWARE.
 
 
+import pytest
+
 from component_contribution import ComponentContribution, Reaction
 from component_contribution.training_data import ToyTrainingData
 
 
-class TestTraining:
+@pytest.fixture(scope="module")
+def training_data():
+    return ToyTrainingData()
 
-    td = ToyTrainingData()
-    cc = ComponentContribution(cache_file_name=None, training_data=td)
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+@pytest.fixture(scope="module")
+def comp_contribution(training_data):
+    return ComponentContribution(cache_file_name=None,
+                                 training_data=training_data)
 
-    def test_train(self):
-        self.assertEqual(self.cc.params['b'].shape, (48,))
-        self.assertEqual(self.cc.params['dG0_rc'].shape, (97,))
-        self.assertEqual(self.cc.params['dG0_gc'].shape, (172,))
-        self.assertEqual(self.cc.params['dG0_cc'].shape, (97,))
 
-    def test_dG0_calculation(self):
-        formula = 'KEGG:C00002 + KEGG:C00001 <=> KEGG:C00008 + KEGG:C00009'
-        rxn = Reaction.parse_formula(formula)
-        dG0, sigma = self.cc.get_dG0_r(rxn)
-        self.assertAlmostEqual(dG0, 12.6, 1)
-        self.assertAlmostEqual(sigma, 1.8, 1)
+@pytest.fixture(scope="module")
+def reaction():
+    formula = 'KEGG:C00002 + KEGG:C00001 <=> KEGG:C00008 + KEGG:C00009'
+    return Reaction.parse_formula(formula)
 
-    def test_dG0_prime_calculation(self):
-        formula = 'KEGG:C00002 + KEGG:C00001 <=> KEGG:C00008 + KEGG:C00009'
-        rxn = Reaction.parse_formula(formula)
-        dG0_prime, sigma = self.cc.get_dG0_r_prime(rxn, pH=7.0, I=0.25, T=298.15)
-        self.assertAlmostEqual(dG0_prime, -26.6, 1)
-        self.assertAlmostEqual(sigma, 1.8, 1)
 
-        dG0_prime_ph8, _ = self.cc.get_dG0_r_prime(rxn, pH=8.0, I=0.25, T=298.15)
-        self.assertAlmostEqual(dG0_prime_ph8, -31.5, 1)
+def test_train(comp_contribution):
+    assert comp_contribution.params['b'].shape == (48,)
+    assert comp_contribution.params['dG0_rc'].shape == (97,)
+    assert comp_contribution.params['dG0_gc'].shape == (172,)
+    assert comp_contribution.params['dG0_cc'].shape == (97,)
 
-        dG0_prime_ph6, _ = self.cc.get_dG0_r_prime(rxn, pH=6.0, I=0.25, T=298.15)
-        self.assertAlmostEqual(dG0_prime_ph6, -24.2, 1)
+
+def test_delta_g_zero_calculation(comp_contribution):
+    formula = 'KEGG:C00002 + KEGG:C00001 <=> KEGG:C00008 + KEGG:C00009'
+    rxn = Reaction.parse_formula(formula)
+    delta_g_zero, sigma = comp_contribution.get_dG0_r(rxn)
+    assert delta_g_zero == pytest.approx(12.6)
+    assert sigma == pytest.approx(1.8)
+
+
+@pytest.mark.parametrize(
+    "ph_value, ionic_strength, temperature, exp_delta_g_zero_prime, exp_sigma",
+    [
+        (6.0, 0.25, 298.15, -24.2, 1.8),
+        (7.0, 0.25, 298.15, -26.6, 1.8),
+        (8.0, 0.25, 298.15, -31.5, 1.8),
+    ])
+def test_delta_g_zero_prime_calculation(
+        ph_value, ionic_strength, temperature, exp_delta_g_zero_prime,
+        exp_sigma, reaction, comp_contribution):
+    delta_g_zero_prime, sigma = comp_contribution.get_dG0_r_prime(
+        reaction, pH=ph_value, I=ionic_strength, T=temperature)
+    assert delta_g_zero_prime == pytest.approx(exp_delta_g_zero_prime)
+    assert sigma == pytest.approx(exp_sigma)

@@ -24,35 +24,30 @@
 # THE SOFTWARE.
 
 
+import pytest
+
 from component_contribution import ChemAxonNotFoundError, ccache
 
 
-class TestAlbertyTransform:
+try:
+    ccache.get_compound('KEGG:C00002')
+except ChemAxonNotFoundError:
+    pytest.skip("Cannot test without ChemAxon.", allow_module_level=True)
 
-    def __init__(self, *args, **kwargs):
-        super(TestAlbertyTransform, self).__init__(*args, **kwargs)
-        try:
-            self.atp_comp = ccache.get_compound('KEGG:C00002')
-            self.missing_chemaxon = False
-        except ChemAxonNotFoundError:
-            self.missing_chemaxon = True
 
-    def test_atp(self):
-        if self.missing_chemaxon:
-            self.skipTest('cannot test without ChemAxon')
-        self.assertSetEqual(set([12.6, 7.42, 4.93, 3.29, 1.55, 0.9]),
-                            set(self.atp_comp.p_kas))
-        self.assertEqual(self.atp_comp.major_microspecies, 2)
+@pytest.fixture(scope="module")
+def atp_comp():
+    return ccache.get_compound('KEGG:C00002')
 
-    def test_transform(self):
-        if self.missing_chemaxon:
-            self.skipTest('cannot test without ChemAxon')
-        T = 300.0
-        ddG_ref_list = [0, 72.3, 114.9, 143.2, 162.1, 171.0, 176.2]
 
-        self.assertEqual(len(self.atp_comp.number_of_protons),
-                         len(ddG_ref_list))
+def test_atp(atp_comp):
+    assert set(atp_comp.p_kas) == {12.6, 7.42, 4.93, 3.29, 1.55, 0.9}
+    assert atp_comp.major_microspecies == 2
 
-        ddG_res_list = [self.atp_comp._ddG(0, i, T) for i in range(7)]
-        for i in range(7):
-            self.assertAlmostEqual(ddG_ref_list[i], ddG_res_list[i], 1)
+
+def test_transform(atp_comp):
+    temperature = 300.0
+    expected_delta_delta_g = [0, 72.3, 114.9, 143.2, 162.1, 171.0, 176.2]
+    assert len(atp_comp.number_of_protons) == len(expected_delta_delta_g)
+    delta_delta_g = [atp_comp._ddG(0, i, temperature) for i in range(7)]
+    assert delta_delta_g == pytest.approx(expected_delta_delta_g)

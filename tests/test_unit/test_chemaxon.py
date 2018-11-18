@@ -23,27 +23,36 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
+import pytest
+
+from component_contribution import ccache
 from component_contribution.chemaxon import (
     ChemAxonNotFoundError, get_dissociation_constants, get_formula_and_charge)
 
 
-class TestChemaxon:
+try:
+    # TODO: Should introduce a utility that runs cxcalc --help to test.
+    ccache.get_compound('KEGG:C00002')
+except ChemAxonNotFoundError:
+    pytest.skip("Cannot test without ChemAxon.", allow_module_level=True)
 
-    def __init__(self, *args, **kwargs):
-        super(TestChemaxon, self).__init__(*args, **kwargs)
 
-    def test_pka(self):
-        try:
-            compound_list = [('InChI=1S/H3O4P/c1-5(2,3)4/h(H3,1,2,3,4)/p-3', 'O4P', -3, [1.80, 6.95, 12.90]), # orthophosphate
-                             ('InChI=1S/C4H8O4/c5-1-3(7)4(8)2-6/h3,5-7H,1-2H2/t3-/m1/s1', 'C4H8O4', 0, [-8.53, -3.86, -3.33, -3.01, 12.54, 13.9, 15.45])] # D-Erythrulose
-            for inchi, formula, charge, diss_table in compound_list:
-                _formula, _charge = get_formula_and_charge(inchi)
-                _diss_table, major_ms = get_dissociation_constants(inchi)
-                self.assertEqual(formula, _formula)
-                self.assertEqual(charge, _charge)
-                self.assertEqual(len(diss_table), len(_diss_table))
-                for pka1, pka2 in zip(sorted(diss_table), sorted(_diss_table)):
-                    self.assertAlmostEqual(pka1, pka2, 2)
-
-        except ChemAxonNotFoundError:
-            self.skipTest('cannot test without ChemAxon')
+@pytest.mark.parametrize("inchi, exp_formula, exp_charge, exp_diss_table", [
+    # Orthophosphate
+    ('InChI=1S/H3O4P/c1-5(2,3)4/h(H3,1,2,3,4)/p-3',
+     'O4P',
+     -3,
+     [1.80, 6.95, 12.90]),
+    # D-Erythrulose
+    ('InChI=1S/C4H8O4/c5-1-3(7)4(8)2-6/h3,5-7H,1-2H2/t3-/m1/s1',
+     'C4H8O4',
+     0,
+     [-8.53, -3.86, -3.33, -3.01, 12.54, 13.9, 15.45]),
+])
+def test_pka(inchi, exp_formula, exp_charge, exp_diss_table):
+    formula, charge = get_formula_and_charge(inchi)
+    assert formula == exp_formula
+    assert charge == exp_charge
+    diss_table, major_ms = get_dissociation_constants(inchi)
+    assert len(diss_table) == len(exp_diss_table)
+    assert sorted(diss_table) == pytest.approx(sorted(exp_diss_table))
