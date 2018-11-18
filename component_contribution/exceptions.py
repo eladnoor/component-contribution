@@ -21,9 +21,8 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-"""Define specialized exceptions."""
 
-from __future__ import absolute_import
+"""Define specialized exceptions."""
 
 
 class ChemAxonRuntimeError(RuntimeError):
@@ -38,16 +37,20 @@ class ChemAxonNotAvailable(Exception):
         """"""
         super().__init__("ChemAxon is not available.")
 
+
 class ParseException(Exception):
     pass
-        
+
+
 class NonCompoundException(Exception):
     pass
+
 
 class ReactionNotBalancedException(Exception):
     def __init__(self, msg, atom_bag=None):
         Exception.__init__(self, msg)
         self.atom_bag = atom_bag or {}
-    
+
+
 class MissingModuleException(Exception):
     pass

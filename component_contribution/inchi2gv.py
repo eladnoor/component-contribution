@@ -1,12 +1,16 @@
-import csv, logging, json, itertools, sys
-import numpy as np
-try:
-    from StringIO import StringIO
-except ImportError:
-    from io import StringIO
+import csv
+import itertools
+import json
+import logging
+import sys
+from io import StringIO
 from optparse import OptionParser
-from .thermodynamic_constants import R, default_T
+
+import numpy as np
+
 from .molecule import Molecule, OpenBabelError
+from .thermodynamic_constants import R, default_T
+
 
 GROUP_CSV = """"NAME","PROTONS","CHARGE","MAGNESIUMS","SMARTS","FOCAL_ATOMS","REMARK","SKIP"
 "primary -Cl3",0,0,0,"Cl[CH0](Cl)Cl",0,"chlorine (attached to a primary carbon with 2 other chlorine atoms attached)",
@@ -153,22 +157,22 @@ GROUP_CSV = """"NAME","PROTONS","CHARGE","MAGNESIUMS","SMARTS","FOCAL_ATOMS","RE
 
 class GroupVector(list):
     """A vector of groups."""
-    
+
     def __init__(self, groups_data, iterable=None):
         """Construct a vector.
-        
+
         Args:
             groups_data: data about all the groups.
             iterable: data to load into the vector.
         """
         self.groups_data = groups_data
-        
+
         if iterable is not None:
             self.extend(iterable)
         else:
             for _ in range(len(self.groups_data.all_group_names)):
                 self.append(0)
-    
+
     def __str__(self):
         """Return a sparse string representation of this group vector."""
         group_strs = []
@@ -177,7 +181,7 @@ class GroupVector(list):
             if gv_flat[i]:
                 group_strs.append('%s x %d' % (name, gv_flat[i]))
         return " | ".join(group_strs)
-    
+
     def __iadd__(self, other):
         for i in range(len(self.groups_data.all_group_names)):
             self[i] += other[i]
@@ -187,7 +191,7 @@ class GroupVector(list):
         for i in range(len(self.groups_data.all_group_names)):
             self[i] -= other[i]
         return self
-            
+
     def __add__(self, other):
         result = GroupVector(self.groups_data)
         for i in range(len(self.groups_data.all_group_names)):
@@ -199,19 +203,19 @@ class GroupVector(list):
         for i in range(len(self.groups_data.all_group_names)):
             result[i] = self[i] - other[i]
         return result
-    
+
     def __eq__(self, other):
         for i in range(len(self.groups_data.all_group_names)):
             if self[i] != other[i]:
                 return False
         return True
-    
+
     def __nonzero__(self):
         for i in range(len(self.groups_data.all_group_names)):
             if self[i] != 0:
                 return True
         return False
-    
+
     def __mul__(self, other):
         try:
             c = float(other)
@@ -219,11 +223,11 @@ class GroupVector(list):
         except ValueError:
             raise ValueError("A GroupVector can only be multiplied by a scalar"
                              ", given " + str(other))
-        
+
     def NetCharge(self):
         """Returns the net charge."""
         return int(np.dot(self, self.groups_data.all_group_charges))
-    
+
     def Hydrogens(self):
         """Returns the number of protons."""
         return int(np.dot(self, self.groups_data.all_group_hydrogens))
@@ -231,27 +235,27 @@ class GroupVector(list):
     def Magnesiums(self):
         """Returns the number of Mg2+ ions."""
         return int(np.dot(self, self.groups_data.all_group_mgs))
-    
+
     def RemoveEpsilonValues(self, epsilon=1e-10):
         for i in range(len(self)):
             if abs(self[i]) < epsilon:
                 self[i] = 0
-    
+
     def ToJSONString(self):
         return json.dumps(dict([(i, x) for (i, x) in enumerate(self) if x != 0]))
-    
+
     @staticmethod
     def FromJSONString(groups_data, s):
         v = [0] * groups_data.Count()
         for i, x in json.loads(s).items():
             v[int(i)] = x
         return GroupVector(groups_data, v)
-    
+
     @property
     def flat(self):
         if not self.groups_data.transformed:
             return tuple(self)
-        
+
         # map all pseudoisomeric group indices to Biochemical group indices (which are fewer)
         # use the names of each group and ignore the nH, z and nMg.
         biochemical_group_names = self.groups_data.GetGroupNames()
@@ -260,7 +264,7 @@ class GroupVector(list):
             group_name = self.groups_data.all_groups[i].name
             new_index = biochemical_group_names.index(group_name)
             biochemical_vector[new_index] += x
-        return tuple(biochemical_vector)        
+        return tuple(biochemical_vector)
 
     def as_array(self):
         return np.array(self.flat)
@@ -273,38 +277,38 @@ class MalformedGroupDefinitionError(GroupsDataError):
 
 class _AllAtomsSet(object):
     """A set containing all the atoms: used for focal atoms sets."""
-    
+
     def __contains__(self, elt):
         return True
 
 class FocalSet(object):
-    
+
     def __init__(self, focal_atoms_str):
         if not focal_atoms_str:
             raise ValueError(
                 'You must supply a non-empty focal atom string.'
                 ' You may use "None" or "All" in the obvious fashion.')
-        
+
         self.str = focal_atoms_str
         self.focal_atoms_set = None
         prepped_str = self.str.strip().lower()
-        
+
         if prepped_str == 'all':
             self.focal_atoms_set = _AllAtomsSet()
         elif prepped_str == 'none':
             self.focal_atoms_set = set()
         else:
             self.focal_atoms_set = set([int(c) for c in self.str.split('|')])
-    
+
     def __str__(self):
         return self.str
-    
+
     def __contains__(self, elt):
         return self.focal_atoms_set.__contains__(elt)
 
 class Group(object):
     """Representation of a single group."""
-    
+
     def __init__(self, group_id, name, hydrogens, charge, nMg,
                  smarts=None, focal_atoms=None):
         self.id = group_id
@@ -320,24 +324,24 @@ class Group(object):
 
     def _IsSugarGroup(self):
         return self.name.startswith('*Su')
-    
+
     def _IsAromaticRingGroup(self):
         return self.name.startswith('*Ar')
-    
+
     def _IsHeteroaromaticRingGroup(self):
         return self.name.startswith('*Har')
 
     def IsPhosphate(self):
         return self.name.startswith('*P')
-    
+
     def IgnoreCharges(self):
         # (I)gnore charges
         return self.name[2] == 'I'
-    
+
     def ChargeSensitive(self):
         # (C)harge sensitive
         return self.name[2] == 'C'
-    
+
     def IsCodedCorrection(self):
         """Returns True if this is a correction for which hand-written code.
            must be executed.
@@ -353,7 +357,7 @@ class Group(object):
             # If we find anything other than a carbon (w/ hydrogens)
             # then it's not a hydrocarbon.
             return 0
-        return 1    
+        return 1
 
     @staticmethod
     def _CountAromaticRings(mol):
@@ -362,7 +366,7 @@ class Group(object):
         for smarts_str in expressions:
             count += len(mol.FindSmarts(smarts_str))
         return count
-    
+
     @staticmethod
     def _CountHeteroaromaticRings(mol):
         expressions = ['a1aaaa1', 'a1aaaaa1']
@@ -384,57 +388,57 @@ class Group(object):
             return self._CountAromaticRings(mol)
         elif self._IsHeteroaromaticRingGroup():
             return self._CountHeteroaromaticRings(mol)
-        
+
         raise TypeError('This group is not a correction.')
-    
+
     def FocalSet(self, nodes):
         """Get the set of focal atoms from the match.
-        
+
         Args:
             nodes: the nodes matching this group.
-        
+
         Returns:
             A set of focal atoms.
-        """        
+        """
         focal_set = set()
         for i, node in enumerate(nodes):
             if i in self.focal_atoms:
-                focal_set.add(node)            
+                focal_set.add(node)
         return focal_set
-    
+
     def __str__(self):
         if self.hydrogens is not None and self.charge is not None and self.nMg is not None:
             return '%s [H%d Z%d Mg%d]' % (self.name, self.hydrogens or 0, self.charge or 0, self.nMg or 0)
         else:
             return '%s' % self.name
-    
+
     def __eq__(self, other):
         """Enable == checking.
-        
+
         Only checks name, protons, charge, and nMg.
         """
         return (str(self.name) == str(other.name) and
                 self.hydrogens == other.hydrogens and
                 self.charge == other.charge and
                 self.nMg == other.nMg)
-    
+
     def __hash__(self):
         """We are HASHABLE!
-        
+
         Note that the hash depends on the same attributes that are checked for equality.
         """
         return hash((self.name, self.hydrogens, self.charge, self.nMg))
 
 class GroupsData(object):
     """Contains data about all groups."""
-    
+
     ORIGIN = Group('Origin', 'Origin', hydrogens=0, charge=0, nMg=0)
-    
+
     # Phosphate groups need special treatment, so they are defined in code...
     # TODO(flamholz): Define them in the groups file.
-    
+
     # each tuple contains: (name, description, nH, charge, nMg, is_default)
-    
+
     phosphate_groups = [('initial H0', '-OPO3-', 0, -1, 0, True),
                         ('initial H1', '-OPO3-', 1, 0, 0, False),
                         ('middle H0', '-OPO2-', 0, -1, 0, True),
@@ -459,7 +463,7 @@ class GroupsData(object):
                         ('ring middle chain H1', 'ring -OPO2-OPO2-', 1, -1, 0, False),
                         ('ring middle chain H2', 'ring -OPO2-OPO2-', 2, 0, 0, False),
                         ('ring initial chain Mg1', 'ring -OPO2-OPO2-', 0, 0, 1, False)]
-    
+
     PHOSPHATE_GROUPS = []
     PHOSPHATE_DICT = {}
     DEFAULTS = {}
@@ -470,13 +474,13 @@ class GroupsData(object):
         if is_default:
             DEFAULTS[desc] = group
 
-    RING_PHOSPHATES_TO_MGS = ((PHOSPHATE_DICT['ring initial chain H0'], PHOSPHATE_DICT['ring initial chain Mg1']),)    
-    MIDDLE_PHOSPHATES_TO_MGS = ((PHOSPHATE_DICT['initial chain H0'], PHOSPHATE_DICT['initial chain Mg1']),)    
+    RING_PHOSPHATES_TO_MGS = ((PHOSPHATE_DICT['ring initial chain H0'], PHOSPHATE_DICT['ring initial chain Mg1']),)
+    MIDDLE_PHOSPHATES_TO_MGS = ((PHOSPHATE_DICT['initial chain H0'], PHOSPHATE_DICT['initial chain Mg1']),)
     FINAL_PHOSPHATES_TO_MGS = ((PHOSPHATE_DICT['middle chain H0'], PHOSPHATE_DICT['middle chain Mg1']),)
-    
+
     def __init__(self, groups, transformed=False):
         """Construct GroupsData.
-        
+
         Args:
             groups: a list of Group objects.
         """
@@ -496,36 +500,36 @@ class GroupsData(object):
             for group in self.all_groups:
                 if group.name not in self.biochemical_group_names:
                     self.biochemical_group_names.append(group.name)
-    
+
     def Count(self):
         return len(self.all_groups)
-    
+
     count = property(Count)
-    
+
     @staticmethod
     def _GetAllGroups(groups):
         all_groups = []
-        
+
         for group in groups:
             # Expand phosphate groups.
             if group.IsPhosphate():
                 all_groups.extend(GroupsData.PHOSPHATE_GROUPS)
             else:
                 all_groups.append(group)
-        
+
         # Add the origin.
         all_groups.append(GroupsData.ORIGIN)
         return all_groups
-    
+
     @staticmethod
     def _ConvertFocalAtoms(focal_atoms_str):
         if not focal_atoms_str:
             return _AllAtomsSet()
         if focal_atoms_str.lower().strip() == 'none':
             return set()
-        
+
         return set([int(c) for c in focal_atoms_str.split('|')])
-    
+
     @staticmethod
     def FromGroupsFile(filename, transformed=False):
         """Factory that initializes a GroupData from a CSV file."""
@@ -536,14 +540,14 @@ class GroupsData(object):
         else:
             fp = filename
         list_of_groups = []
-        
+
         gid = 0
         for line_num, row in enumerate(csv.DictReader(fp)):
             logging.debug('Reading group definition for ' + row['NAME'])
             if row.get('SKIP', False):
                 logging.debug('Skipping group %s', row.get('NAME'))
                 continue
-            
+
             try:
                 group_name = row['NAME']
                 protons = int(row['PROTONS'])
@@ -552,12 +556,12 @@ class GroupsData(object):
                 smarts = row['SMARTS']
                 focal_atoms = FocalSet(row['FOCAL_ATOMS'])
                 #remark = row['REMARK']
-                
+
                 # Check that the smarts are good.
                 if not Molecule.VerifySmarts(smarts):
                     raise GroupsDataError('Cannot parse SMARTS from line %d: %s' %
                                           (line_num, smarts))
-                
+
                 group = Group(gid, group_name, protons, charge, mgs, str(smarts),
                               focal_atoms)
                 list_of_groups.append(group)
@@ -568,26 +572,26 @@ class GroupsData(object):
                 logging.error(msg)
                 raise GroupsDataError('Wrong number of columns (%d) in one of the rows in %s: %s' %
                                       (len(row), filename, str(row)))
-            
+
             gid += 1
         logging.debug('Done reading groups data.')
-        
-        return GroupsData(list_of_groups, transformed)    
+
+        return GroupsData(list_of_groups, transformed)
 
     @staticmethod
     def FromDatabase(db, filename=None, transformed=False):
         """Factory that initializes a GroupData from a DB connection.
-        
+
         Args:
             db: a Database object.
             filename: an optional filename to load data from when
                 it's not in the DB. Will write to DB if reading from file.
-        
+
         Returns:
             An initialized GroupsData object.
         """
         logging.debug('Reading the list of groups from the database.')
-        
+
         if not db.DoesTableExist('groups'):
             if filename:
                 groups_data = GroupsData.FromGroupsFile(filename)
@@ -597,7 +601,7 @@ class GroupsData(object):
                 raise Exception('Cannot initialize GroupsData, no file was '
                                 'provided and the database does not contain '
                                 'the information either')
-        
+
         # Table should exist.
         list_of_groups = []
         for row in db.Execute('SELECT * FROM groups'):
@@ -608,17 +612,17 @@ class GroupsData(object):
                 raise ValueError('Group #%d (%s): %s' % (gid, group_name, str(e)))
             list_of_groups.append(Group(gid, group_name, protons, charge, nMg, str(smarts), focal_atoms))
         logging.debug('Done reading groups data.')
-        
+
         return GroupsData(list_of_groups, transformed)
-    
+
     def ToDatabase(self, db):
         """Write the GroupsData to the database."""
         logging.debug('Writing GroupsData to the database.')
-        
+
         db.CreateTable('groups', 'gid INT, name TEXT, protons INT, charge INT, nMg INT, smarts TEXT, focal_atoms TEXT, remark TEXT')
         for group in self.groups:
             focal_atom_str = str(group.focal_atoms)
-            db.Insert('groups', [group.id, group.name, group.hydrogens, group.charge, 
+            db.Insert('groups', [group.id, group.name, group.hydrogens, group.charge,
                                  group.nMg, group.smarts, focal_atom_str, ''])
 
         logging.debug('Done writing groups data into database.')
@@ -628,7 +632,7 @@ class GroupsData(object):
             return self.all_groups.index(gr)
         except ValueError:
             raise ValueError('group %s is not defined' % str(gr))
-    
+
     def GetGroupNames(self):
         if self.transformed:
             return self.biochemical_group_names
@@ -636,14 +640,14 @@ class GroupsData(object):
             return self.all_group_names
 
 class GroupDecompositionError(Exception):
-    
+
     def __init__(self, msg, decomposition=None):
         Exception.__init__(self, msg)
         self.decomposition = decomposition
-        
+
     def __str__(self):
         return Exception.__str__(self)
-    
+
     def GetDebugTable(self):
         if self.decomposition is not None:
             return self.decomposition.ToTableString()
@@ -652,19 +656,19 @@ class GroupDecompositionError(Exception):
 
 class GroupDecomposition(object):
     """Class representing the group decomposition of a molecule."""
-    
+
     def __init__(self, groups_data, mol, groups, unassigned_nodes):
         self.groups_data = groups_data
         self.mol = mol
         self.groups = groups
         self.unassigned_nodes = unassigned_nodes
-    
+
     def ToTableString(self):
         """Returns the decomposition as a tabular string."""
         spacer = '-' * 50 + '\n'
         l = ['%30s | %2s | %2s | %3s | %s\n' % ("group name", "nH", "z", "nMg", "nodes"),
              spacer]
-                
+
         for group, node_sets in self.groups:
             if group.hydrogens is None and group.charge is None and group.nMg is None:
                 for n_set in node_sets:
@@ -683,7 +687,7 @@ class GroupDecomposition(object):
             l.append('%10s | %3s | %2s | %10s | %10s\n' %
                      ('index', 'an', 'el', 'valence', 'charge'))
             l.append(spacer)
-            
+
             all_atoms = self.mol.GetAtoms()
             for i in self.unassigned_nodes:
                 a = all_atoms[i]
@@ -693,26 +697,26 @@ class GroupDecomposition(object):
         return ''.join(l)
 
     def __str__(self):
-        """Convert the groups to a string."""        
+        """Convert the groups to a string."""
         group_strs = []
         for group, node_sets in self.NonEmptyGroups():
             if group.hydrogens is None and group.charge is None and group.nMg is None:
                 group_strs.append('%s x %d' % (group.name, len(node_sets)))
             else:
-                group_strs.append('%s [H%d %d %d] x %d' % 
-                    (group.name, group.hydrogens, group.charge, group.nMg, 
+                group_strs.append('%s [H%d %d %d] x %d' %
+                    (group.name, group.hydrogens, group.charge, group.nMg,
                      len(node_sets)))
         return " | ".join(group_strs)
-    
+
     def __len__(self):
         counter = 0
         for _group, node_sets in self.NonEmptyGroups():
             counter += len(node_sets)
         return counter
-    
+
     def AsVector(self):
         """Return the group in vector format.
-        
+
         Note: self.groups contains an entry for *all possible* groups, which is
         why this function returns consistent values for all compounds.
         """
@@ -721,65 +725,65 @@ class GroupDecomposition(object):
             group_vec[i] = len(node_sets)
         group_vec[-1] = 1 # The origin
         return group_vec
-    
+
     def NonEmptyGroups(self):
         """Generator for non-empty groups."""
         for group, node_sets in self.groups:
             if node_sets:
                 yield group, node_sets
-    
+
     def UnassignedAtoms(self):
         """Generator for unassigned atoms."""
         for i in self.unassigned_nodes:
             yield self.mol.GetAtoms()[i], i
-    
+
     def SparseRepresentation(self):
         """Returns a dictionary representation of the group.
-        
+
         TODO(flamholz): make this return some custom object.
         """
         return dict((group, node_sets) for group, node_sets in self.NonEmptyGroups())
-    
+
     def NetCharge(self):
         """Returns the net charge."""
         return self.AsVector().NetCharge()
-    
+
     def Hydrogens(self):
         """Returns the number of hydrogens."""
         return self.AsVector().Hydrogens()
-    
+
     def Magnesiums(self):
         """Returns the number of Mg2+ ions."""
         return self.AsVector().Magnesiums()
-    
+
     def CountGroups(self):
         """Returns the total number of groups in the decomposition."""
         return sum([len(gdata[-1]) for gdata in self.groups])
 
     def PseudoisomerVectors(self):
-        
+
         def distribute(total, num_slots):
             """
                 Returns:
                     a list with all the distinct options of distributing 'total' balls
                     in 'num_slots' slots.
-                
+
                 Example:
                     distribute(3, 2) = [[0, 3], [1, 2], [2, 1], [3, 0]]
             """
             if num_slots == 1:
                 return [[total]]
-            
+
             if total == 0:
                 return [[0] * num_slots]
-            
+
             all_options = []
             for i in range(total+1):
                 for opt in distribute(total-i, num_slots-1):
                     all_options.append([i] + opt)
-                    
+
             return all_options
-        
+
         def multi_distribute(total_slots_pairs):
             """
                 Returns:
@@ -787,25 +791,25 @@ class GroupDecomposition(object):
                     in each group of slots. Every pair in the input list represents
                     the subtotal of the number of balls and the number of available balls for them.
                     The total of the numbers in these slots will be equal to the subtotal.
-                
+
                 Example:
                     multi_distribute([(1, 2), (2, 2)]) =
                     [[0, 1, 0, 2], [0, 1, 1, 1], [0, 1, 2, 0], [1, 0, 0, 2], [1, 0, 1, 1], [1, 0, 2, 0]]
-                    
+
                     in words, the subtotal of the two first slots must be 1, and the subtotal
                     of the two last slots must be 2.
             """
             multilist_of_options = []
             for (total, num_slots) in total_slots_pairs:
                 multilist_of_options.append(distribute(total, num_slots))
-        
+
             return [sum(x) for x in itertools.product(*multilist_of_options)]
-        
-        """Returns a list of group vectors, one per pseudo-isomer."""    
+
+        """Returns a list of group vectors, one per pseudo-isomer."""
         if not self.CountGroups():
             logging.debug('No groups in this decomposition, not calculating pseudoisomers.')
             return []
-        
+
         # A map from each group name to its indices in the group vector.
         # Note that some groups appear more than once (since they can have
         # multiple protonation levels).
@@ -817,11 +821,11 @@ class GroupDecomposition(object):
             group, node_sets = gdata
             group_name_to_index.setdefault(group.name, []).append(i)
             group_name_to_count[group.name] = group_name_to_count.get(group.name, 0) + len(node_sets)
-        
+
         index_vector = [] # maps the new indices to the original ones that are used in groupvec
 
         # A list of per-group pairs (count, # possible protonation levels).
-        total_slots_pairs = [] 
+        total_slots_pairs = []
 
         for group_name, groupvec_indices in group_name_to_index.items():
             index_vector += groupvec_indices
@@ -849,10 +853,10 @@ class GroupDecomposition(object):
 
 class GroupDecomposer(object):
     """Decomposes compounds into their constituent groups."""
-    
+
     def __init__(self, groups_data):
         """Construct a GroupDecomposer.
-        
+
         Args:
             groups_data: a GroupsData object.
         """
@@ -864,16 +868,16 @@ class GroupDecomposer(object):
         assert filename
         gd = GroupsData.FromGroupsFile(filename)
         return GroupDecomposer(gd)
-    
+
     @staticmethod
     def FromDatabase(db, filename=None):
         """Factory that initializes a GroupDecomposer from the database.
-        
+
         Args:
             db: a Database object.
             filename: an optional filename to load data from when
                 it's not in the DB. Will write to DB if reading from file.
-        
+
         Returns:
             An initialized GroupsData object.
         """
@@ -888,7 +892,7 @@ class GroupDecomposer(object):
     @staticmethod
     def _InternalPChainSmarts(length):
         return ''.join(['[C,S][O;R0]', '[P;R0](=O)([OH,O-])[O;R0]' * length, '[C,S]'])
-    
+
     @staticmethod
     def _TerminalPChainSmarts(length):
         return ''.join(['[OH,O-]', 'P(=O)([OH,O-])O' * length, '[C,S]'])
@@ -896,17 +900,17 @@ class GroupDecomposer(object):
     @staticmethod
     def AttachMgToPhosphateChain(mol, chain_map, assigned_mgs):
         """Attaches Mg2+ ions the appropriate groups in the chain.
-        
+
         Args:
             mol: the molecule.
             chain_map: the groups in the chain.
             assigned_mgs: the set of Mg2+ ions that are already assigned.
-        
+
         Returns:
-            The updated list of assigned Mg2+ ions. 
+            The updated list of assigned Mg2+ ions.
         """
         # For each Mg2+ we see, we attribute it to a phosphate group if
-        # possible. We prefer to assign it to a terminal phosphate, but otherwise 
+        # possible. We prefer to assign it to a terminal phosphate, but otherwise
         # we assign it to a 'middle' group when there are 2 of them.
         def AddMg(p_group, pmg_group, mg):
             node_set = chain_map[p_group].pop(0)
@@ -914,14 +918,14 @@ class GroupDecomposer(object):
             node_set.add(mg_index)
             assigned_mgs.add(mg_index)
             chain_map[pmg_group].append(node_set)
-        
+
         all_pmg_groups = (GroupsData.FINAL_PHOSPHATES_TO_MGS +
-                          GroupsData.MIDDLE_PHOSPHATES_TO_MGS + 
+                          GroupsData.MIDDLE_PHOSPHATES_TO_MGS +
                           GroupsData.RING_PHOSPHATES_TO_MGS)
         for mg in mol.FindSmarts('[Mg+2]'):
             if mg[0] in assigned_mgs:
                 continue
-            
+
             for p_group, pmg_group in all_pmg_groups:
                 if chain_map[p_group]:
                     AddMg(p_group, pmg_group, mg)
@@ -941,19 +945,19 @@ class GroupDecomposer(object):
         """
         Chain end should be 'OC' for chains that do not really end, but link to carbons.
         Chain end should be '[O-1,OH]' for chains that end in an hydroxyl.
-    
+
         Args:
             mol: the molecule to decompose.
             max_length: the maximum length of a phosphate chain to consider.
             ignore_protonations: whether or not to ignore protonation values.
-        
+
         Returns:
             A list of 2-tuples (phosphate group, # occurrences).
         """
         group_map = dict((pg, []) for pg in GroupsData.PHOSPHATE_GROUPS)
         v_charge = [a.GetFormalCharge() for a in mol.GetAtoms()]
         assigned_mgs = set()
-        
+
         def pop_phosphate(pchain, p_size):
             if len(pchain) < p_size:
                 raise Exception('trying to pop more atoms than are left in the pchain')
@@ -961,10 +965,10 @@ class GroupDecomposer(object):
             charge = sum(v_charge[i] for i in phosphate)
             del pchain[0:p_size]
             return set(phosphate), charge
-            
+
         def add_group(chain_map, group_name, charge, atoms):
             default = GroupsData.DEFAULTS[group_name]
-            
+
             if ignore_protonations:
                 chain_map[default].append(atoms)
             else:
@@ -980,7 +984,7 @@ class GroupDecomposer(object):
                     chain_map[default].append(atoms)
                 else:
                     chain_map[group].append(atoms)
-        
+
         # For each allowed length
         for length in range(1, max_length + 1):
             # Find internal phosphate chains (ones in the middle of the molecule).
@@ -990,18 +994,18 @@ class GroupDecomposer(object):
                 working_pchain = list(pchain)
                 working_pchain.pop() # Lose the last carbon
                 working_pchain.pop(0) # Lose the first carbon
-                
+
                 if length % 2:
                     atoms, charge = pop_phosphate(working_pchain, 5)
-                    add_group(chain_map, 'ring -OPO3-', charge, atoms)                    
+                    add_group(chain_map, 'ring -OPO3-', charge, atoms)
                 else:
                     atoms, charge = pop_phosphate(working_pchain, 9)
                     add_group(chain_map, 'ring -OPO3-OPO2-', charge, atoms)
-                
+
                 while working_pchain:
                     atoms, charge = pop_phosphate(working_pchain, 8)
                     add_group(chain_map, 'ring -OPO2-OPO2-', charge, atoms)
-            
+
             assigned_mgs = GroupDecomposer.AttachMgToPhosphateChain(mol, chain_map,
                                                                     assigned_mgs)
             GroupDecomposer.UpdateGroupMapFromChain(group_map, chain_map)
@@ -1013,40 +1017,40 @@ class GroupDecomposer(object):
                 working_pchain = list(pchain)
                 working_pchain.pop() # Lose the last carbon
                 working_pchain.pop(0) # Lose the first carbon
-                
+
                 if length % 2:
                     atoms, charge = pop_phosphate(working_pchain, 5)
-                    add_group(chain_map, '-OPO3-', charge, atoms)                    
+                    add_group(chain_map, '-OPO3-', charge, atoms)
                 else:
                     atoms, charge = pop_phosphate(working_pchain, 9)
                     add_group(chain_map, '-OPO3-OPO2-', charge, atoms)
-                
+
                 while working_pchain:
                     atoms, charge = pop_phosphate(working_pchain, 8)
                     add_group(chain_map, '-OPO2-OPO2-', charge, atoms)
-            
+
             assigned_mgs = GroupDecomposer.AttachMgToPhosphateChain(mol, chain_map,
                                                                     assigned_mgs)
             GroupDecomposer.UpdateGroupMapFromChain(group_map, chain_map)
-            
+
             # Find terminal phosphate chains.
             smarts_str = GroupDecomposer._TerminalPChainSmarts(length)
             chain_map = dict((k, []) for (k, _) in group_map.items())
             for pchain in mol.FindSmarts(smarts_str):
                 working_pchain = list(pchain)
                 working_pchain.pop() # Lose the carbon
-                
+
                 atoms, charge = pop_phosphate(working_pchain, 5)
                 add_group(chain_map, '-OPO3', charge, atoms)
-                
+
                 if not length % 2:
                     atoms, charge = pop_phosphate(working_pchain, 4)
                     add_group(chain_map, '-OPO2-', charge, atoms)
-                
+
                 while working_pchain:
                     atoms, charge = pop_phosphate(working_pchain, 8)
                     add_group(chain_map, '-OPO2-OPO2-', charge, atoms)
-                
+
             assigned_mgs = GroupDecomposer.AttachMgToPhosphateChain(mol, chain_map,
                                                                     assigned_mgs)
             GroupDecomposer.UpdateGroupMapFromChain(group_map, chain_map)
@@ -1063,26 +1067,26 @@ class GroupDecomposer(object):
     def Decompose(self, mol, ignore_protonations=False, strict=False):
         """
         Decompose a molecule into groups.
-        
+
         The flag 'ignore_protonations' should be used when decomposing a compound with lacing protonation
         representation (for example, the KEGG database doesn't posses this information). If this flag is
         set to True, it overrides the '(C)harge sensitive' flag in the groups file (i.e. - *PC)
-        
+
         Args:
             mol: the molecule to decompose.
             ignore_protonations: whether to ignore protonation levels.
             strict: whether to assert that there are no unassigned atoms.
-        
+
         Returns:
             A GroupDecomposition object containing the decomposition.
         """
         unassigned_nodes = set(range(len(mol)))
         groups = []
-        
+
         def _AddCorrection(group, count):
             l = [set() for _ in range(count)]
             groups.append((group, l))
-        
+
         for group in self.groups_data.groups:
             # Phosphate chains require a special treatment
             if group.IsPhosphate():
@@ -1094,10 +1098,10 @@ class GroupDecomposer(object):
                 else:
                     raise MalformedGroupDefinitionError(
                         'Unrecognized phosphate wildcard: %s' % group.name)
-                
+
                 for phosphate_group, group_nodesets in pchain_groups:
                     current_groups = []
-                    
+
                     for focal_set in group_nodesets:
                         if focal_set.issubset(unassigned_nodes):
                             # Check that the focal-set doesn't override an assigned node
@@ -1112,7 +1116,7 @@ class GroupDecomposer(object):
                 # use the pseudogroup with the lowest nH in each category regardless
                 # of the hydrogens in the given Mol.
                 current_groups = []
-                for nodes in mol.FindSmarts(group.smarts): 
+                for nodes in mol.FindSmarts(group.smarts):
                     try:
                         focal_set = group.FocalSet(nodes)
                     except IndexError:
@@ -1121,38 +1125,38 @@ class GroupDecomposer(object):
                         sys.exit(-1)
 
                     # check that the focal-set doesn't override an assigned node
-                    if focal_set.issubset(unassigned_nodes): 
+                    if focal_set.issubset(unassigned_nodes):
                         current_groups.append(focal_set)
                         unassigned_nodes = unassigned_nodes - focal_set
                 groups.append((group, current_groups))
-        
+
         # Ignore the hydrogen atoms when checking which atom is unassigned
-        for nodes in mol.FindSmarts('[H]'): 
+        for nodes in mol.FindSmarts('[H]'):
             unassigned_nodes = unassigned_nodes - set(nodes)
-        
+
         decomposition = GroupDecomposition(self.groups_data, mol,
                                            groups, unassigned_nodes)
-        
+
         if strict and decomposition.unassigned_nodes:
             raise GroupDecompositionError('Unable to decompose %s into groups.' % mol.title,
                                           decomposition)
-        
+
         return decomposition
 
 class InChIDecomposer(object):
-    
+
     def __init__(self, groups_data):
         self.RT = R * default_T
         self.group_decomposer = GroupDecomposer(groups_data)
-    
+
     def inchi_to_groupvec(self, inchi):
         try:
             mol = Molecule.FromInChI(str(inchi))
         except OpenBabelError:
             raise GroupDecompositionError('cannot convert InChI to Molecule')
-        
+
         #mol.RemoveHydrogens()
-        decomposition = self.group_decomposer.Decompose(mol, 
+        decomposition = self.group_decomposer.Decompose(mol,
                             ignore_protonations=False, strict=True)
 
         #nH = decomposition.Hydrogens()
@@ -1165,9 +1169,9 @@ class InChIDecomposer(object):
             mol = Molecule.FromSmiles(str(smiles))
         except OpenBabelError:
             raise GroupDecompositionError('cannot convert InChI to Molecule')
-        
+
         #mol.RemoveHydrogens()
-        decomposition = self.group_decomposer.Decompose(mol, 
+        decomposition = self.group_decomposer.Decompose(mol,
                             ignore_protonations=False, strict=True)
 
         #nH = decomposition.Hydrogens()
@@ -1203,7 +1207,7 @@ if __name__ == "__main__":
     if options.inchi is None and not options.list_groups:
         sys.stderr.write(parser.get_usage())
         sys.exit(-1)
-    
+
     groups_data = init_groups_data()
     if options.inchi:
         decomposer = InChIDecomposer(groups_data)

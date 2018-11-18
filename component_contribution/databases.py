@@ -21,12 +21,12 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-from __future__ import absolute_import
 
 import pybel
-from requests import get, exceptions
+from requests import exceptions, get
 
-class DatabaseInterface():
+
+class DatabaseInterface:
 
     def __init__(self):
         self._registry = {}
@@ -50,7 +50,7 @@ def get_kegg_molecule(accession):
         molstring = str(response.text)
     except exceptions.HTTPError:
         return None
-        
+
     return pybel.readstring("mol", molstring)
 
 

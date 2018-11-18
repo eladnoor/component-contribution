@@ -1,10 +1,14 @@
-import openbabel
 import re
 from collections import defaultdict
+
+import openbabel
+
 from component_contribution import chemaxon
+
 
 class OpenBabelError(Exception):
     pass
+
 
 class Molecule(object):
 
@@ -12,30 +16,30 @@ class Molecule(object):
     # http://www.ggasoftware.com/opensource/indigo/api/options#rendering
     _obElements = openbabel.OBElementTable()
     _obSmarts = openbabel.OBSmartsPattern()
-    
+
     @staticmethod
     def GetNumberOfElements():
         return Molecule._obElements.GetNumberOfElements()
-    
+
     @staticmethod
     def GetAllElements():
-        return [Molecule._obElements.GetSymbol(i) for i in 
+        return [Molecule._obElements.GetSymbol(i) for i in
                 range(Molecule.GetNumberOfElements())]
 
     @staticmethod
     def GetSymbol(atomic_num):
         return Molecule._obElements.GetSymbol(atomic_num)
-            
+
     @staticmethod
     def GetAtomicNum(elem):
         if type(elem) == str:
             elem = str(elem)
         return Molecule._obElements.GetAtomicNum(elem)
-    
+
     @staticmethod
     def VerifySmarts(smarts):
         return Molecule._obSmarts.Init(smarts)
-    
+
     def __init__(self):
         self.title = None
         self.obmol = openbabel.OBMol()
@@ -44,10 +48,10 @@ class Molecule(object):
 
     def __str__(self):
         return self.title or self.smiles or self.inchi or ""
-        
+
     def __len__(self):
         return self.GetNumAtoms()
-    
+
     def Clone(self):
         tmp = Molecule()
         tmp.title = self.title
@@ -55,10 +59,10 @@ class Molecule(object):
         tmp.smiles = self.smiles
         tmp.inchi = self.inchi
         return tmp
-    
+
     def SetTitle(self, title):
-        self.title = title 
-    
+        self.title = title
+
     @staticmethod
     def FromSmiles(smiles):
         m = Molecule()
@@ -74,7 +78,7 @@ class Molecule(object):
             raise OpenBabelError("Failed to create Molecule from SMILES: " + smiles)
         m.SetTitle(smiles)
         return m
-        
+
     @staticmethod
     def FromInChI(inchi):
         m = Molecule()
@@ -89,7 +93,7 @@ class Molecule(object):
             raise OpenBabelError("Failed to create Molecule from InChI: " + inchi)
         m.SetTitle(inchi)
         return m
-    
+
     @staticmethod
     def FromMol(mol):
         m = Molecule()
@@ -116,7 +120,7 @@ class Molecule(object):
             raise OpenBabelError("Failed to create Molecule from OBMol")
         m.SetTitle("")
         return m
-    
+
     @staticmethod
     def _FromFormat(s, fmt='inchi'):
         if fmt == 'smiles' or fmt == 'smi':
@@ -127,7 +131,7 @@ class Molecule(object):
             return Molecule.FromMol(s)
         if fmt == 'obmol':
             return Molecule.FromOBMol(s)
-    
+
     @staticmethod
     def _ToFormat(obmol, fmt='inchi'):
         obConversion = openbabel.OBConversion()
@@ -146,7 +150,7 @@ class Molecule(object):
             return res.strip()
         else:
             return res
-        
+
     @staticmethod
     def Smiles2InChI(smiles):
         obConversion = openbabel.OBConversion()
@@ -166,10 +170,10 @@ class Molecule(object):
         if not obConversion.ReadString(obmol, inchi):
             raise OpenBabelError("Cannot read the InChI string: " + inchi)
         return obConversion.WriteString(obmol).split()[0]
-        
+
     def RemoveHydrogens(self):
         self.obmol.DeleteHydrogens()
-    
+
     def RemoveAtoms(self, indices):
         self.obmol.BeginModify()
         for i in sorted(indices, reverse=True):
@@ -177,18 +181,18 @@ class Molecule(object):
         self.obmol.EndModify()
         self.smiles = None
         self.inchi = None
-        
+
     def SetAtomicNum(self, index, new_atomic_num):
         self.obmol.GetAtom(index+1).SetAtomicNum(new_atomic_num)
         self.smiles = None
         self.inchi = None
-        
+
     def ToOBMol(self):
         return self.obmol
-    
+
     def ToFormat(self, fmt='inchi'):
         return Molecule._ToFormat(self.obmol, fmt=fmt)
-    
+
     def ToMolfile(self):
         return self.ToFormat('mol')
 
@@ -196,26 +200,26 @@ class Molecule(object):
         self.inchi = Molecule._ToFormat(self.obmol, 'inchi')
 
     def ToInChI(self):
-        """ 
-            Lazy storage of the InChI identifier (calculate once only when 
+        """
+            Lazy storage of the InChI identifier (calculate once only when
             asked for and store for later use).
         """
         if not self.inchi:
             self.UpdateInChI()
         return self.inchi
-    
+
     def UpdateSmiles(self):
         self.smiles = Molecule._ToFormat(self.obmol, 'smiles')
-    
+
     def ToSmiles(self):
-        """ 
-            Lazy storage of the SMILES identifier (calculate once only when 
+        """
+            Lazy storage of the SMILES identifier (calculate once only when
             asked for and store for later use).
         """
         if not self.smiles:
             self.UpdateSmiles()
         return self.smiles
-    
+
     def GetFormula(self):
         tokens = re.findall('InChI=1S?/([0-9A-Za-z\.]+)', self.ToInChI())
         if len(tokens) == 1:
@@ -224,10 +228,10 @@ class Molecule(object):
             raise ValueError('Bad InChI: ' + self.ToInChI())
         else:
             return ''
-    
+
     def GetExactMass(self):
         return self.obmol.GetExactMass()
-    
+
     @staticmethod
     def _FormulaToAtomBag(formula, formal_charge=0):
         atom_bag = defaultdict(int)
@@ -243,12 +247,12 @@ class Molecule(object):
                     else:
                         count = int(count)
                     atom_bag[atom] += count * times
-        
+
         n_protons = sum([c * Molecule.GetAtomicNum(elem)
                          for (elem, c) in atom_bag.items()])
         atom_bag['e-'] = n_protons - formal_charge
         return atom_bag
-    
+
     def GetAtomBagAndCharge(self):
         inchi = self.ToInChI()
         formula, major_ms_charge = chemaxon.get_formula_and_charge(inchi)
@@ -258,34 +262,34 @@ class Molecule(object):
     def GetHydrogensAndCharge(self):
         atom_bag, charge = self.GetAtomBagAndCharge()
         return atom_bag.get('H', 0), charge
-        
+
     def GetNumElectrons(self):
         """Calculates the number of electrons in a given molecule."""
         atom_bag, fixed_charge = self.GetAtomBagAndCharge()
         return atom_bag.get('e-', 0)
-    
+
     def GetNumAtoms(self):
         return self.obmol.NumAtoms()
 
     def GetAtoms(self):
         return [self.obmol.GetAtom(i+1) for i in range(self.obmol.NumAtoms())]
-    
+
     def FindSmarts(self, smarts):
         """
         Corrects the pyBel version of Smarts.findall() which returns results as tuples,
         with 1-based indices even though Molecule.atoms is 0-based.
-    
+
         Args:
             mol: the molecule to search in.
             smarts_str: the SMARTS query to search for.
-        
+
         Returns:
             The re-mapped list of SMARTS matches.
         """
         Molecule._obSmarts.Init(smarts)
         if Molecule._obSmarts.Match(self.obmol):
             match_list = Molecule._obSmarts.GetMapList()
-            shift_left = lambda m: [(n - 1) for n in m] 
+            shift_left = lambda m: [(n - 1) for n in m]
             return map(shift_left, match_list)
         else:
             return []
@@ -309,5 +313,5 @@ if __name__ == '__main__':
         mol = Molecule.FromInChI(inchi)
         formula = mol.GetFormula()
         atom_bag, charge = mol.GetAtomBagAndCharge()
-        print("Name: %s\nInChI: %s\nFormula: %s\nCharge: %s" 
+        print("Name: %s\nInChI: %s\nFormula: %s\nCharge: %s"
               % (name, inchi, formula, charge))
