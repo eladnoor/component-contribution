@@ -22,7 +22,6 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-from __future__ import absolute_import
 
 import numpy as np
 import pybel
@@ -97,7 +96,7 @@ class Compound(object):
                                  type(major_microspecies))
         assert type(number_of_protons) == list
         assert type(charges) == list
-        
+
         self.inchi_key = inchi_key
         self.compound_id = compound_id
         self.name = compound_id
@@ -121,7 +120,7 @@ class Compound(object):
                 # assume by default that this is a KEGG compound ID
                 database = 'KEGG'
                 accession = compound_id
-                
+
             molecule = databases.get_molecule(database, accession)
         return cls.from_molecule(compound_id, molecule, compute_pkas)
 
@@ -133,17 +132,17 @@ class Compound(object):
         else:
             inchi = ''
             inchi_key = ''
-            
+
         if not inchi_key:
             # probably a compound without an explicit chemical structure
             # or formula. we thus use the compound_id instead of the InChIKey
             # TODO: find a way to map these compounds between different databases
-                        
+
             return cls(inchi_key=compound_id, inchi='', atom_bag={}, p_kas=[],
                        smiles=None, major_microspecies=0,
                        number_of_protons=[], charges=[],
                        compound_id=compound_id)
-        
+
         if compound_id in COMPOUND_EXCEPTIONS:
             return cls(inchi_key, inchi, *COMPOUND_EXCEPTIONS[compound_id],
                        compound_id=compound_id)

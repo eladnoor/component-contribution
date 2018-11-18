@@ -21,9 +21,11 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
+
 from numpy import array, zeros, fill_diagonal
 from scipy.linalg import svd
 from numpy.linalg import pinv
+
 
 class LINALG(object):
 

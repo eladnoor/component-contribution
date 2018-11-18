@@ -22,11 +22,9 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-from __future__ import absolute_import
 
 import logging
 import json
-from six import string_types
 import pandas as pd
 from collections import defaultdict
 
@@ -34,7 +32,7 @@ from .compound import Compound
 
 import os
 base_path = os.path.split(os.path.realpath(__file__))[0]
-DEFAULT_CACHE_FNAME = os.path.join(base_path, '../cache/compounds.csv') 
+DEFAULT_CACHE_FNAME = os.path.join(base_path, '../cache/compounds.csv')
 
 class CompoundCache(object):
     """
@@ -53,18 +51,18 @@ class CompoundCache(object):
     COLUMNS = [
         "inchi", "name", "atom_bag", "p_kas", "smiles", "major_ms",
         "number_of_protons", "charges"]
-    
+
     SERIALIZE_COLUMNS = ["atom_bag", "p_kas", "number_of_protons", "charges"]
 
     def __init__(self, cache_file_name=DEFAULT_CACHE_FNAME):
         # a lookup table for compound IDs
         self._compound_id_to_inchi_key = dict()
-        
+
         # a lookup table for InChIKeys
         self._inchi_key_to_compound_ids = defaultdict(set)
-        
+
         # an internal cache for Compound objects that have already been created
-        self.compound_dict = {} 
+        self.compound_dict = {}
 
         # a flag telling the Cache that it needs to rewrite itself in the
         # filesystem. updated any time a new compound is cached.
@@ -113,16 +111,16 @@ class CompoundCache(object):
     def from_data_frame(self, df):
         """
             Reads all the cached data from a DataFrame
-    
+
             Arguments:
                 df - a DataFrame created earlier by to_data_frame()
 
         """
         self._data = df.copy()
-        
+
         for col in self.SERIALIZE_COLUMNS:
             self._data[col] = self._data[col].apply(json.loads)
-        
+
         self._read_cross_refs(df)
         self._data.drop('cross_references', axis=1, inplace=True)
         self._data['major_ms'] = self._data['major_ms'].apply(int)
@@ -191,7 +189,7 @@ class CompoundCache(object):
             int(cpd.major_microspecies), cpd.number_of_protons, cpd.charges]
 
     def get_element_data_frame(self, compound_ids):
-        if isinstance(compound_ids, string_types):
+        if isinstance(compound_ids, str):
             compound_ids = [compound_ids]
 
         # gather the "atom bags" of all compounds in a list 'atom_bag_list'
@@ -208,7 +206,7 @@ class CompoundCache(object):
         for cid, atom_bag in zip(compound_ids, atom_bags):
             for elem in elements:
                 element_df[elem][cid] = atom_bag.get(elem, 0)
-        
+
         return element_df
 
 
@@ -229,9 +227,8 @@ if __name__ == '__main__':
     # structure is needed in order to balance the reactions and the pKas
     # are needed in order to perform the reverse Legendre transform).
     td = FullTrainingData()
-    
-    
+
+
     ccache.dump()
-    
-    
-    
+
+
