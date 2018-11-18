@@ -23,6 +23,7 @@
 # THE SOFTWARE.
 
 
+import gzip
 import logging
 
 import numpy as np
@@ -246,9 +247,9 @@ class FullTrainingData(TrainingData):
         .. [2] http://xpdb.nist.gov/enzyme_thermodynamics/
 
         """
-
-        tecr_df = pd.read_csv(resource_stream('component_contribution',
-                                              '/data/TECRDB.csv'))
+        with resource_stream('component_contribution',
+                             '/data/TECRDB.csv.gz') as fp:
+            tecr_df = pd.read_csv(gzip.GzipFile(fileobj=fp))
 
         for col in ["T", "I", "pH", "pMg", "K'"]:
             tecr_df[col] = tecr_df[col].apply(float)
@@ -294,9 +295,9 @@ class FullTrainingData(TrainingData):
         .. [6] Dolfing (1994)
         """
 
-        formation_df = pd.read_csv(
-            resource_stream('component_contribution',
-                            '/data/formation_energies_transformed.csv'))
+        with resource_stream('component_contribution',
+                             '/data/formation_energies_transformed.csv.gz') as fp:
+            formation_df = pd.read_csv(gzip.GzipFile(fileobj=fp))
 
         cids_that_dont_decompose = set(
             formation_df.loc[formation_df['decompose'] == 0, 'cid'])
@@ -339,8 +340,9 @@ class FullTrainingData(TrainingData):
         .. [7] Saeki (1985)
         .. [8] Unden (1997)
         """
-        redox_df = pd.read_csv(resource_stream('component_contribution',
-                                               '/data/redox.csv'))
+        with resource_stream('component_contribution',
+                             '/data/redox.csv.gz') as fp:
+            redox_df = pd.read_csv(gzip.GzipFile(fileobj=fp))
 
         delta_nH = redox_df['nH_red'] - redox_df['nH_ox']
         delta_charge = redox_df['charge_red'] - redox_df['charge_ox']
