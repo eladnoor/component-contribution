@@ -1,8 +1,11 @@
-import re
-import numpy as np
 import logging
+import re
+
+import numpy as np
+
 from .compound_cache import ccache
 from .exceptions import ParseException
+
 
 class Reaction(object):
 
@@ -217,4 +220,3 @@ if __name__ == '__main__':
         reaction.is_balanced()
     except ValueError as e:
         print(str(e))
-        

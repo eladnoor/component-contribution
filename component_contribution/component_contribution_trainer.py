@@ -1,17 +1,22 @@
-import os, logging, gzip, json
+import gzip
+import json
+import logging
+import os
+
 import numpy as np
 import pandas as pd
-from . import inchi2gv
-from .training_data import FullTrainingData
-from . import Reaction
+
+from . import Reaction, inchi2gv
 from .compound_cache import ccache
-from .thermodynamic_constants import default_T
-from .molecule import Molecule, OpenBabelError
 from .linalg import LINALG
+from .molecule import Molecule, OpenBabelError
+from .thermodynamic_constants import default_T
+from .training_data import FullTrainingData
 
 
-base_path = os.path.split(os.path.realpath(__file__))[0]
-CC_CACHE_FNAME = os.path.join(base_path, '../cache/component_contribution.npz')
+# TODO: Move into distribution.
+BASE_PATH = os.path.split(os.path.realpath(__file__))[0]
+CC_CACHE_FNAME = os.path.join(BASE_PATH, '../cache/component_contribution.npz')
 
 
 class ComponentContribution(object):
@@ -528,4 +533,3 @@ if __name__ == '__main__':
         print("dG'0 = %.2f [kJ/mol] +- %.2f" % get_dG0_prime(r))
         print('multi = ', cc.get_dG0_r_multi([r], raise_exception=False))
     print('U = ', cc.get_dG0_r_multi(reactions, raise_exception=False)[1].round(2))
-

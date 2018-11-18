@@ -23,17 +23,19 @@
 # THE SOFTWARE.
 
 
-import numpy as np
-import pybel
-from scipy.special import logsumexp
-from pkg_resources import resource_stream
-import pandas as pd
 from collections import defaultdict
 
+import numpy as np
+import pandas as pd
+import pybel
+from pkg_resources import resource_stream
+from scipy.special import logsumexp
+
+from component_contribution import chemaxon
 from component_contribution.databases import databases
 from component_contribution.mol_utils import atom_bag_and_charge
 from component_contribution.thermodynamic_constants import R, debye_huckel
-from component_contribution import chemaxon
+
 
 MIN_PH = 0.0
 MAX_PH = 14.0
@@ -329,4 +331,3 @@ class Compound(object):
                  'number_of_protons': num_protons, 'charge': charge,
                  'number_of_magnesium': 0}
             yield d
-

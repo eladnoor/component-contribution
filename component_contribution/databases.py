@@ -23,7 +23,7 @@
 
 
 import pybel
-from requests import get, exceptions
+from requests import exceptions, get
 
 
 class DatabaseInterface:

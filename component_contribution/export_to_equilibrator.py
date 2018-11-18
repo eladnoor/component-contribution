@@ -1,5 +1,9 @@
-import logging, os
-from component_contribution.component_contribution_trainer import ComponentContribution
+import logging
+import os
+
+from component_contribution.component_contribution_trainer import (
+    ComponentContribution)
+
 
 if not os.path.isdir('res'):
     os.mkdir('res')

@@ -24,16 +24,18 @@
 
 
 import logging
+
 import numpy as np
 import pandas as pd
-from scipy.io import savemat
-from .thermodynamic_constants import R, F
-from .compound_cache import ccache
-from . import Reaction
 from pkg_resources import resource_stream
+from scipy.io import savemat
+
+from . import Reaction
+from .compound_cache import ccache
+from .thermodynamic_constants import F, R
 
 
-LOGGER = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class TrainingData(object):
@@ -365,7 +367,7 @@ class FullTrainingData(TrainingData):
 
 
 if __name__ == '__main__':
-    LOGGER.setLevel(logging.INFO)
+    logger.setLevel(logging.INFO)
     import argparse
     parser = argparse.ArgumentParser(description=
         'Prepare all thermodynamic training data in a .mat file for running '

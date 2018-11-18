@@ -25,15 +25,16 @@
 
 import logging
 import platform
+import subprocess
 from io import StringIO
 
-import subprocess
 import pandas
 
 from component_contribution import exceptions
 
 
-LOGGER = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
+
 
 if platform.system() == 'Windows':
     CXCALC_BIN = 'C:\\Program Files (x86)\\ChemAxon\\MarvinBeans\\bin\\cxcalc.bat'
@@ -76,7 +77,7 @@ def run_cxcalc(molstring, args):
 
     """
     try:
-        LOGGER.debug("INPUT: %s | %s" % (molstring, ' '.join([CXCALC_BIN] + args)))
+        logger.debug("INPUT: %s | %s" % (molstring, ' '.join([CXCALC_BIN] + args)))
         result = subprocess.run([CXCALC_BIN] + args,
                                 input=molstring,
                                 stdout=subprocess.PIPE,
@@ -86,7 +87,7 @@ def run_cxcalc(molstring, args):
         if result.returncode != 0:
             raise exceptions.ChemAxonRuntimeError(str(args))
 
-        LOGGER.debug("OUTPUT: %s" % result.stdout)
+        logger.debug("OUTPUT: %s" % result.stdout)
         return result.stdout
 
     except OSError:
@@ -223,7 +224,7 @@ def get_formula_and_charge(molstring):
 
 
 if __name__ == "__main__":
-    LOGGER.setLevel(logging.WARNING)
+    logger.setLevel(logging.WARNING)
     compound_list = [('orthophosphate', 'InChI=1S/H3O4P/c1-5(2,3)4/h(H3,1,2,3,4)/p-3'),
                      ('D-Erythrulose', 'InChI=1S/C4H8O4/c5-1-3(7)4(8)2-6/h3,5-7H,1-2H2/t3-/m1/s1')]
     for name, inchi in compound_list:

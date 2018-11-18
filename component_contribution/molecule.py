@@ -1,6 +1,8 @@
-import openbabel
 import re
 from collections import defaultdict
+
+import openbabel
+
 from component_contribution import chemaxon
 
 

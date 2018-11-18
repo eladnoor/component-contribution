@@ -1,9 +1,16 @@
-import csv, logging, json, itertools, sys
-import numpy as np
+import csv
+import itertools
+import json
+import logging
+import sys
 from io import StringIO
 from optparse import OptionParser
-from .thermodynamic_constants import R, default_T
+
+import numpy as np
+
 from .molecule import Molecule, OpenBabelError
+from .thermodynamic_constants import R, default_T
+
 
 GROUP_CSV = """"NAME","PROTONS","CHARGE","MAGNESIUMS","SMARTS","FOCAL_ATOMS","REMARK","SKIP"
 "primary -Cl3",0,0,0,"Cl[CH0](Cl)Cl",0,"chlorine (attached to a primary carbon with 2 other chlorine atoms attached)",

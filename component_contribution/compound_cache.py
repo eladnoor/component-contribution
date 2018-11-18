@@ -23,16 +23,19 @@
 # THE SOFTWARE.
 
 
-import logging
 import json
-import pandas as pd
+import logging
+import os
 from collections import defaultdict
+
+import pandas as pd
 
 from .compound import Compound
 
-import os
-base_path = os.path.split(os.path.realpath(__file__))[0]
-DEFAULT_CACHE_FNAME = os.path.join(base_path, '../cache/compounds.csv')
+
+BASE_PATH = os.path.split(os.path.realpath(__file__))[0]
+DEFAULT_CACHE_FNAME = os.path.join(BASE_PATH, '../cache/compounds.csv')
+
 
 class CompoundCache(object):
     """
@@ -230,5 +233,3 @@ if __name__ == '__main__':
 
 
     ccache.dump()
-
-
