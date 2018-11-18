@@ -23,19 +23,19 @@
 # THE SOFTWARE.
 
 
-import component_contribution.training_data as training
+from component_contribution.training_data import FullTrainingData as training
 
 
 def test_read_tecrdb():
     df = training.read_tecrdb()
-    assert df.shape == (4544, 15)
+    assert df.shape == (3912, 9)
 
 
 def test_read_formations():
-    df = training.read_formations()
-    assert df.shape == (225, 10)
+    df, _ = training.read_formations()
+    assert df.shape == (224, 9)
 
 
 def test_read_redox():
     df = training.read_redox()
-    assert df.shape == (13, 13)
+    assert df.shape == (13, 9)

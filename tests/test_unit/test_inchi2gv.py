@@ -83,7 +83,7 @@ def test_atp_major_ms(group_names, decomposer):
 
     atp_cpd = ccache.get_compound('KEGG:C00002')
     assert isinstance(atp_cpd, Compound)
-    assert atp_cpd == atp_inchi
+    assert atp_cpd.inchi == atp_inchi
 
 
 @pytest.mark.parametrize("compound_id, compound_smiles, exp_groups", [

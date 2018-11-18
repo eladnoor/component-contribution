@@ -23,7 +23,7 @@
 
 
 import pybel
-from requests import exceptions, get
+import requests
 from bioservices.chebi import ChEBI
 
 
@@ -45,11 +45,11 @@ class DatabaseInterface:
 
 def get_kegg_molecule(accession):
     try:
-        response = get(
+        response = requests.get(
             "http://rest.kegg.jp/get/cpd:{}/mol".format(accession))
         response.raise_for_status()
         molstring = str(response.text)
-    except exceptions.HTTPError:
+    except requests.exceptions.HTTPError:
         return None
 
     return pybel.readstring("mol", molstring)
@@ -58,7 +58,7 @@ def get_kegg_molecule(accession):
 def get_hmdb_molecule(accession):
     # TODO: The identifier correction should be moved outside where needed.
     # Ensure that the numeric part of the HMDB identifier is correctly padded.
-    response = get(
+    response = requests.get(
         "http://www.hmdb.ca/structures/metabolites/HMDB{:0>7}.mol".format(
             accession[4:]))
     response.raise_for_status()

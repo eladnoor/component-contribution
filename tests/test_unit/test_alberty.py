@@ -50,4 +50,4 @@ def test_transform(atp_comp):
     expected_delta_delta_g = [0, 72.3, 114.9, 143.2, 162.1, 171.0, 176.2]
     assert len(atp_comp.number_of_protons) == len(expected_delta_delta_g)
     delta_delta_g = [atp_comp._ddG(0, i, temperature) for i in range(7)]
-    assert delta_delta_g == pytest.approx(expected_delta_delta_g)
+    assert delta_delta_g == pytest.approx(expected_delta_delta_g, rel=1e-3)
