@@ -1,6 +1,7 @@
+# -*- encoding: utf-8 -*-
+
 # The MIT License (MIT)
 #
-# Copyright (c) 2013 The Weizmann Institute of Science.
 # Copyright (c) 2018 Novo Nordisk Foundation Center for Biosustainability,
 # Technical University of Denmark.
 #
@@ -22,16 +23,36 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
+import pytest
 
-from ._version import get_versions
-__version__ = get_versions()['version']
-del get_versions
+from component_contribution import ccache
+from component_contribution.chemaxon import (
+    ChemAxonNotFoundError, get_dissociation_constants, get_formula_and_charge)
 
-from component_contribution.compound_cache import ccache
-from component_contribution.thermodynamic_constants import R, debye_huckel
-from component_contribution.compound import Compound
-from component_contribution.reaction import Reaction
-from component_contribution.inchi2gv import GroupDecompositionError
-from component_contribution.chemaxon import ChemAxonNotFoundError
-from component_contribution.component_contribution_trainer import ComponentContribution
-from component_contribution.training_data import FullTrainingData
+
+try:
+    # TODO: Should introduce a utility that runs cxcalc --help to test.
+    ccache.get_compound('KEGG:C00002')
+except ChemAxonNotFoundError:
+    pytest.skip("Cannot test without ChemAxon.", allow_module_level=True)
+
+
+@pytest.mark.parametrize("inchi, exp_formula, exp_charge, exp_diss_table", [
+    # Orthophosphate
+    ('InChI=1S/H3O4P/c1-5(2,3)4/h(H3,1,2,3,4)/p-3',
+     'O4P',
+     -3,
+     [1.80, 6.95, 12.90]),
+    # D-Erythrulose
+    ('InChI=1S/C4H8O4/c5-1-3(7)4(8)2-6/h3,5-7H,1-2H2/t3-/m1/s1',
+     'C4H8O4',
+     0,
+     [-8.53, -3.86, -3.33, -3.01, 12.54, 13.9, 15.45]),
+])
+def test_pka(inchi, exp_formula, exp_charge, exp_diss_table):
+    formula, charge = get_formula_and_charge(inchi)
+    assert formula == exp_formula
+    assert charge == exp_charge
+    diss_table, major_ms = get_dissociation_constants(inchi)
+    assert len(diss_table) == len(exp_diss_table)
+    assert sorted(diss_table) == pytest.approx(sorted(exp_diss_table))

@@ -33,4 +33,3 @@ DH_beta = 1.6
 
 # Debye-Huckel
 debye_huckel = lambda I, T : DH_alpha(T) * I**(0.5) / (1.0 + DH_beta * I**(0.5))
-
