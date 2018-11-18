@@ -21,12 +21,13 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-from __future__ import absolute_import
 
 import pybel
-from requests import get, exceptions
+from requests import exceptions, get
+from bioservices.chebi import ChEBI
 
-class DatabaseInterface():
+
+class DatabaseInterface:
 
     def __init__(self):
         self._registry = {}
@@ -50,7 +51,7 @@ def get_kegg_molecule(accession):
         molstring = str(response.text)
     except exceptions.HTTPError:
         return None
-        
+
     return pybel.readstring("mol", molstring)
 
 
@@ -69,7 +70,14 @@ def get_inchi_molecule(accession):
 
 
 def get_chebi_molecule(accession):
-    raise NotImplementedError("Coming soon!")
+    entity = ChEBI().getCompleteEntity(accession)
+    if entity is None:
+        return None
+    return get_inchi_molecule(entity.inchi)
+
+
+def get_metanetx_molecule(accession):
+    pass
 
 
 databases = DatabaseInterface()

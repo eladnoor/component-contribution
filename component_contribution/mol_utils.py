@@ -21,13 +21,11 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-from __future__ import absolute_import
 
 from collections import defaultdict
 
 import openbabel
 import pybel
-from six import iteritems
 
 
 PERIODIC_TABLE = _obElements = openbabel.OBElementTable()
@@ -58,11 +56,11 @@ def atom_bag_and_charge(molecule):
 
     atom_bag = defaultdict(int)
     formal_charge = 0
-    
+
     # Make all hydrogens explicit so we can properly count them
     molecule = molecule.clone
     molecule.addh()
-    
+
     for atom in molecule.atoms:
         assert isinstance(atom, pybel.Atom)
         symbol = PERIODIC_TABLE.GetSymbol(atom.atomicnum)
@@ -70,7 +68,7 @@ def atom_bag_and_charge(molecule):
         formal_charge += atom.formalcharge
 
     n_protons = sum(c * PERIODIC_TABLE.GetAtomicNum(elem)
-                    for (elem, c) in iteritems(atom_bag))
+                    for (elem, c) in atom_bag.items())
 
     atom_bag['e-'] = n_protons - formal_charge
 

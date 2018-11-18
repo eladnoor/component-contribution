@@ -23,29 +23,31 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-import unittest
-from distutils.version import StrictVersion
 
-class TestDependenceis(unittest.TestCase):
+import pytest
 
-    def test_pybel(self):
-        # Test that openbabel can be imported
-        try:
-            import pybel
-        except ImportError:
-            self.fail('''OpenBabel is not installed, or was installed without 
-                         python bindings. Please go to http://openbabel.org/wiki/Python
-                         and follow the installation instructions.''')
-            
-                       
-    def test_numpy(self):
-        # Test that numpy can be imported and its version is rather new
-        try:
-            import numpy
-            if StrictVersion(numpy.__version__) < StrictVersion('1.6.2'):
-                self.fail('''WARNING: your NumPy version is lower than 1.6.2
-                             and might not work properly. Please upgrade to
-                             a newer version.''')
-        except ImportError:
-            self.fail('''NumPy is not installed. Please go to http://www.numpy.org
-                         and follow the installation instructions.''')
+from component_contribution import ChemAxonNotFoundError, ccache
+
+
+try:
+    ccache.get_compound('KEGG:C00002')
+except ChemAxonNotFoundError:
+    pytest.skip("Cannot test without ChemAxon.", allow_module_level=True)
+
+
+@pytest.fixture(scope="module")
+def atp_comp():
+    return ccache.get_compound('KEGG:C00002')
+
+
+def test_atp(atp_comp):
+    assert set(atp_comp.p_kas) == {12.6, 7.42, 4.93, 3.29, 1.55, 0.9}
+    assert atp_comp.major_microspecies == 2
+
+
+def test_transform(atp_comp):
+    temperature = 300.0
+    expected_delta_delta_g = [0, 72.3, 114.9, 143.2, 162.1, 171.0, 176.2]
+    assert len(atp_comp.number_of_protons) == len(expected_delta_delta_g)
+    delta_delta_g = [atp_comp._ddG(0, i, temperature) for i in range(7)]
+    assert delta_delta_g == pytest.approx(expected_delta_delta_g)

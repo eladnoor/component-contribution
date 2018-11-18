@@ -22,15 +22,15 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-from __future__ import absolute_import
 
+import json
 import logging
 import os
-import json
-from six import string_types
-import pandas as pd
 from collections import defaultdict
 from pkg_resources import resource_filename
+
+import pandas as pd
+
 from .compound import Compound
 
 LOGGER = logging.getLogger(__name__)
@@ -190,7 +190,7 @@ class CompoundCache(object):
             int(cpd.major_microspecies), cpd.number_of_protons, cpd.charges]
 
     def get_element_data_frame(self, compound_ids):
-        if isinstance(compound_ids, string_types):
+        if isinstance(compound_ids, str):
             compound_ids = [compound_ids]
 
         # gather the "atom bags" of all compounds in a list 'atom_bag_list'
@@ -226,4 +226,5 @@ if __name__ == '__main__':
     # structure is needed in order to balance the reactions and the pKas
     # are needed in order to perform the reverse Legendre transform).
     td = FullTrainingData()
+
     ccache.dump()

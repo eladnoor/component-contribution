@@ -1,5 +1,3 @@
-# -*- encoding: utf-8 -*-
-
 # The MIT License (MIT)
 #
 # Copyright (c) 2018 Novo Nordisk Foundation Center for Biosustainability,
@@ -22,6 +20,7 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
+
 
 import pytest
 
@@ -79,6 +78,12 @@ def test_get_inchi_molecule(mocker, compound_id):
     mocked_readstring.assert_called_once_with("inchi", compound_id)
 
 
-def test_get_chebi_molecule():
-    with pytest.raises(NotImplementedError):
-        db.get_chebi_molecule(None)
+@pytest.mark.parametrize("compound_id, inchi", [
+    ("CHEBI:15846", "InChI=1S/C21H27N7O14P2/c22-17-12-19(25-7-24-17)28(8-26-12)21-16(32)14(30)11(41-21)6-39-44(36,37)42-43(34,35)38-5-10-13(29)15(31)20(40-10)27-3-1-2-9(4-27)18(23)33/h1-4,7-8,10-11,13-16,20-21,29-32H,5-6H2,(H5-,22,23,24,25,33,34,35,36,37)/p+1/t10-,11-,13-,14-,15-,16-,20-,21-/m1/s1"),
+    ("CHEBI:15422", "InChI=1S/C10H16N5O13P3/c11-8-5-9(13-2-12-8)15(3-14-5)10-7(17)6(16)4(26-10)1-25-30(21,22)28-31(23,24)27-29(18,19)20/h2-4,6-7,10,16-17H,1H2,(H,21,22)(H,23,24)(H2,11,12,13)(H2,18,19,20)/t4-,6-,7-,10-/m1/s1"),
+])
+def test_get_chebi_molecule(mocker, compound_id, inchi):
+    mocked_readstring = mocker.patch(
+        "component_contribution.databases.readstring")
+    db.get_chebi_molecule(compound_id)
+    mocked_readstring.assert_called_once_with("inchi", inchi)

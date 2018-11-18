@@ -22,19 +22,19 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-from __future__ import absolute_import
 
 import logging
 import platform
-
 import subprocess
+from io import StringIO
+
 import pandas
-from six import StringIO, PY2
 
 from component_contribution import exceptions
 
 
-LOGGER = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
+
 
 if platform.system() == 'Windows':
     CXCALC_BIN = 'C:\\Program Files (x86)\\ChemAxon\\MarvinBeans\\bin\\cxcalc.bat'
@@ -52,6 +52,7 @@ class ChemAxonNotFoundError(ImportError):
         super().__init__(
             "Marvin cxcalc was not found on your system. "
             "Please install it from https://chemaxon.com/")
+
 
 def run_cxcalc(molstring, args):
     """
@@ -76,40 +77,22 @@ def run_cxcalc(molstring, args):
 
     """
     try:
-        if PY2:
-            with open(platform.DEV_NULL, 'w') as dev_null:
-                LOGGER.debug("INPUT: echo %s | %s" % (molstring, ' '.join([CXCALC_BIN] + args)))
-                p1 = subprocess.Popen(["echo", molstring],
-                                      stdout=subprocess.PIPE,
-                                      shell=use_shell_for_echo)
-                p2 = subprocess.Popen([CXCALC_BIN] + args,
-                                      stdin=p1.stdout,
-                                      executable=CXCALC_BIN,
-                                      stdout=subprocess.PIPE,
-                                      stderr=dev_null, shell=False)
-    
-                res = p2.communicate()[0].decode('utf8')
-                if p2.returncode != 0:
-                    raise exceptions.ChemAxonRuntimeError(str(args))
-    
-                LOGGER.debug("OUTPUT: %s" % res)
-                return res
-        else:
-            LOGGER.debug("INPUT: %s | %s" % (molstring, ' '.join([CXCALC_BIN] + args)))
-            result = subprocess.run([CXCALC_BIN] + args,
-                                    input=molstring,
-                                    stdout=subprocess.PIPE,
-                                    stderr=None,
-                                    universal_newlines=True)
-    
-            if result.returncode != 0:
-                raise exceptions.ChemAxonRuntimeError(str(args))
-    
-            LOGGER.debug("OUTPUT: %s" % result.stdout)
-            return result.stdout
+        logger.debug("INPUT: %s | %s" % (molstring, ' '.join([CXCALC_BIN] + args)))
+        result = subprocess.run([CXCALC_BIN] + args,
+                                input=molstring,
+                                stdout=subprocess.PIPE,
+                                stderr=None,
+                                universal_newlines=True)
+
+        if result.returncode != 0:
+            raise exceptions.ChemAxonRuntimeError(str(args))
+
+        logger.debug("OUTPUT: %s" % result.stdout)
+        return result.stdout
 
     except OSError:
         raise ChemAxonNotFoundError()
+
 
 def parse_pka_output(output, n_acidic, n_basic):
     """
@@ -192,7 +175,7 @@ def get_dissociation_constants(molstring, n_acidic=N_PKAS, n_basic=N_PKAS, p_h=M
     """
     if not molstring:
         raise ValueError('Empty molstring, cannot calculate pKas')
-    
+
     args = []
     if n_acidic + n_basic > 0:
         args += ['pka', '-a', str(n_acidic), '-b', str(n_basic), 'majorms', '-M', 'true', '--pH', str(p_h)]
@@ -241,7 +224,7 @@ def get_formula_and_charge(molstring):
 
 
 if __name__ == "__main__":
-    LOGGER.setLevel(logging.WARNING)
+    logger.setLevel(logging.WARNING)
     compound_list = [('orthophosphate', 'InChI=1S/H3O4P/c1-5(2,3)4/h(H3,1,2,3,4)/p-3'),
                      ('D-Erythrulose', 'InChI=1S/C4H8O4/c5-1-3(7)4(8)2-6/h3,5-7H,1-2H2/t3-/m1/s1')]
     for name, inchi in compound_list:

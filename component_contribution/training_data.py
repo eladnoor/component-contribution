@@ -1,5 +1,3 @@
-# -*- encoding: utf-8 -*-
-
 # The MIT License (MIT)
 #
 # Copyright (c) 2013 The Weizmann Institute of Science.
@@ -24,17 +22,20 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-from __future__ import absolute_import
+
 import logging
+
 import numpy as np
 import pandas as pd
-from scipy.io import savemat
-from .thermodynamic_constants import R, F
-from .compound_cache import ccache
-from . import Reaction
 from pkg_resources import resource_stream
+from scipy.io import savemat
 
-LOGGER = logging.getLogger(__name__)
+from . import Reaction
+from .compound_cache import ccache
+from .thermodynamic_constants import F, R
+
+
+logger = logging.getLogger(__name__)
 
 
 class TrainingData(object):
@@ -384,7 +385,7 @@ class FullTrainingData(TrainingData):
 
 
 if __name__ == '__main__':
-    LOGGER.setLevel(logging.INFO)
+    logger.setLevel(logging.INFO)
     import argparse
     parser = argparse.ArgumentParser(description='Prepare all thermodynamic '
                                      'training data in a .mat file for '

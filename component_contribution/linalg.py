@@ -21,9 +21,11 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-from numpy import array, zeros, fill_diagonal
-from scipy.linalg import svd
+
+from numpy import array, fill_diagonal, zeros
 from numpy.linalg import pinv
+from scipy.linalg import svd
+
 
 class LINALG(object):
 
@@ -96,4 +98,3 @@ class LINALG(object):
     def _col_uniq(A):
         A_unique, P_col = LINALG._row_uniq(A.T)
         return A_unique.T, P_col.T
-
