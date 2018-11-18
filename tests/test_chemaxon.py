@@ -23,15 +23,15 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-import unittest
-from component_contribution.chemaxon import get_formula_and_charge, \
-    get_dissociation_constants, ChemAxonNotFoundError
+from component_contribution.chemaxon import (
+    ChemAxonNotFoundError, get_dissociation_constants, get_formula_and_charge)
 
-class TestChemaxon(unittest.TestCase):
+
+class TestChemaxon:
 
     def __init__(self, *args, **kwargs):
         super(TestChemaxon, self).__init__(*args, **kwargs)
-        
+
     def test_pka(self):
         try:
             compound_list = [('InChI=1S/H3O4P/c1-5(2,3)4/h(H3,1,2,3,4)/p-3', 'O4P', -3, [1.80, 6.95, 12.90]), # orthophosphate
@@ -47,6 +47,3 @@ class TestChemaxon(unittest.TestCase):
 
         except ChemAxonNotFoundError:
             self.skipTest('cannot test without ChemAxon')
-
-if __name__ == "__main__":
-    unittest.main()
