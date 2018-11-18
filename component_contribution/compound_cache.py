@@ -25,23 +25,26 @@
 from __future__ import absolute_import
 
 import logging
+import os
 import json
 from six import string_types
 import pandas as pd
 from collections import defaultdict
-
+from pkg_resources import resource_filename
 from .compound import Compound
 
-import os
-base_path = os.path.split(os.path.realpath(__file__))[0]
-DEFAULT_CACHE_FNAME = os.path.join(base_path, '../cache/compounds.csv') 
+LOGGER = logging.getLogger(__name__)
+
+DEFAULT_CACHE_FNAME = resource_filename('component_contribution',
+                                        '/cache/compounds.csv')
+
 
 class CompoundCache(object):
     """
     CompoundCache is a singleton that handles caching of Compound objects for
-    the component-contribution package.  The Compounds are retrieved by their ID
-    (e.g., KEGG COMPOUND ID, ChEBI Id or HMDB in most cases) or InChI Key.  The
-    first time a Compound is requested, it is obtained from the relevant
+    the component-contribution package.  The Compounds are retrieved by their
+    ID (e.g., KEGG COMPOUND ID, ChEBI Id or HMDB in most cases) or InChI Key.
+    The first time a Compound is requested, it is obtained from the relevant
     database and a Compound object is created (this takes a while because it
     usually involves internet communication and then invoking the ChemAxon
     plugin for calculating the pKa values for that structure). Any further
@@ -53,18 +56,18 @@ class CompoundCache(object):
     COLUMNS = [
         "inchi", "name", "atom_bag", "p_kas", "smiles", "major_ms",
         "number_of_protons", "charges"]
-    
+
     SERIALIZE_COLUMNS = ["atom_bag", "p_kas", "number_of_protons", "charges"]
 
     def __init__(self, cache_file_name=DEFAULT_CACHE_FNAME):
         # a lookup table for compound IDs
         self._compound_id_to_inchi_key = dict()
-        
+
         # a lookup table for InChIKeys
         self._inchi_key_to_compound_ids = defaultdict(set)
-        
+
         # an internal cache for Compound objects that have already been created
-        self.compound_dict = {} 
+        self.compound_dict = {}
 
         # a flag telling the Cache that it needs to rewrite itself in the
         # filesystem. updated any time a new compound is cached.
@@ -76,9 +79,6 @@ class CompoundCache(object):
             self.requires_update = True
         else:
             self.from_data_frame(pd.read_csv(cache_file_name, index_col=0))
-
-    #def __del__(self):
-    #    self.dump()
 
     def dump(self, cache_file_name=DEFAULT_CACHE_FNAME):
         if self.requires_update:
@@ -113,16 +113,15 @@ class CompoundCache(object):
     def from_data_frame(self, df):
         """
             Reads all the cached data from a DataFrame
-    
+
             Arguments:
                 df - a DataFrame created earlier by to_data_frame()
-
         """
         self._data = df.copy()
-        
+
         for col in self.SERIALIZE_COLUMNS:
             self._data[col] = self._data[col].apply(json.loads)
-        
+
         self._read_cross_refs(df)
         self._data.drop('cross_references', axis=1, inplace=True)
         self._data['major_ms'] = self._data['major_ms'].apply(int)
@@ -208,7 +207,7 @@ class CompoundCache(object):
         for cid, atom_bag in zip(compound_ids, atom_bags):
             for elem in elements:
                 element_df[elem][cid] = atom_bag.get(elem, 0)
-        
+
         return element_df
 
 
@@ -219,9 +218,7 @@ ccache = CompoundCache()
 
 if __name__ == '__main__':
     from .training_data import FullTrainingData
-    logging.getLogger().setLevel(logging.DEBUG)
-
-    ccache.get_compound('KEGG:C13626')
+    LOGGER.setLevel(logging.INFO)
 
     # Cache all the compounds that are part of the training data.
     # Calling the constructor here,
@@ -229,9 +226,4 @@ if __name__ == '__main__':
     # structure is needed in order to balance the reactions and the pKas
     # are needed in order to perform the reverse Legendre transform).
     td = FullTrainingData()
-    
-    
     ccache.dump()
-    
-    
-    
