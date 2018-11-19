@@ -1,25 +1,35 @@
 import logging
 import os
 
+from pkg_resources import resource_filename
+
 from component_contribution.component_contribution_trainer import (
     ComponentContribution)
+
+
+logger = logging.getLogger(__name__)
 
 
 if not os.path.isdir('res'):
     os.mkdir('res')
 
-OUTPUT_JSON = 'res/cc_compounds.json.gz'
-OUTPUT_NPZ = 'res/cc_preprocess'
+CACHE_EQUILIBRATOR_JSON_FNAME = \
+    resource_filename('component_contribution',
+                      'cache/cc_equilibrator.json.gz')
+
+CACHE_EQUILIBRATOR_NPZ_FNAME = \
+    resource_filename('component_contribution',
+                      'cache/cc_equilibrator.npz')
 
 if __name__ == '__main__':
-    logger = logging.getLogger('')
-    logger.setLevel(logging.DEBUG)
-    cc = ComponentContribution.init()
-    
-    logging.info("Wrote compound data to: " + OUTPUT_JSON)
-    cc.save_compound_data(OUTPUT_JSON)  
-    
-    logging.info("Wrote preprocessing data to: " + OUTPUT_NPZ)
-    cc.save_preprocessing_data(OUTPUT_NPZ)
-    
-    logging.info("Now run 'clear_database' and then 'load_database' in eQuilibrator")
+    logger.setLevel(logging.INFO)
+    cc = ComponentContribution()
+
+    logging.info("Writing metadata to: " + CACHE_EQUILIBRATOR_JSON_FNAME)
+    cc.save_equilibrator_metadata(CACHE_EQUILIBRATOR_JSON_FNAME)
+
+    logging.info("Writing binary data to: " + CACHE_EQUILIBRATOR_NPZ_FNAME)
+    cc.save_equilibrator_bin_data(CACHE_EQUILIBRATOR_NPZ_FNAME)
+
+    logging.info("Now run 'clear_database' and then 'load_database' in "
+                 "eQuilibrator")

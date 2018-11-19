@@ -71,7 +71,7 @@ def test_delta_g_zero_prime_calculation(
         ph_value, ionic_strength, temperature, exp_delta_g_zero_prime,
         exp_sigma, reaction, comp_contribution):
     delta_g_zero_prime, sigma = comp_contribution.get_dG0_r_prime(
-        reaction, pH=ph_value, I=ionic_strength, T=temperature)
+        reaction, pH=ph_value, ionic_strength=ionic_strength, T=temperature)
     assert delta_g_zero_prime == pytest.approx(exp_delta_g_zero_prime,
                                                rel=1e-2)
     assert sigma == pytest.approx(exp_sigma, rel=1e-2)

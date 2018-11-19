@@ -15,53 +15,58 @@ from .thermodynamic_constants import default_T
 from .training_data import FullTrainingData
 
 
+logger = logging.getLogger(__name__)
+
+
 class ComponentContribution(object):
 
     MSE_inf = 1e10
-    CC_CACHE_FNAME = resource_filename('component_contribution',
-                                       'cache/component_contribution.npz')
+    CACHE_PARAM_FNAME = \
+        resource_filename('component_contribution',
+                          'cache/component_contribution.npz')
 
-    def __init__(self, cache_file_name=CC_CACHE_FNAME, training_data=None):
+    def __init__(self, cache_file_name=CACHE_PARAM_FNAME, training_data=None):
         self.groups_data = inchi2gv.init_groups_data()
         self.decomposer = inchi2gv.InChIDecomposer(self.groups_data)
         self.group_names = self.groups_data.GetGroupNames()
 
         if cache_file_name and os.path.exists(cache_file_name):
             if training_data is not None:
-                logging.warning('You provided both an existing cache file, and '
-                                'a training dataset for ComponentContribution. '
-                                'The training data will be ignored.')
+                logger.warning('You provided both an existing cache file, and '
+                               'a training dataset for ComponentContribution. '
+                               'The training data will be ignored.')
 
-            logging.info('Loading component-contributions params from: %s'
-                         % cache_file_name)
-            self.params  = self.load_params(cache_file_name)
-            self.cids    = self.params['cids'].tolist()
+            logger.info('Loading component-contributions params from: %s'
+                        % cache_file_name)
+            self.params = self.load_params(cache_file_name)
+            self.cids = self.params['cids'].tolist()
             self.train_S = self.params['S']
             self.train_b = self.params['b']
             self.train_w = self.params['w']
             self.train_G = self.params['G']
-            self.Nc      = len(self.cids)
-            self.Ng      = len(self.group_names)
+            self.Nc = len(self.cids)
+            self.Ng = len(self.group_names)
         else:
-            logging.info('Calculating the component-contributions from raw data')
+            logger.info('Calculating the component-contributions from raw '
+                        'data')
             if training_data is None:
                 training_data = FullTrainingData()
 
-            self.params  = None
-            self.cids    = training_data.cids
+            self.params = None
+            self.cids = training_data.cids
             self.train_S = training_data.stoichiometric_matrix
             self.train_b = training_data.dG0
             self.train_w = training_data.weight
             self.train_G = self.create_group_incidence_matrix()
-            self.Nc      = len(self.cids)
-            self.Ng      = len(self.group_names)
+            self.Nc = len(self.cids)
+            self.Ng = len(self.group_names)
             self.params = self.train(self.train_S, self.train_G,
                                      self.train_b, self.train_w)
             self.params['cids'] = self.cids
 
             if cache_file_name:
-                logging.info('Saving component-contributions params to: %s'
-                             % cache_file_name)
+                logger.info('Saving component-contributions params to: %s'
+                            % cache_file_name)
                 self.save_params(self.params, cache_file_name)
 
     @staticmethod
@@ -72,6 +77,61 @@ class ComponentContribution(object):
     def load_params(file_name):
         params = np.load(file_name)
         return dict(params)
+
+    def save_equilibrator_bin_data(self, npz_file_name):
+        """
+            write an NPZ file (Numpy binary files) containing only the
+            preprocessed data needed for running Component Contribution
+            estimations
+        """
+        preprocess_dict = {'cids': self.params['cids']}
+        for k, v in self.params.items():
+            if k.find('preprocess_') != -1:
+                preprocess_dict[k.replace('preprocess_', '')] = v
+        np.savez_compressed(npz_file_name, **preprocess_dict)
+
+    def save_equilibrator_metadata(self, json_file_name):
+        # write the JSON file containing the 'additiona' data on all the
+        # compounds in eQuilibrator (i.e. formula, mass, pKa values, etc.)
+        compound_json = []
+        for i, compound_id in enumerate(ccache.all_compound_ids()):
+            logger.debug("exporting " + compound_id)
+
+            # skip compounds that cause a segmentation fault in openbabel
+            if compound_id in ['KEGG:C09078', 'KEGG:C09093', 'KEGG:C09145',
+                               'KEGG:C09246', 'KEGG:C10282', 'KEGG:C10286',
+                               'KEGG:C10356', 'KEGG:C10359', 'KEGG:C10396',
+                               'KEGG:C16818', 'KEGG:C16839', 'KEGG:C16857']:
+                continue
+            d = self.to_dict(compound_id)
+            # override H2O as liquid phase only
+            if compound_id in ['KEGG:C00001']:
+                d['pmap']['species'][0]['phase'] = 'liquid'
+            # override Sulfur as solid phase only
+            if compound_id in ['KEGG:C00087']:
+                d['pmap']['species'][0]['phase'] = 'solid'
+            # add gas phase for O2 and N2
+            if compound_id in ['KEGG:C00007', 'KEGG:C00697']:
+                d['pmap']['species'].append({'phase': 'gas', 'dG0_f': 0})
+            # add gas phase for H2
+            if compound_id in ['KEGG:C00282']:
+                d['pmap']['species'].append({'phase': 'gas',
+                                             'dG0_f': 0,
+                                             'nH': 2})
+            # add gas phase for CO2
+            if compound_id in ['KEGG:C00011']:
+                d['pmap']['species'].append({'phase': 'gas',
+                                             'dG0_f': -394.36})
+            # add gas phase for CO
+            if compound_id in ['KEGG:C00237']:
+                d['pmap']['species'].append({'phase': 'gas',
+                                             'dG0_f': -137.17})
+
+            compound_json.append(d)
+
+        json_bytes = json.dumps(compound_json, sort_keys=True, indent=4)
+        with gzip.open(json_file_name, 'w') as new_json:
+            new_json.write(json_bytes.encode('utf-8'))
 
     def get_major_ms_dG0_f(self, compound_id):
         """
@@ -110,7 +170,7 @@ class ComponentContribution(object):
         # calculate the reaction stoichiometric vector and the group incidence
         # vector (x and g)
         x = np.zeros(self.Nc)
-        g = np.zeros(self.Ng)
+        total_gv = np.zeros(self.Ng)
 
         for compound_id, coeff in reaction.items():
             if compound_id in ['C00080', 'KEGG:C00080']:
@@ -123,24 +183,27 @@ class ComponentContribution(object):
                 # using the group contributions.
                 # Note that the length of the group contribution vector we get
                 # from CC is longer than the number of groups in "groups_data"
-                # since we artifically added fictive groups to represent all the
-                # non-decomposable compounds. Therefore, we truncate the
+                # since we artifically added fictive groups to represent all
+                # the non-decomposable compounds. Therefore, we truncate the
                 # dG0_gc vector since here we only use GC for compounds which
                 # are not in cids anyway.
                 comp = ccache.get_compound(compound_id)
                 try:
-                    g += self.decomposer.smiles_to_groupvec(comp.smiles).as_array()
+                    _gv = self.decomposer.smiles_to_groupvec(comp.smiles)
+                    total_gv += _gv.as_array()
                 except inchi2gv.GroupDecompositionError as exception:
                     if raise_exception:
-                        logging.warning('Compound %s cannot be decomposed and is '
-                                        'also not in the training set' % compound_id)
+                        logger.warning('Compound %s cannot be decomposed and '
+                                       'is also not in the training set'
+                                       % compound_id)
                         raise exception
                     else:
                         return np.zeros(self.Nc), np.zeros(self.Ng)
 
-        return x, g
+        return x, total_gv
 
-    def get_dG0_r(self, reaction, raise_exception=False, include_analysis=False):
+    def get_dG0_r(self, reaction, raise_exception=False,
+                  include_analysis=False):
         """
             Arguments:
                 reaction - a KeggReaction object
@@ -172,7 +235,7 @@ class ComponentContribution(object):
             G1 = self.params['preprocess_G1']
             G2 = self.params['preprocess_G2']
             G3 = self.params['preprocess_G3']
-            S  = self.params['preprocess_S']
+            S = self.params['preprocess_S']
             S_count = self.params['preprocess_S_count']
             cids = self.params['cids']
 
@@ -184,14 +247,14 @@ class ComponentContribution(object):
             weights = weights_rc + weights_gc
 
             orders = sorted(range(weights.shape[1]),
-                            key=lambda j:abs(weights[0, j]), reverse=True)
+                            key=lambda j: abs(weights[0, j]), reverse=True)
 
             analysis = []
             for j in orders:
                 if abs(weights[0, j]) < 1e-5:
                     continue
-                r = Reaction({cids[i]:S[i,j] for i in range(S.shape[0])
-                              if S[i,j] != 0})
+                r = Reaction({cids[i]: S[i, j] for i in range(S.shape[0])
+                              if S[i, j] != 0})
                 analysis.append({'index': j,
                                  'w_rc': weights_rc[0, j],
                                  'w_gc': weights_gc[0, j],
@@ -227,62 +290,19 @@ class ComponentContribution(object):
 
         v_r = self.params['preprocess_v_r']
         v_g = self.params['preprocess_v_g']
-        C1  = self.params['preprocess_C1']
-        C2  = self.params['preprocess_C2']
-        C3  = self.params['preprocess_C3']
+        C1 = self.params['preprocess_C1']
+        C2 = self.params['preprocess_C2']
+        C3 = self.params['preprocess_C3']
 
         dG0_cc = X.T @ v_r + G.T @ v_g
         U = X.T @ C1 @ X + X.T @ C2 @ G + G.T @ C2.T @ X + G.T @ C3 @ G
         return dG0_cc, U
 
-    def get_dG0_r_prime(self, reaction, pH, I, T, raise_exception=False):
+    def get_dG0_r_prime(self, reaction, pH, ionic_strength, T,
+                        raise_exception=False):
         dG0_cc, sigma_cc = self.get_dG0_r(reaction, raise_exception)
-        dG0_prime = dG0_cc + reaction.get_transform_ddG0(pH, I, T)
+        dG0_prime = dG0_cc + reaction.get_transform_ddG0(pH, ionic_strength, T)
         return dG0_prime, sigma_cc
-
-    def save_preprocessing_data(self, npz_file_name):
-        """
-            write an NPZ file (Numpy binary files) of preprocessed data needed for
-            running Component Contribution estimations quickly
-        """
-        preprocess_dict = {'cids': self.params['cids']}
-        for k, v in self.params.items():
-            if k.find('preprocess_') != -1:
-                preprocess_dict[k.replace('preprocess_', '')] = v
-        np.savez_compressed(npz_file_name, **preprocess_dict)
-
-    def save_compound_data(self, json_file_name):
-        # write the JSON file containing the 'additiona' data on all the compounds
-        # in eQuilibrator (i.e. formula, mass, pKa values, etc.)
-        compound_json = []
-        for i, compound_id in enumerate(ccache.all_compound_ids()):
-            logging.debug("exporting " + compound_id)
-
-            # skip compounds that cause a segmentation fault in openbabel
-            if compound_id in ['KEGG:C09078', 'KEGG:C09093', 'KEGG:C09145',
-                               'KEGG:C09246', 'KEGG:C10282', 'KEGG:C10286',
-                               'KEGG:C10356', 'KEGG:C10359', 'KEGG:C10396',
-                               'KEGG:C16818', 'KEGG:C16839', 'KEGG:C16857']:
-                continue
-            d = self.to_dict(compound_id)
-            if compound_id in ['KEGG:C00001']: # override H2O as liquid phase only
-                d['pmap']['species'][0]['phase'] = 'liquid'
-            if compound_id in ['KEGG:C00087']: # override Sulfur as solid phase only
-                d['pmap']['species'][0]['phase'] = 'solid'
-            if compound_id in ['KEGG:C00007', 'KEGG:C00697']: # add gas phase for O2 and N2
-                d['pmap']['species'].append({'phase':'gas', 'dG0_f':0})
-            if compound_id in ['KEGG:C00282']: # add gas phase for H2
-                d['pmap']['species'].append({'phase':'gas', 'dG0_f':0, 'nH':2})
-            if compound_id in ['KEGG:C00011']: # add gas phase for CO2
-                d['pmap']['species'].append({'phase':'gas', 'dG0_f':-394.36})
-            if compound_id in ['KEGG:C00237']: # add gas phase for CO
-                d['pmap']['species'].append({'phase':'gas', 'dG0_f':-137.17})
-
-            compound_json.append(d)
-
-        json_bytes = json.dumps(compound_json, sort_keys=True, indent=4)
-        with gzip.open(json_file_name, 'w') as new_json:
-            new_json.write(json_bytes.encode('utf-8'))
 
     def to_dict(self, compound_id):
         """
@@ -504,29 +524,10 @@ class ComponentContribution(object):
 
 
 if __name__ == '__main__':
-    logging.getLogger().setLevel(logging.INFO)
+    logger.setLevel(logging.INFO)
+
+    if os.path.exists(ComponentContribution.CACHE_PARAM_FNAME):
+        logger.info('Found existing CC cache file. Deleting it and retraining '
+                    'Compounent Contribution.')
+        os.remove(ComponentContribution.CACHE_PARAM_FNAME)
     cc = ComponentContribution()
-
-    ccache.get_compound('KEGG:C15602')
-    ccache.get_compound('KEGG:C13626')
-    ccache.get_compound('KEGG:C13628')
-
-    get_dG0_prime = lambda r: cc.get_dG0_r_prime(r, pH=7.0, I=0.25, T=298.15)
-
-    formulas = ['KEGG:C05394 + KEGG:C00001 <=> KEGG:C00257',
-                'KEGG:C00031 + KEGG:C00003 + KEGG:C00001 <=> KEGG:C00257 + KEGG:C00004',
-                'KEGG:C15602 <=> KEGG:C00004',
-                'KEGG:C13626 + KEGG:C00003 <=> KEGG:C13628 + KEGG:C00004',
-                'KEGG:C00002 + KEGG:C00001 <=> KEGG:C00008 + KEGG:C00009']
-
-    reactions = list(map(Reaction.parse_formula, formulas))
-    for r in reactions:
-        print("formula = %s" % r.write_formula())
-        if not r.is_balanced():
-            print('this reaction is not balanced')
-            continue
-        print("dG0 = %.2f [kJ/mol] +- %.2f" % cc.get_dG0_r(r))
-        print("dG'0 = %.2f [kJ/mol] +- %.2f" % get_dG0_prime(r))
-        print('multi = ', cc.get_dG0_r_multi([r], raise_exception=False))
-    print('U = ',
-          cc.get_dG0_r_multi(reactions, raise_exception=False)[1].round(2))

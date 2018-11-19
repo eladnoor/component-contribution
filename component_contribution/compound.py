@@ -82,8 +82,9 @@ COMPOUND_EXCEPTIONS = {
     'KEGG:C00139': ({'Fe': 1, 'e-': 25}, [], None, 0, [0], [1])
 }
 
-COMPOUND_ADDITIONS = pd.read_csv(
-    resource_stream('component_contribution', '/data/compound_additions.csv')).set_index('cid')
+with resource_stream('component_contribution',
+                     '/data/compound_additions.csv') as fp:
+    COMPOUND_ADDITIONS = pd.read_csv(fp).set_index('cid')
 
 
 class Compound(object):
@@ -282,8 +283,8 @@ class Compound(object):
             The difference in kJ/mol.
 
         """
-        return self._transform(
-            p_h, ionic_strength, temperature) + self._ddG(0, index, temperature)
+        return (self._transform(p_h, ionic_strength, temperature) +
+                self._ddG(0, index, temperature))
 
     def transform_p_h_7(self, p_h, ionic_strength, temperature):
         """

@@ -12,15 +12,16 @@ class Reaction(object):
     def __init__(self, sparse, arrow='<=>', rid=None):
         for cid, coeff in sparse.items():
             if type(coeff) not in [float, int]:
-                raise ValueError('All values in Reaction must be integers or floats')
-        
+                raise ValueError('All values in Reaction must be integers or '
+                                 'floats')
+
         self.sparse = dict([(k, v) for (k, v) in sparse.items() if v != 0])
         self.arrow = arrow
         self.rid = rid
 
     def keys(self):
         return self.sparse.keys()
-        
+
     def items(self):
         return self.sparse.items()
 
@@ -29,23 +30,24 @@ class Reaction(object):
 
     def reverse(self):
         """
-            reverse the direction of the reaction by negating all stoichiometric
-            coefficients
+            reverse the direction of the reaction by negating all
+            stoichiometric coefficients
         """
-        self.sparse = dict( (k, -v) for (k, v) in self.sparse.items() )
+        self.sparse = dict((k, -v) for (k, v) in self.sparse.items())
 
     @staticmethod
     def parse_reaction_formula_side(s):
-        """ 
-            Parses the side formula, e.g. '2 KEGG:C00001 + KEGG:C00002 + 3 KEGG:C00003'
+        """
+            Parses the side formula, e.g.
+            '2 KEGG:C00001 + KEGG:C00002 + 3 KEGG:C00003'
             Ignores stoichiometry.
-            
+
             Returns:
                 The set of CIDs.
         """
         if s.strip() == "null":
             return {}
-        
+
         compound_bag = {}
         for member in re.split('\s+\+\s+', s):
             tokens = member.split(None, 1)
@@ -61,40 +63,42 @@ class Reaction(object):
                     raise ParseException(
                         "Non-specific reaction: %s" % s)
                 key = tokens[1]
-                
+
             try:
                 compound_bag[key] = compound_bag.get(key, 0) + amount
             except ValueError:
                 raise ParseException(
                     "Non-specific reaction: %s" % s)
-        
+
         return compound_bag
 
     @staticmethod
     def parse_formula(formula, arrow='<=>', rid=None):
-        """ 
-            Parses a two-sided formula such as: 2 KEGG:C00001 => KEGG:C00002 + KEGG:C00003 
-            
+        """
+            Parses a two-sided formula such as:
+                2 KEGG:C00001 => KEGG:C00002 + KEGG:C00003
+
             Return:
-                The set of substrates, products and the direction of the reaction
+                The set of substrates, products and the direction of the
+                reaction
         """
         tokens = formula.split(arrow)
         if len(tokens) < 2:
-            raise ParseException('Reaction does not contain the arrow sign (%s): %s'
-                                     % (arrow, formula))
+            raise ParseException('Reaction does not contain the arrow sign'
+                                 '(%s): %s' % (arrow, formula))
         if len(tokens) > 2:
-            raise ParseException('Reaction contains more than one arrow sign (%s): %s'
-                                     % (arrow, formula))
-        
+            raise ParseException('Reaction contains more than one arrow sign'
+                                 '(%s): %s' % (arrow, formula))
+
         left = tokens[0].strip()
         right = tokens[1].strip()
-        
+
         sparse_reaction = {}
         for cid, count in Reaction.parse_reaction_formula_side(left).items():
-            sparse_reaction[cid] = sparse_reaction.get(cid, 0) - count 
+            sparse_reaction[cid] = sparse_reaction.get(cid, 0) - count
 
         for cid, count in Reaction.parse_reaction_formula_side(right).items():
-            sparse_reaction[cid] = sparse_reaction.get(cid, 0) + count 
+            sparse_reaction[cid] = sparse_reaction.get(cid, 0) + count
 
         return Reaction(sparse_reaction, arrow, rid=rid)
 
@@ -119,17 +123,17 @@ class Reaction(object):
     def _get_reaction_atom_bag(self, raise_exception=False):
         """
             Use for checking if all elements are conserved.
-            
+
             Returns:
-                An atom_bag of the differences between the sides of the reaction.
-                E.g. if there is one extra C on the left-hand side, the result will
-                be {'C': -1}.
+                An atom_bag of the differences between the sides of the
+                reaction. E.g. if there is one extra C on the left-hand
+                side, the result will be {'C': -1}.
         """
         cids = list(self.keys())
         coeffs = np.array(list(map(self.sparse.__getitem__, cids)))
 
         element_df = ccache.get_element_data_frame(cids)
-        if element_df.shape[1] == 0 or np.any( (element_df == 0).all(axis=1) ):
+        if element_df.shape[1] == 0 or np.any((element_df == 0).all(axis=1)):
             warning_str = 'cannot generate the reaction atom bag because ' + \
                           'compounds have unspecific formulas: ' + \
                           '%s' % self.write_formula()
@@ -141,16 +145,17 @@ class Reaction(object):
 
         conserved = coeffs @ element_df.values
 
-        atom_bag = {}        
+        atom_bag = {}
         if np.any(conserved != 0):
             logging.debug('unbalanced reaction: %s' % self.write_formula())
             for j, c in enumerate(conserved.flat):
                 if c != 0:
-                    logging.debug('there are %d more %s atoms on the right-hand side' %
-                                  (c, element_df.columns[j]))
+                    logging.debug('there are %d more %s atoms on the '
+                                  'right-hand side'
+                                  % (c, element_df.columns[j]))
                     atom_bag[str(element_df.columns[j])] = c
         return atom_bag
-            
+
     def is_balanced(self, fix_protons=True, fix_water=False,
                     raise_exception=False):
         reaction_atom_bag = self._get_reaction_atom_bag(
@@ -178,18 +183,18 @@ class Reaction(object):
 
     def is_empty(self):
         return len(self.sparse) == 0
-            
+
     def dense(self, cids):
         s = np.zeros((len(cids), 1))
         for cid, coeff in self.items():
             s[cids.index(cid), 0] = coeff
         return s
 
-    def get_transform_ddG0(self, pH, I, T):
+    def get_transform_ddG0(self, pH, ionic_strength, T):
         """
         needed in order to calculate the transformed Gibbs energies of
         reactions.
-        
+
         Returns:
             The difference between DrG0_prime and DrG0 for this reaction.
             Therefore, this value must be added to the chemical Gibbs
@@ -198,23 +203,27 @@ class Reaction(object):
         ddG0_forward = 0
         for compound_id, coeff in self.items():
             if compound_id in ['C00080', 'KEGG:C00080']:
-                continue # H+ is ignored in the Legendre transform
+                continue  # H+ is ignored in the Legendre transform
             comp = ccache.get_compound(compound_id)
-            ddG0_forward += coeff * comp.transform_p_h_7(pH, I, T)
+            ddG0_forward += coeff * comp.transform_p_h_7(pH,
+                                                         ionic_strength, T)
         return ddG0_forward
-        
+
+
 if __name__ == '__main__':
     reaction = Reaction.parse_formula('KEGG:C00149 <=> KEGG:C00036')
     print(reaction)
     print('Is balanced: ', reaction.is_balanced())
     print(reaction._get_reaction_atom_bag())
 
-    reaction = Reaction.parse_formula('KEGG:C00149 + KEGG:C00003 <=> KEGG:C00036 + KEGG:C00004')
+    reaction = Reaction.parse_formula(
+            'KEGG:C00149 + KEGG:C00003 <=> KEGG:C00036 + KEGG:C00004')
     print(reaction)
     print('Is balanced: ', reaction.is_balanced())
     print(reaction._get_reaction_atom_bag())
 
-    reaction = Reaction.parse_formula('KEGG:C00149 + KEGG:C00138 <=> KEGG:C00139 + KEGG:C00036')
+    reaction = Reaction.parse_formula(
+            'KEGG:C00149 + KEGG:C00138 <=> KEGG:C00139 + KEGG:C00036')
     print(reaction)
     try:
         reaction.is_balanced()
