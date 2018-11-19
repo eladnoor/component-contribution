@@ -5,6 +5,7 @@ import os
 
 import numpy as np
 import pandas as pd
+from pkg_resources import resource_filename
 
 from . import Reaction, inchi2gv
 from .compound_cache import ccache
@@ -14,14 +15,11 @@ from .thermodynamic_constants import default_T
 from .training_data import FullTrainingData
 
 
-# TODO: Move into distribution.
-BASE_PATH = os.path.split(os.path.realpath(__file__))[0]
-CC_CACHE_FNAME = os.path.join(BASE_PATH, '../cache/component_contribution.npz')
-
-
 class ComponentContribution(object):
 
     MSE_inf = 1e10
+    CC_CACHE_FNAME = resource_filename('component_contribution',
+                                       'cache/component_contribution.npz')
 
     def __init__(self, cache_file_name=CC_CACHE_FNAME, training_data=None):
         self.groups_data = inchi2gv.init_groups_data()
@@ -315,23 +313,24 @@ class ComponentContribution(object):
                 dG0_gc = self.params['dG0_gc'][0:self.Ng]
                 major_ms_dG0_f = float(gv @ dG0_gc)
             except inchi2gv.GroupDecompositionError:
-                d['error'] = 'We cannot estimate the formation energy of this compound ' +\
-                             'because its structure is too small or too complex to ' +\
-                             'decompose to groups'
+                d['error'] = ('We cannot estimate the formation energy of '
+                              'this compound because its structure is too '
+                              'small or too complex to decompose to groups')
                 major_ms_dG0_f = np.nan
         else:
-            d['error'] = 'We cannot estimate the formation energy of this compound ' +\
-                         'because it has no defined structure'
+            d['error'] = ('We cannot estimate the formation energy of this '
+                          'compound because it has no defined structure')
             major_ms_dG0_f = np.nan
 
         if gv is not None:
-            #sparse_gv = filter(lambda x: x[1] != 0, enumerate(gv.flat))
-            sparse_gv = [(i, int(g)) for (i, g) in enumerate(gv.flat) if g != 0]
+            sparse_gv = [(i, int(g)) for (i, g) in enumerate(gv.flat)
+                         if g != 0]
             d['group_vector'] = sparse_gv
 
         if not np.isnan(major_ms_dG0_f):
+            _species = list(comp.get_species(major_ms_dG0_f, default_T))
             d['pmap'] = {'source': 'Component Contribution (2013)',
-                         'species': list(comp.get_species(major_ms_dG0_f, default_T))}
+                         'species': _species}
 
         d['num_electrons'] = comp.atom_bag.get('e-', 0)
 
@@ -342,7 +341,7 @@ class ComponentContribution(object):
                 d['mass'] = mol.GetExactMass()
                 d['formula'] = mol.GetFormula()
             except OpenBabelError:
-                if compound_id == 'C00282': # an exception for hydrogen
+                if compound_id == 'C00282':  # an exception for hydrogen
                     d['mass'] = 2.0157
                     d['formula'] = 'H2'
                 else:
@@ -353,8 +352,8 @@ class ComponentContribution(object):
 
     def create_group_incidence_matrix(self):
         """
-            Initialize G matrix, and then use the python script "inchi2gv.py" to
-            decompose each of the compounds that has an InChI and save the
+            Initialize G matrix, and then use the python script "inchi2gv.py"
+            to decompose each of the compounds that has an InChI and save the
             decomposition as a row in the G matrix.
         """
 
@@ -363,7 +362,8 @@ class ComponentContribution(object):
         for compound_id in self.cids:
             smiles = ccache.get_compound(compound_id).smiles
             try:
-                gv_data.append(list(self.decomposer.smiles_to_groupvec(smiles).flat))
+                gv_data.append(
+                        list(self.decomposer.smiles_to_groupvec(smiles).flat))
             except inchi2gv.GroupDecompositionError:
                 gv_data.append([0] * len(self.group_names))
 
@@ -414,7 +414,8 @@ class ComponentContribution(object):
         dG0_rc = np.squeeze(inv_S.T @ W @ b)
         dG0_cc = np.squeeze(P_R_rc @ dG0_rc + P_N_rc @ G @ dG0_gc)
 
-        # Calculate the residual error (unweighted squared error divided by N - rank)
+        # Calculate the residual error (unweighted squared error divided
+        # by N - rank)
         e_rc = (S.T @ dG0_rc - b)
         MSE_rc = float((e_rc.T @ W @ e_rc) / (n - r_rc))
         # MSE_rc = (e_rc.T @ e_rc) / (n - r_rc)
@@ -425,7 +426,8 @@ class ComponentContribution(object):
 
         # Calculate the MSE of GC residuals for all reactions in ker(G).
         # This will help later to give an estimate of the uncertainty for such
-        # reactions, which otherwise would have a 0 uncertainty in the GC method.
+        # reactions, which otherwise would have a 0 uncertainty in the GC
+        # method.
         kerG_inds = list(np.where(np.all(GS == 0, 0))[0].flat)
 
         e_kerG = e_gc[kerG_inds]
@@ -434,18 +436,11 @@ class ComponentContribution(object):
         MSE_inf = ComponentContribution.MSE_inf
 
         # Calculate the uncertainty covariance matrices
-        # [inv_S_orig, ~, ~, ~] = invertProjection(S);
-        # [inv_GS_orig, ~, ~, ~] = invertProjection(GS);
         inv_SWS, _, _, _ = LINALG._invert_project(S @ W @ S.T)
         inv_GSWGS, _, _, _ = LINALG._invert_project(GS @ W @ GS.T)
 
-
-        #V_rc  = P_R_rc @ (inv_S_orig.T @ W @ inv_S_orig) @ P_R_rc
-        #V_gc  = P_N_rc @ G @ (inv_GS_orig.T @ W @ inv_GS_orig) @ G.T @ P_N_rc
         V_rc = P_R_rc @ inv_SWS @ P_R_rc
-        V_gc  = P_N_rc @ G @ inv_GSWGS @ G.T @ P_N_rc
-        # V_rc  = P_R_rc @ (inv_S_orig.T @ inv_S_orig) @ P_R_rc
-        # V_gc  = P_N_rc @ G @ (inv_GS_orig.T @ inv_GS_orig) @ G.T @ P_N_rc
+        V_gc = P_N_rc @ G @ inv_GSWGS @ G.T @ P_N_rc
         V_inf = P_N_rc @ G @ P_N_gc @ G.T @ P_N_rc
 
         # Calculate the total of the contributions and covariances
@@ -507,8 +502,9 @@ class ComponentContribution(object):
                    'preprocess_C3':  preprocess_C3}
         return params
 
+
 if __name__ == '__main__':
-    logging.getLogger().setLevel(logging.DEBUG)
+    logging.getLogger().setLevel(logging.INFO)
     cc = ComponentContribution()
 
     ccache.get_compound('KEGG:C15602')
@@ -532,4 +528,5 @@ if __name__ == '__main__':
         print("dG0 = %.2f [kJ/mol] +- %.2f" % cc.get_dG0_r(r))
         print("dG'0 = %.2f [kJ/mol] +- %.2f" % get_dG0_prime(r))
         print('multi = ', cc.get_dG0_r_multi([r], raise_exception=False))
-    print('U = ', cc.get_dG0_r_multi(reactions, raise_exception=False)[1].round(2))
+    print('U = ',
+          cc.get_dG0_r_multi(reactions, raise_exception=False)[1].round(2))

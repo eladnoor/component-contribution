@@ -203,6 +203,10 @@ class ToyTrainingData(TrainingData):
 
 class FullTrainingData(TrainingData):
 
+    FORMATION_ENERGY_FNAME = '/data/formation_energies_transformed.csv.gz'
+    REACTION_ENERGY_FNAME = '/data/TECRDB.csv.gz'
+    OXIDATION_POTENTIAL_FNAME = '/data/redox.csv.gz'
+
     def __init__(self):
         super().__init__()
         logging.info('Reading the training data files')
@@ -248,7 +252,7 @@ class FullTrainingData(TrainingData):
 
         """
         with resource_stream('component_contribution',
-                             '/data/TECRDB.csv.gz') as fp:
+                             FullTrainingData.REACTION_ENERGY_FNAME) as fp:
             tecr_df = pd.read_csv(gzip.GzipFile(fileobj=fp))
 
         for col in ["T", "I", "pH", "pMg", "K'"]:
@@ -296,7 +300,7 @@ class FullTrainingData(TrainingData):
         """
 
         with resource_stream('component_contribution',
-                             '/data/formation_energies_transformed.csv.gz') as fp:
+                             FullTrainingData.FORMATION_ENERGY_FNAME) as fp:
             formation_df = pd.read_csv(gzip.GzipFile(fileobj=fp))
 
         cids_that_dont_decompose = set(
@@ -341,7 +345,7 @@ class FullTrainingData(TrainingData):
         .. [8] Unden (1997)
         """
         with resource_stream('component_contribution',
-                             '/data/redox.csv.gz') as fp:
+                             FullTrainingData.OXIDATION_POTENTIAL_FNAME) as fp:
             redox_df = pd.read_csv(gzip.GzipFile(fileobj=fp))
 
         delta_nH = redox_df['nH_red'] - redox_df['nH_ox']
