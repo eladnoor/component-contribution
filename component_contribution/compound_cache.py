@@ -25,18 +25,20 @@
 
 import json
 import logging
-import os
+import sqlite3
+
 from collections import defaultdict
 from pkg_resources import resource_filename
 
 import pandas as pd
+import pandas.io.sql as pd_sql
 
 from .compound import Compound
 
 LOGGER = logging.getLogger(__name__)
 
 DEFAULT_CACHE_FNAME = resource_filename('component_contribution',
-                                        '/cache/compounds.csv')
+                                        '/cache/compounds.sqlite')
 
 
 class CompoundCache(object):
@@ -60,6 +62,9 @@ class CompoundCache(object):
     SERIALIZE_COLUMNS = ["atom_bag", "p_kas", "number_of_protons", "charges"]
 
     def __init__(self, cache_file_name=DEFAULT_CACHE_FNAME):
+        # connect to the SQL database
+        self.con = sqlite3.connect(cache_file_name)
+
         # a lookup table for compound IDs
         self._compound_id_to_inchi_key = dict()
 
@@ -73,17 +78,22 @@ class CompoundCache(object):
         # filesystem. updated any time a new compound is cached.
         self.requires_update = False
 
-        if not os.path.exists(cache_file_name):
+        if pd_sql.has_table('compound_cache', self.con):
+            df = pd.read_sql('SELECT * FROM compound_cache', self.con)
+            df.set_index('inchi_key', inplace=True, drop=True)
+            self.from_data_frame(df)
+        else:
             self._data = pd.DataFrame(columns=self.COLUMNS)
             self._data.index.name = 'inchi_key'
             self.requires_update = True
-        else:
-            self.from_data_frame(pd.read_csv(cache_file_name, index_col=0))
+            self.dump()
 
     def dump(self, cache_file_name=DEFAULT_CACHE_FNAME):
         if self.requires_update:
-            self.to_data_frame().to_csv(cache_file_name)
+            df = self.to_data_frame()
+            pd_sql.to_sql(df, 'compound_cache', self.con, if_exists='replace')
             self.requires_update = False
+            self.con.commit()
 
     def _read_cross_refs(self, df):
         for inchi_key, row in df.iterrows():
@@ -96,7 +106,11 @@ class CompoundCache(object):
 
     def to_data_frame(self):
         """
-            Creates a DataFrame with all the data of the cache
+            Creates a DataFrame that can be written to the SQLite database.
+            Some of the columns need to be serialized before the export.
+
+            Returns:
+                pandas.DataFrame
         """
         df = self._data.copy()
 
@@ -213,12 +227,30 @@ class CompoundCache(object):
 
 # this is the only place where one should use the constructore.
 # we wish to only have one instance of the cache (i.e. use it as a singleton)
+
+# legacy code for transitioning from CSV to SQLite
+if False:
+    con = sqlite3.connect(DEFAULT_CACHE_FNAME)
+    df = pd.read_csv('component_contribution/cache/compounds.csv',
+                     index_col=0)
+    df.index.name = 'inchi_key'
+    df.to_sql('compound_cache', con, if_exists='replace')
+    con.commit()
+    con.close()
+
+    con = sqlite3.connect(DEFAULT_CACHE_FNAME)
+    df = pd.read_sql('SELECT * FROM compound_cache', con)
+    df.set_index('inchi_key', inplace=True)
+    print(df)
+
+    con.close()
+
 ccache = CompoundCache()
 
 
 if __name__ == '__main__':
     from .training_data import FullTrainingData
-    LOGGER.setLevel(logging.INFO)
+    LOGGER.setLevel(logging.DEBUG)
 
     # Cache all the compounds that are part of the training data.
     # Calling the constructor here,
