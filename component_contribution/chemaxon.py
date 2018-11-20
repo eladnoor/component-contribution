@@ -29,6 +29,7 @@ import subprocess
 from io import StringIO
 
 import pandas
+import sys
 
 from component_contribution import exceptions
 
@@ -37,7 +38,7 @@ logger = logging.getLogger(__name__)
 
 
 if platform.system() == 'Windows':
-    CXCALC_BIN = 'C:\\Program Files (x86)\\ChemAxon\\MarvinBeans\\bin\\cxcalc.bat'
+    CXCALC_BIN = r'C:\Program Files (x86)\ChemAxon\MarvinBeans\bin\cxcalc.bat'
     use_shell_for_echo = True
 else:
     CXCALC_BIN = 'cxcalc'
@@ -52,6 +53,14 @@ class ChemAxonNotFoundError(ImportError):
         super().__init__(
             "Marvin cxcalc was not found on your system. "
             "Please install it from https://chemaxon.com/")
+
+
+def verify_cxcalc():
+    try:
+        subprocess.run([CXCALC_BIN, '--help'])
+        return True
+    except OSError:
+        return False
 
 
 def run_cxcalc(molstring, args):
@@ -77,7 +86,8 @@ def run_cxcalc(molstring, args):
 
     """
     try:
-        logger.debug("INPUT: %s | %s" % (molstring, ' '.join([CXCALC_BIN] + args)))
+        logger.debug("INPUT: %s | %s" %
+                     (molstring, ' '.join([CXCALC_BIN] + args)))
         result = subprocess.run([CXCALC_BIN] + args,
                                 input=molstring,
                                 stdout=subprocess.PIPE,
@@ -110,7 +120,8 @@ def parse_pka_output(output, n_acidic, n_basic):
     Returns
     -------
     atom2pka : dict
-        A dictionary that maps the atom index to a list of pKas that are assigned to that atom.
+        A dictionary that maps the atom index to a list of pKas that are
+        ssigned to that atom.
     """
     atom2pKa = {}
 
@@ -123,7 +134,8 @@ def parse_pka_output(output, n_acidic, n_basic):
 
     if n_acidic + n_basic > 0:
         if len(splitline) != (n_acidic + n_basic + 2):
-            raise exceptions.ChemAxonRuntimeError('ChemAxon failed to find any pKas')
+            raise exceptions.ChemAxonRuntimeError('ChemAxon failed to find any'
+                                                  ' pKas')
 
         pKa_list = []
         acid_or_base_list = []
@@ -150,7 +162,8 @@ def parse_pka_output(output, n_acidic, n_basic):
     return atom2pKa, smiles_list
 
 
-def get_dissociation_constants(molstring, n_acidic=N_PKAS, n_basic=N_PKAS, p_h=MID_PH):
+def get_dissociation_constants(molstring, n_acidic=N_PKAS,
+                               n_basic=N_PKAS, p_h=MID_PH):
     """
 
     Computes the dissociation constants and major microspecies at a defined pH.
@@ -178,7 +191,8 @@ def get_dissociation_constants(molstring, n_acidic=N_PKAS, n_basic=N_PKAS, p_h=M
 
     args = []
     if n_acidic + n_basic > 0:
-        args += ['pka', '-a', str(n_acidic), '-b', str(n_basic), 'majorms', '-M', 'true', '--pH', str(p_h)]
+        args += ['pka', '-a', str(n_acidic), '-b', str(n_basic),
+                 'majorms', '-M', 'true', '--pH', str(p_h)]
 
     output = str(run_cxcalc(molstring, args))
     atom2pka, smiles_list = parse_pka_output(output, n_acidic, n_basic)
@@ -212,7 +226,8 @@ def get_formula_and_charge(molstring):
     # id, Formula, Formal charge
     output_df = pandas.read_csv(StringIO(output), delimiter='\t')
     if output_df.columns.tolist() != ['id', 'Formula', 'Formal charge']:
-        raise exceptions.ChemAxonRuntimeError('cannot get the formula and charge for: ' + molstring)
+        raise exceptions.ChemAxonRuntimeError('cannot get the formula and '
+                                              'charge for: ' + molstring)
 
     formula = output_df['Formula'].iat[0]
     try:
@@ -225,8 +240,14 @@ def get_formula_and_charge(molstring):
 
 if __name__ == "__main__":
     logger.setLevel(logging.WARNING)
-    compound_list = [('orthophosphate', 'InChI=1S/H3O4P/c1-5(2,3)4/h(H3,1,2,3,4)/p-3'),
-                     ('D-Erythrulose', 'InChI=1S/C4H8O4/c5-1-3(7)4(8)2-6/h3,5-7H,1-2H2/t3-/m1/s1')]
+    if not verify_cxcalc():
+        print('cxcalc is not installed')
+        sys.exit(-1)
+
+    compound_list = [('orthophosphate',
+                      'InChI=1S/H3O4P/c1-5(2,3)4/h(H3,1,2,3,4)/p-3'),
+                     ('D-Erythrulose',
+                      'InChI=1S/C4H8O4/c5-1-3(7)4(8)2-6/h3,5-7H,1-2H2/t3-/m1/s1')]
     for name, inchi in compound_list:
         formula, charge = get_formula_and_charge(inchi)
         diss_table, major_ms = get_dissociation_constants(inchi)

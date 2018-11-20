@@ -25,15 +25,11 @@
 
 import pytest
 
-from component_contribution import ccache
 from component_contribution.chemaxon import (
-    ChemAxonNotFoundError, get_dissociation_constants, get_formula_and_charge)
+    verify_cxcalc, get_dissociation_constants, get_formula_and_charge)
 
 
-try:
-    # TODO: Should introduce a utility that runs cxcalc --help to test.
-    ccache.get_compound('KEGG:C00002')
-except ChemAxonNotFoundError:
+if not verify_cxcalc():
     pytest.skip("Cannot test without ChemAxon.", allow_module_level=True)
 
 
