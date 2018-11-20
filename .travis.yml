@@ -15,7 +15,7 @@ cache:
 branches:
   only:
   - master
-  - devel
+  - develop
   - "/^\\d+\\.\\d+\\.\\d+[a]?\\d*$/"
 
 addons:
