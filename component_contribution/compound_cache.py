@@ -142,27 +142,36 @@ class CompoundCache(object):
         self._data['inchi'].fillna('', inplace=True)
         self._data['smiles'].fillna('', inplace=True)
 
+    def exists(self, compound_id):
+        return ((compound_id in self._compound_id_to_inchi_key) or
+                (compound_id in self._data.index))
+
+    def add_cross_link(self, inchi_key, new_compound_id):
+        logging.debug('Adding a cross-link from %s to %s' %
+                      (new_compound_id, inchi_key))
+        cpd = self.get(inchi_key)
+        self._compound_id_to_inchi_key[new_compound_id] = cpd.inchi_key
+        self.requires_update = True
+
     def get_compound(self, compound_id, compute_pkas=True):
-        if compound_id in self._compound_id_to_inchi_key:  # compound exists
+        # compound exists
+        if compound_id in self._compound_id_to_inchi_key:
             logging.debug('Cache hit for %s' % compound_id)
             return self.get(self._compound_id_to_inchi_key[compound_id])
         # compound_id is an InChI Key and exists
         elif compound_id in self._data.index:
             logging.debug('Cache hit for InChiKey %s' % compound_id)
             return self.get(compound_id)
-        else:  # compound does not exist.
+        # compound does not exist.
+        else:
             logging.debug('Cache miss, calculating pKas for %s' % compound_id)
             cpd = Compound.get(compound_id, compute_pkas)
             if cpd.inchi_key in self._data.index:
-                logging.debug('Adding a cross-link from %s to %s' %
-                              (compound_id, cpd.inchi_key))
-                cpd = self.get(cpd.inchi_key)
-                self._compound_id_to_inchi_key[compound_id] = cpd.inchi_key
+                self.add_cross_link(cpd.inchi_key, compound_id)
             else:
                 logging.debug('Adding the new InChiKey to the cache: %s'
                               % cpd.inchi_key)
                 self.add(cpd)
-            self.requires_update = True
             return cpd
 
     def remove(self, inchi_key):
@@ -202,6 +211,7 @@ class CompoundCache(object):
         self._data.loc[cpd.inchi_key, :] = [
             cpd.inchi, cpd.name, cpd.atom_bag, cpd.p_kas, cpd.smiles,
             int(cpd.major_microspecies), cpd.number_of_protons, cpd.charges]
+        self.requires_update = True
 
     def get_element_data_frame(self, compound_ids):
         if isinstance(compound_ids, str):
