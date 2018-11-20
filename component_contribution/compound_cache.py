@@ -26,14 +26,14 @@
 import json
 import logging
 import sqlite3
-
 from collections import defaultdict
-from pkg_resources import resource_filename
 
 import pandas as pd
 import pandas.io.sql as pd_sql
+from pkg_resources import resource_filename
 
 from .compound import Compound
+
 
 LOGGER = logging.getLogger(__name__)
 
