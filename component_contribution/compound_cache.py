@@ -23,22 +23,27 @@
 # THE SOFTWARE.
 
 
+import atexit
 import json
 import logging
 import sqlite3
-
 from collections import defaultdict
-from pkg_resources import resource_filename
+from contextlib import ExitStack
 
 import pandas as pd
 import pandas.io.sql as pd_sql
+from importlib_resources import path
 
-from .compound import Compound
+import component_contribution.cache
+from component_contribution.compound import Compound
 
-LOGGER = logging.getLogger(__name__)
 
-DEFAULT_CACHE_FNAME = resource_filename('component_contribution',
-                                        '/cache/compounds.sqlite')
+logger = logging.getLogger(__name__)
+file_manager = ExitStack()
+atexit.register(file_manager.close)
+
+DEFAULT_CACHE_FNAME = str(file_manager.enter_context(
+    path(component_contribution.cache, "compounds.sqlite")))
 
 
 class CompoundCache(object):
@@ -260,7 +265,7 @@ ccache = CompoundCache()
 
 if __name__ == '__main__':
     from .training_data import FullTrainingData
-    LOGGER.setLevel(logging.DEBUG)
+    logger.setLevel(logging.DEBUG)
 
     # Cache all the compounds that are part of the training data.
     # Calling the constructor here,
