@@ -23,13 +23,15 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-import pandas as pd
-import pybel
 import logging
 from ftplib import FTP
 
+import pandas as pd
+import pybel
+
 from .compound import Compound
 from .compound_cache import ccache
+
 
 logger = logging.getLogger(__name__)
 

@@ -27,6 +27,7 @@ import pytest
 from component_contribution import (
     ChemAxonNotFoundError, Compound, GroupDecompositionError, ccache, inchi2gv)
 
+
 try:
     # TODO: Should introduce a utility that runs cxcalc --help to test.
     ccache.get_compound('KEGG:C00002')
