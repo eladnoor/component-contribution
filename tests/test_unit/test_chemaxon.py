@@ -26,7 +26,7 @@
 import pytest
 
 from component_contribution.chemaxon import (
-    verify_cxcalc, get_dissociation_constants, get_formula_and_charge)
+    get_dissociation_constants, get_formula_and_charge, verify_cxcalc)
 
 
 if not verify_cxcalc():

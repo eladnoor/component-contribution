@@ -26,10 +26,10 @@
 import logging
 import platform
 import subprocess
+import sys
 from io import StringIO
 
 import pandas
-import sys
 
 from component_contribution import exceptions
 
