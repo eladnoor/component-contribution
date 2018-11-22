@@ -206,14 +206,16 @@ class ComponentContribution(object):
                   include_analysis=False):
         """
             Arguments:
-                reaction - a KeggReaction object
+            - reaction (a Reaction object)
 
             Returns:
-                dG0_cc   - the CC estimation for this reaction's untransformed
-                           dG0 (i.e. using the major MS at pH 7 for each of the
-                           reactants)
-                sigma_cc - the standard error of the estimate. multiply by
-                           1.96 to get the 95% confidence interval.
+            - dG0_cc
+                        the CC estimation for this reaction's untransformed
+                        dG0 (i.e. using the major MS at pH 7 for each of the
+                        reactants)
+            - sigma_cc
+                        the standard error of the estimate. multiply by
+                        1.96 to get the 95% confidence interval.
         """
         try:
             dG0_cc, U = self.get_dG0_r_multi([reaction], raise_exception=True)
@@ -266,18 +268,22 @@ class ComponentContribution(object):
     def get_dG0_r_multi(self, reactions, raise_exception=False):
         """
             Arguments:
-                reaction - a KeggReaction object
+            - reactions (a list of Reaction objects)
+            - raise_exception (flag for non-decomposable compounds)
 
             Returns:
-                dG0_cc - a NumPy array containing the CC estimates for
-                         this reaction's untransformed dG0
-                         (i.e. using the major MS at pH 7 for each of the
-                         reactants)
-                U      - the covariance matrix of the standard errors of the
-                         estimates. one can use the eigenvectors of the matrix
-                         to define a confidence high-dimensional space, or use
-                         U as the covariance of a Gaussian used for sampling
-                         (where dG0_cc is the mean of that Gaussian).
+            - dG0
+                      a 1D NumPy array containing the CC estimates for
+                      the reactions' untransformed dG0
+                      (i.e. using the major MS at pH 7 for each of the
+                      reactants)
+            - U
+                      a 2D numpy array containing the covariance matrix
+                      of the standard errors of the
+                      estimates. one can use the eigenvectors of the matrix
+                      to define a confidence high-dimensional space, or use
+                      U as the covariance of a Gaussian used for sampling
+                      (where dG0_cc is the mean of that Gaussian).
         """
         Nr = len(reactions)
         X = np.zeros((self.Nc, Nr))
@@ -294,15 +300,57 @@ class ComponentContribution(object):
         C2 = self.params['preprocess_C2']
         C3 = self.params['preprocess_C3']
 
-        dG0_cc = X.T @ v_r + G.T @ v_g
+        dG0 = X.T @ v_r + G.T @ v_g
         U = X.T @ C1 @ X + X.T @ C2 @ G + G.T @ C2.T @ X + G.T @ C3 @ G
-        return dG0_cc, U
+        return dG0, U
 
     def get_dG0_r_prime(self, reaction, pH, ionic_strength, T,
                         raise_exception=False):
+        """
+            Arguments:
+            - reaction (a Reaction objects)
+            - pH
+            - ionic_strength (in M)
+            - T (temperature in Kalvin)
+            - raise_exception (flag for non-decomposable compounds)
+
+            Returns:
+            - dG0_prime (CC estimates for the reaction's transformed dG0 in
+                         kJ/mol)
+            - sigma_cc (the standard error of the estimate. multiply by
+                        1.96 to get the 95% confidence interval)
+        """
         dG0_cc, sigma_cc = self.get_dG0_r(reaction, raise_exception)
         dG0_prime = dG0_cc + reaction.get_transform_ddG0(pH, ionic_strength, T)
         return dG0_prime, sigma_cc
+
+    def get_dG0_r_prime_multi(self, reactions, pH, ionic_strength, T,
+                              raise_exception=False):
+        """
+            Arguments:
+            - reactions (a list of Reaction objects)
+            - pH
+            - ionic_strength (in M)
+            - T (temperature in Kalvin)
+            - raise_exception (flag for non-decomposable compounds)
+
+            Returns:
+            - dG0_prime
+                      a 1D NumPy array containing the CC estimates for
+                      the reactions' transformed dG0
+            - U
+                      a 2D numpy array containing the covariance matrix
+                      of the standard errors of the
+                      estimates. one can use the eigenvectors of the matrix
+                      to define a confidence high-dimensional space, or use
+                      U as the covariance of a Gaussian used for sampling
+                      (where dG0_cc is the mean of that Gaussian).
+        """
+        dG0, U = self.get_dG0_r_multi(reactions, raise_exception)
+        ddG0 = np.array([r.get_transform_ddG0(pH, ionic_strength, T)
+                         for r in reactions])
+        dG0_prime = dG0 + ddG0
+        return dG0_prime, U
 
     def to_dict(self, compound_id):
         """
