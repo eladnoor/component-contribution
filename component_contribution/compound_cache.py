@@ -35,6 +35,7 @@ import pandas.io.sql as pd_sql
 from importlib_resources import path
 
 import component_contribution.cache
+
 from .compound import Compound, MicroSpecie
 
 
