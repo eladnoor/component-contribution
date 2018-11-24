@@ -88,47 +88,12 @@ class CompoundCache(object):
             compound_df = pd.read_sql('SELECT * FROM compounds', self.con)
             specie_df = pd.read_sql('SELECT * FROM microspecies', self.con)
             self.from_data_frames(compound_df, specie_df)
-        elif pd_sql.has_table('compound_cache', self.con):
-            df = pd.read_sql('SELECT * FROM compound_cache', self.con)
-            self.from_data_frame(df)
-            self.requires_update = True
-            self.dump()
         else:
             self._data = pd.DataFrame(columns=self.COLUMNS)
             self._data.index.name = 'inchi_key'
             self.requires_update = True
             self.dump()
 
-#    def get_species_frame(self):
-#        """
-#            Create a pandas.DataFrame that contains all the pseudoisomer info,
-#            i.e. the net charge, number of protons, and deltaG0
-#        """
-#        R_T_log10 = R * default_T * np.log(10)
-#        data = []
-#        for inchi_key, row in self._data.iterrows():
-#            major_ms = row['major_ms']
-#            p_kas = row['p_kas']
-#            for i, (z, nH) in enumerate(zip(row['charges'],
-#                                            row['number_of_protons'])):
-#                if i < major_ms:
-#                    ddG = sum(p_kas[i:major_ms]) * R_T_log10
-#                elif i > major_ms:
-#                    ddG = -sum(p_kas[major_ms:i]) * R_T_log10
-#                else:
-#                    ddG = 0
-#
-#                data.append((inchi_key, z, nH, 0, ddG))
-#
-#        species_df = pd.DataFrame(data=data,
-#                                  columns=['inchi_key',
-#                                           'charge',
-#                                           'number_of_protons',
-#                                           'number_of_magnesium',
-#                                           'relative_dG0_f'])
-#        species_df['relative_dG0_f'] = species_df['relative_dG0_f'].round(2)
-#        return species_df
-#
     def dump(self, cache_file_name=DEFAULT_CACHE_FNAME):
         if self.requires_update:
             compound_df, specie_df = self.to_data_frames()
@@ -173,33 +138,6 @@ class CompoundCache(object):
 
         return compound_df, specie_df
 
-    def from_data_frame(self, df):
-        """
-            Legacy code, helping in the transition to several SQL tables
-        """
-        # read the compound DataFrame and adjust the columns that are not
-        # straighforward
-        self._data = df.copy()
-        self._data.set_index('inchi_key', inplace=True, drop=True)
-        self._data['atom_bag'] = self._data['atom_bag'].apply(json.loads)
-        self._data['charges'] = self._data['charges'].apply(json.loads)
-        self._data['number_of_protons'] = self._data['number_of_protons'].apply(json.loads)
-        self._data['p_kas'] = self._data['p_kas'].apply(json.loads)
-        self._data['inchi'].fillna('', inplace=True)
-        self._data['smiles'].fillna('', inplace=True)
-
-        self._read_cross_refs(self._data)
-        self._data.drop('cross_references', axis=1, inplace=True)
-
-        for inchi_key, row in self._data.iterrows():
-            self._inchi_key_to_species[inchi_key] = \
-                MicroSpecie.from_p_kas(inchi_key, int(row.major_ms),
-                                       row.charges,
-                                       row.number_of_protons,
-                                       row.p_kas)
-        self._data.drop(['charges', 'number_of_protons', 'p_kas', 'major_ms'],
-                        axis=1, inplace=True)
-
     def from_data_frames(self, compound_df, specie_df):
         """
             Reads all the cached data from DataFrames
@@ -231,13 +169,6 @@ class CompoundCache(object):
         for inchi_key in self._data.index:
             if inchi_key not in self._inchi_key_to_species:
                 self._inchi_key_to_species[inchi_key] = []
-
-#        for inchi_key, row in self._data.iterrows():
-#            self._inchi_key_to_species[inchi_key] = \
-#                MicroSpecie.from_p_kas(inchi_key, int(row.major_ms),
-#                                       row.charges,
-#                                       row.number_of_protons,
-#                                       row.p_kas)
 
     def exists(self, compound_id):
         return ((compound_id in self._compound_id_to_inchi_key) or
@@ -335,24 +266,6 @@ class CompoundCache(object):
 
 # this is the only place where one should use the constructore.
 # we wish to only have one instance of the cache (i.e. use it as a singleton)
-
-# legacy code for transitioning from CSV to SQLite
-if False:
-    con = sqlite3.connect(DEFAULT_CACHE_FNAME)
-    df = pd.read_csv('component_contribution/cache/compounds.csv',
-                     index_col=0)
-    df.index.name = 'inchi_key'
-    df.to_sql('compound_cache', con, if_exists='replace')
-    con.commit()
-    con.close()
-
-    con = sqlite3.connect(DEFAULT_CACHE_FNAME)
-    df = pd.read_sql('SELECT * FROM compound_cache', con)
-    df.set_index('inchi_key', inplace=True)
-    print(df)
-
-    con.close()
-
 ccache = CompoundCache()
 
 
