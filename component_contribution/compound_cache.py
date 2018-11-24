@@ -35,7 +35,7 @@ import pandas.io.sql as pd_sql
 from importlib_resources import path
 
 import component_contribution.cache
-from component_contribution.compound import Compound
+from .compound import Compound, MicroSpecie
 
 
 logger = logging.getLogger(__name__)
@@ -64,8 +64,6 @@ class CompoundCache(object):
         "inchi", "name", "atom_bag", "p_kas", "smiles", "major_ms",
         "number_of_protons", "charges"]
 
-    SERIALIZE_COLUMNS = ["atom_bag", "p_kas", "number_of_protons", "charges"]
-
     def __init__(self, cache_file_name=DEFAULT_CACHE_FNAME):
         # connect to the SQL database
         self.con = sqlite3.connect(cache_file_name)
@@ -76,27 +74,68 @@ class CompoundCache(object):
         # a lookup table for InChIKeys
         self._inchi_key_to_compound_ids = defaultdict(set)
 
+        # a lookup table to microspecies (charge, nH, energy difference)
+        self._inchi_key_to_species = dict()
+
         # an internal cache for Compound objects that have already been created
-        self.compound_dict = {}
+        self.compound_dict = dict()
 
         # a flag telling the Cache that it needs to rewrite itself in the
         # filesystem. updated any time a new compound is cached.
         self.requires_update = False
 
-        if pd_sql.has_table('compound_cache', self.con):
+        if pd_sql.has_table('compounds', self.con):
+            compound_df = pd.read_sql('SELECT * FROM compounds', self.con)
+            specie_df = pd.read_sql('SELECT * FROM microspecies', self.con)
+            self.from_data_frames(compound_df, specie_df)
+        elif pd_sql.has_table('compound_cache', self.con):
             df = pd.read_sql('SELECT * FROM compound_cache', self.con)
-            df.set_index('inchi_key', inplace=True, drop=True)
             self.from_data_frame(df)
+            self.requires_update = True
+            self.dump()
         else:
             self._data = pd.DataFrame(columns=self.COLUMNS)
             self._data.index.name = 'inchi_key'
             self.requires_update = True
             self.dump()
 
+#    def get_species_frame(self):
+#        """
+#            Create a pandas.DataFrame that contains all the pseudoisomer info,
+#            i.e. the net charge, number of protons, and deltaG0
+#        """
+#        R_T_log10 = R * default_T * np.log(10)
+#        data = []
+#        for inchi_key, row in self._data.iterrows():
+#            major_ms = row['major_ms']
+#            p_kas = row['p_kas']
+#            for i, (z, nH) in enumerate(zip(row['charges'],
+#                                            row['number_of_protons'])):
+#                if i < major_ms:
+#                    ddG = sum(p_kas[i:major_ms]) * R_T_log10
+#                elif i > major_ms:
+#                    ddG = -sum(p_kas[major_ms:i]) * R_T_log10
+#                else:
+#                    ddG = 0
+#
+#                data.append((inchi_key, z, nH, 0, ddG))
+#
+#        species_df = pd.DataFrame(data=data,
+#                                  columns=['inchi_key',
+#                                           'charge',
+#                                           'number_of_protons',
+#                                           'number_of_magnesium',
+#                                           'relative_dG0_f'])
+#        species_df['relative_dG0_f'] = species_df['relative_dG0_f'].round(2)
+#        return species_df
+#
     def dump(self, cache_file_name=DEFAULT_CACHE_FNAME):
         if self.requires_update:
-            df = self.to_data_frame()
-            pd_sql.to_sql(df, 'compound_cache', self.con, if_exists='replace')
+            compound_df, specie_df = self.to_data_frames()
+            pd_sql.to_sql(compound_df, 'compounds', self.con,
+                          if_exists='replace')
+            pd_sql.to_sql(specie_df, 'microspecies', self.con,
+                          if_exists='replace')
             self.requires_update = False
             self.con.commit()
 
@@ -109,43 +148,96 @@ class CompoundCache(object):
     def all_compound_ids(self):
         return sorted(self._compound_id_to_inchi_key.keys())
 
-    def to_data_frame(self):
+    def to_data_frames(self):
         """
-            Creates a DataFrame that can be written to the SQLite database.
-            Some of the columns need to be serialized before the export.
+            Creates DataFrames that can be written to the SQLite database.
+            The atom_bag columns needs to be serialized before the export.
 
             Returns:
-                pandas.DataFrame
+                (pandas.DataFrame, pandas.DataFrame)
         """
-        df = self._data.copy()
+        compound_df = self._data.copy()
 
-        df['cross_references'] = \
-            df.index.map(self._inchi_key_to_compound_ids.get)
-        df['cross_references'] = df['cross_references'].apply(
-            ';'.join)
+        print(self._inchi_key_to_compound_ids)
+        compound_df['cross_references'] = \
+            compound_df.index.map(self._inchi_key_to_compound_ids.get)
+        compound_df['cross_references'] = \
+            compound_df['cross_references'].apply(';'.join)
 
-        for col in self.SERIALIZE_COLUMNS:
-            df[col] = df[col].apply(json.dumps)
+        compound_df['atom_bag'] = compound_df['atom_bag'].apply(json.dumps)
 
-        return df
+        specie_df = pd.DataFrame.from_dict(
+            [s.to_dict()
+             for species in self._inchi_key_to_species.values()
+             for s in species])
+
+        return compound_df, specie_df
 
     def from_data_frame(self, df):
         """
-            Reads all the cached data from a DataFrame
-
-            Arguments:
-                df - a DataFrame created earlier by to_data_frame()
+            Legacy code, helping in the transition to several SQL tables
         """
+        # read the compound DataFrame and adjust the columns that are not
+        # straighforward
         self._data = df.copy()
-
-        for col in self.SERIALIZE_COLUMNS:
-            self._data[col] = self._data[col].apply(json.loads)
-
-        self._read_cross_refs(df)
-        self._data.drop('cross_references', axis=1, inplace=True)
-        self._data['major_ms'] = self._data['major_ms'].apply(int)
+        self._data.set_index('inchi_key', inplace=True, drop=True)
+        self._data['atom_bag'] = self._data['atom_bag'].apply(json.loads)
+        self._data['charges'] = self._data['charges'].apply(json.loads)
+        self._data['number_of_protons'] = self._data['number_of_protons'].apply(json.loads)
+        self._data['p_kas'] = self._data['p_kas'].apply(json.loads)
         self._data['inchi'].fillna('', inplace=True)
         self._data['smiles'].fillna('', inplace=True)
+
+        self._read_cross_refs(self._data)
+        self._data.drop('cross_references', axis=1, inplace=True)
+
+        for inchi_key, row in self._data.iterrows():
+            self._inchi_key_to_species[inchi_key] = \
+                MicroSpecie.from_p_kas(inchi_key, int(row.major_ms),
+                                       row.charges,
+                                       row.number_of_protons,
+                                       row.p_kas)
+        self._data.drop(['charges', 'number_of_protons', 'p_kas', 'major_ms'],
+                        axis=1, inplace=True)
+
+    def from_data_frames(self, compound_df, specie_df):
+        """
+            Reads all the cached data from DataFrames
+
+            Arguments:
+                compound_df - a compound DataFrame created by to_data_frames()
+                specie_df -  a specie DataFrame created by to_data_frames()
+        """
+        # read the compound DataFrame and adjust the columns that are not
+        # straighforward
+        self._data = compound_df.copy()
+        self._data.set_index('inchi_key', inplace=True, drop=True)
+        self._data['atom_bag'] = self._data['atom_bag'].apply(json.loads)
+        self._data['inchi'].fillna('', inplace=True)
+        self._data['smiles'].fillna('', inplace=True)
+
+        self._read_cross_refs(self._data)
+        self._data.drop('cross_references', axis=1, inplace=True)
+
+        # read the microspecie DataFrame into a dictionary
+        for inchi_key, group_df in specie_df.groupby('inchi_key'):
+            species = []
+            for _, row in group_df.sort_values('charge').iterrows():
+                ms = MicroSpecie(inchi_key, row.charge, row.number_of_protons,
+                                 row.ddG_over_T, bool(row.is_major))
+                species.append(ms)
+            self._inchi_key_to_species[inchi_key] = species
+
+        for inchi_key in self._data.index:
+            if inchi_key not in self._inchi_key_to_species:
+                self._inchi_key_to_species[inchi_key] = []
+
+#        for inchi_key, row in self._data.iterrows():
+#            self._inchi_key_to_species[inchi_key] = \
+#                MicroSpecie.from_p_kas(inchi_key, int(row.major_ms),
+#                                       row.charges,
+#                                       row.number_of_protons,
+#                                       row.p_kas)
 
     def exists(self, compound_id):
         return ((compound_id in self._compound_id_to_inchi_key) or
@@ -199,9 +291,9 @@ class CompoundCache(object):
             cpd = self.compound_dict[inchi_key]
         else:
             data = self._data.loc[inchi_key, :]
+            species = self._inchi_key_to_species[inchi_key]
             cpd = Compound(
-                inchi_key, data.inchi, data.atom_bag, data.p_kas, data.smiles,
-                int(data.major_ms), data.number_of_protons, data.charges)
+                inchi_key, data.inchi, data.atom_bag, species, data.smiles)
             self.compound_dict[inchi_key] = cpd
 
         return cpd
@@ -213,6 +305,7 @@ class CompoundCache(object):
         self._inchi_key_to_compound_ids[cpd.inchi_key].add(cpd.compound_id)
         self._compound_id_to_inchi_key[cpd.compound_id] = cpd.inchi_key
         self.compound_dict[cpd.inchi_key] = cpd
+        self._inchi_key_to_species[cpd.inchi_key] = cpd.species
         self._data.loc[cpd.inchi_key, :] = [
             cpd.inchi, cpd.name, cpd.atom_bag, cpd.p_kas, cpd.smiles,
             int(cpd.major_microspecies), cpd.number_of_protons, cpd.charges]

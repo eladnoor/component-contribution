@@ -87,29 +87,91 @@ with resource_stream('component_contribution',
     COMPOUND_ADDITIONS = pd.read_csv(fp).set_index('cid')
 
 
+class MicroSpecie(object):
+    """
+        A class for storing microspecie data (i.e. data about a single
+        protonation state of a single compound)
+
+        ddG_over_T is equal to the sum of pKa values (between this MS and
+        the major MS, times Rlog10). If we multiply this by T, we will get
+        the relative ddG between this MS and the major MS, in kJ/mol.
+    """
+    Rlog10 = R * np.log(10)
+
+    def __init__(self, inchi_key, charge, number_of_protons,
+                 ddG_over_T, is_major):
+        assert type(inchi_key) == str
+        assert type(charge) in [int, np.int64]
+        assert type(number_of_protons) in [int, np.int64]
+        #assert type(ddG_over_T) == float
+        assert type(is_major) == bool
+
+        self.inchi_key = inchi_key
+        self.charge = charge
+        self.number_of_protons = number_of_protons
+        self.ddG_over_T = ddG_over_T
+        self.is_major = is_major
+
+    def transform(self, p_h, ionic_strength, temperature):
+        """
+            Use the Legendre transform to convert the ddG_over_T to the
+            difference in the transformed energies of this MS and the
+            major MS
+        """
+        DH = debye_huckel(ionic_strength, temperature)
+        return (self.ddG_over_T * temperature +
+                self.number_of_protons * temperature * self.Rlog10 * p_h +
+                self.number_of_protons * DH -
+                self.charge**2 * DH)
+
+    @classmethod
+    def from_p_kas(cls, inchi_key, major_ms, charges, number_of_protons,
+                   p_kas):
+        species = []
+        for i, (z, nH) in enumerate(zip(charges, number_of_protons)):
+            if i == major_ms:
+                ms = cls(inchi_key, z, nH, 0.0, True)
+            elif i < major_ms:
+                ms = cls(inchi_key, z, nH,
+                         sum(p_kas[i:major_ms]) * MicroSpecie.Rlog10,
+                         False)
+            elif i > major_ms:
+                ms = cls(inchi_key, z, nH,
+                         -sum(p_kas[major_ms:i]) * MicroSpecie.Rlog10,
+                         False)
+            else:
+                raise Exception('Internal error')
+
+            species.append(ms)
+        return species
+
+    def to_dict(self):
+        return {'inchi_key': self.inchi_key,
+                'charge': self.charge,
+                'number_of_protons': self.number_of_protons,
+                'ddG_over_T': self.ddG_over_T,
+                'is_major': self.is_major}
+
+    @classmethod
+    def from_dict(cls, d):
+        return cls(d['inchi_key'], d['charge'], d['number_of_protons'],
+                   d['ddG_over_T'], d['is_major'])
+
+
 class Compound(object):
 
-    def __init__(self, inchi_key, inchi, atom_bag, p_kas, smiles,
-                 major_microspecies, number_of_protons, charges,
+    def __init__(self, inchi_key, inchi, atom_bag, species, smiles,
                  compound_id=None):
         assert type(atom_bag) in [dict, defaultdict]
-        assert type(p_kas) == list
-        if not type(major_microspecies) in [int, np.int64]:
-            raise AssertionError('major_ms is not an integer, but a %s' %
-                                 type(major_microspecies))
-        assert type(number_of_protons) == list
-        assert type(charges) == list
+        assert type(species) == list
 
         self.inchi_key = inchi_key
         self.compound_id = compound_id
         self.name = compound_id
         self.inchi = inchi
         self.atom_bag = atom_bag
-        self.p_kas = p_kas
+        self.species = species
         self.smiles = smiles
-        self.major_microspecies = major_microspecies
-        self.number_of_protons = number_of_protons
-        self.charges = charges
 
     @classmethod
     def get(cls, compound_id, compute_pkas=True):
@@ -141,181 +203,65 @@ class Compound(object):
             # or formula. we thus use the compound_id instead of the InChIKey
             # TODO: find a way to map these compounds between different databases
 
-            return cls(inchi_key=compound_id, inchi='', atom_bag={}, p_kas=[],
-                       smiles=None, major_microspecies=0,
-                       number_of_protons=[], charges=[],
-                       compound_id=compound_id)
+            return cls(inchi_key=compound_id, inchi='', atom_bag={},
+                       species=[], smiles=None, compound_id=compound_id)
 
         if compound_id in COMPOUND_EXCEPTIONS:
-            return cls(inchi_key, inchi, *COMPOUND_EXCEPTIONS[compound_id],
-                       compound_id=compound_id)
-
-        if compute_pkas:
-            p_kas, major_ms_smiles = chemaxon.get_dissociation_constants(inchi)
-            molecule = pybel.readstring("smi", major_ms_smiles)
-            p_kas = sorted([pka for pka in p_kas if MIN_PH < pka < MAX_PH],
-                           reverse=True)
+            atom_bag, p_kas, major_ms_smiles, major_microspecies, \
+                charges, number_of_protons = COMPOUND_EXCEPTIONS[compound_id]
         else:
-            p_kas = []
-            molecule.addh()
-            major_ms_smiles = molecule.write('smi')
+            if compute_pkas:
+                p_kas, major_ms_smiles = \
+                    chemaxon.get_dissociation_constants(inchi)
+                molecule = pybel.readstring("smi", major_ms_smiles)
+                p_kas = sorted([pka for pka in p_kas if MIN_PH < pka < MAX_PH],
+                               reverse=True)
+            else:
+                p_kas = []
+                molecule.addh()
+                major_ms_smiles = molecule.write('smi')
 
-        atom_bag, major_ms_charge = atom_bag_and_charge(molecule)
-        _number_of_protons = atom_bag.get('H', 0)
+            atom_bag, major_ms_charge = atom_bag_and_charge(molecule)
+            _number_of_protons = atom_bag.get('H', 0)
 
-        n_species = len(p_kas) + 1
+            n_species = len(p_kas) + 1
 
-        if not p_kas:
-            major_microspecies = 0
-        else:
-            major_microspecies = len([1 for pka in p_kas if pka > 7])
+            if not p_kas:
+                major_microspecies = 0
+            else:
+                major_microspecies = len([1 for pka in p_kas if pka > 7])
 
-        number_of_protons = []
-        charges = []
+            number_of_protons = []
+            charges = []
 
-        for i in range(n_species):
-            charges.append((i - major_microspecies) + major_ms_charge)
-            number_of_protons.append(
-                (i - major_microspecies) + _number_of_protons)
+            for i in range(n_species):
+                charges.append((i - major_microspecies) + major_ms_charge)
+                number_of_protons.append(
+                    (i - major_microspecies) + _number_of_protons)
 
-        return cls(inchi_key, inchi, atom_bag, p_kas, major_ms_smiles,
-                   major_microspecies, number_of_protons, charges,
+        species = MicroSpecie.from_p_kas(inchi_key, major_microspecies,
+                                         charges, number_of_protons,
+                                         p_kas)
+
+        return cls(inchi_key, inchi, atom_bag, species, major_ms_smiles,
                    compound_id=compound_id)
 
-    def to_json_dict(self):
-        return {'inchi_key': self.inchi_key,
-                'inchi': self.inchi,
-                'atom_bag': self.atom_bag,
-                'p_kas': self.p_kas,
-                'smiles': self.smiles,
-                'major_microspecies': self.major_microspecies,
-                'number_of_protons': self.number_of_protons,
-                'charges': self.charges,
-                'compound_id': self.compound_id}
-
-    @classmethod
-    def from_json_dict(cls, data):
-        return cls(
-            data['inchi_key'], data['inchi'], data['atom_bag'], data['p_kas'],
-            data['smiles'], data['major_microspecies'],
-            data['number_of_protons'], data['charges'], data['compound_id'])
-
     def __str__(self):
-        return "%s\nInChI: %s\npKas: %s\nmajor MS: nH = %d, charge = %d" % \
-            (self.compound_id, self.inchi, ', '.join(
-                ['%.2f' % p for p in self.p_kas]),
+        return "%s\nInChI: %s\nmajor MS: nH = %d, charge = %d" % \
+            (self.compound_id, self.inchi,
              self.number_of_protons[self.major_microspecies],
              self.charges[self.major_microspecies])
 
-    def _dG0_prime_vector(self, p_h, ionic_strength, temperature):
-        """
-            Calculates the difference in kJ/mol between dG'0 and
-            the dG0 of the MS with the least hydrogens (dG0[0])
+    def ddG_primes(self, p_h, ionic_strength, temperature):
+        RT = R * temperature
+        return [-ms.transform(p_h, ionic_strength, temperature) / RT
+                for ms in self.species]
 
-            Returns:
-                dG'0 - dG0[0]
-        """
-        if not self.inchi:
-            return 0
-        elif not self.p_kas:
-            dG0s = np.zeros((1, 1))
-        else:
-            dG0s = -np.cumsum([0] + self.p_kas) * R * temperature * np.log(10)
-            dG0s = dG0s
-        DH = debye_huckel(ionic_strength, temperature)
-
-        # dG0' = dG0 + nH * (R T ln(10) pH + DH) - charge^2 * DH
-        pseudoisomers = np.vstack([dG0s, np.array(self.number_of_protons),
-                                   np.array(self.charges)]).T
-        dG0_prime_vector = pseudoisomers[:, 0] + \
-            pseudoisomers[:, 1] * (R * temperature * np.log(10) * p_h + DH) - \
-            pseudoisomers[:, 2]**2 * DH
-        return dG0_prime_vector
-
-    def _transform(self, p_h, ionic_strength, temperature):
+    def transform(self, p_h, ionic_strength, temperature):
+        if self.species == []:
+            return 0.0
         return -R * temperature * logsumexp(
-            self._dG0_prime_vector(p_h, ionic_strength, temperature) /
-            (-R * temperature))
-
-    def _ddG(self, i_from, i_to, temperature):
-        """
-            Calculates the difference in kJ/mol between two MSs.
-
-            Returns:
-                dG0[i_to] - dG0[i_from]
-        """
-        if not (0 <= i_from <= len(self.p_kas)):
-            raise ValueError('MS index is out of bounds: 0 <= %d <= %d' % (
-                i_from, len(self.p_kas)))
-
-        if not (0 <= i_to <= len(self.p_kas)):
-            raise ValueError('MS index is out of bounds: 0 <= %d <= %d' % (
-                i_to, len(self.p_kas)))
-
-        if i_from == i_to:
-            return 0
-        elif i_from < i_to:
-            return sum(self.p_kas[i_from:i_to]) * R * temperature * np.log(10)
-        else:
-            return -sum(self.p_kas[i_to:i_from]) * R * temperature * np.log(10)
-
-    def transform(self, index, p_h, ionic_strength, temperature):
-        """
-        Return the difference in kJ/mol between dG'0 and the dG0.
-
-        For a given microspecies at a given index the difference is given by:
-                (dG'0 - dG0[0]) + (dG0[0] - dG0[i])  = dG'0 - dG0[i]
-
-        Parameters
-        ----------
-        index : int
-            The index of of the microspecies.
-        p_h : float
-            The pH value.
-        ionic_strength : float
-            The ionic strength of the solution.
-        temperature : float
-            Temperature in Kelvins.
-
-        Returns
-        -------
-        float
-            The difference in kJ/mol.
-
-        """
-        return (self._transform(p_h, ionic_strength, temperature) +
-                self._ddG(0, index, temperature))
-
-    def transform_p_h_7(self, p_h, ionic_strength, temperature):
-        """
-        Parameters
-        ----------
-        p_h : float
-            The pH value.
-        ionic_strength : float
-            The ionic strength of the solution.
-        temperature : float
-            Temperature in Kelvins.
-
-        Returns
-        -------
-        transform : float
-            The transform for the major microspecies at pH 7
-        """
-        return self.transform(
-            self.major_microspecies, p_h, ionic_strength, temperature)
-
-    def transform_neutral(self, p_h, ionic_strength, temperature):
-        """
-            Returns the transform for the MS with no charge
-        """
-        try:
-            return self.transform(
-                self.charges.index(0), p_h, ionic_strength, temperature)
-        except ValueError:
-            raise ValueError(
-                "The compound (%s) does not have a microspecies with 0 "
-                "charge." % (self.compound_id,))
+                self.ddG_primes(p_h, ionic_strength, temperature))
 
     def get_species(self, major_ms_dG0_f, temperature):
         """
@@ -324,11 +270,11 @@ class Compound(object):
         of all other species, and returns a list of dictionaries with
         all the relevant data: dG0_f, nH, nMg, z (charge)
         """
-        for i, (num_protons, charge) in enumerate(zip(
-                self.number_of_protons, self.charges)):
-            dG0_f = major_ms_dG0_f + self._ddG(
-                i, self.major_microspecies, temperature)
-            d = {'phase': 'aqueous', 'dG0_f': np.round(dG0_f, 2),
-                 'number_of_protons': num_protons, 'charge': charge,
+        for s in self.species:
+            dG0_f = major_ms_dG0_f + s.ddG_over_T * temperature
+            d = {'phase': 'aqueous',
+                 'dG0_f': np.round(dG0_f, 2),
+                 'number_of_protons': s.number_of_protons,
+                 'charge': s.charge,
                  'number_of_magnesium': 0}
             yield d

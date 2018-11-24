@@ -205,8 +205,7 @@ class Reaction(object):
             if compound_id in ['C00080', 'KEGG:C00080']:
                 continue  # H+ is ignored in the Legendre transform
             comp = ccache.get_compound(compound_id)
-            ddG0_forward += coeff * comp.transform_p_h_7(pH,
-                                                         ionic_strength, T)
+            ddG0_forward += coeff * comp.transform(pH, ionic_strength, T)
         return ddG0_forward
 
 

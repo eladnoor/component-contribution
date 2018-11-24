@@ -41,13 +41,19 @@ def atp_comp():
 
 
 def test_atp(atp_comp):
-    assert set(atp_comp.p_kas) == {12.6, 7.42, 4.93, 3.29, 1.55, 0.9}
-    assert atp_comp.major_microspecies == 2
+    expected_transforms = [(5.0, 0.0, 300.0, 371.6),
+                           (7.0, 0.0, 300.0, 521.6),
+                           (9.0, 0.0, 300.0, 662.5),
+                           (7.0, 0.5, 300.0, 520.6)]
+    for p_h, ionic_strength, temperature, expected_t in expected_transforms:
+        assert atp_comp.transform(p_h, ionic_strength, temperature) == \
+            pytest.approx(expected_t, rel=1e-3)
 
 
 def test_transform(atp_comp):
     temperature = 300.0
     expected_delta_delta_g = [0, 72.3, 114.9, 143.2, 162.1, 171.0, 176.2]
-    assert len(atp_comp.number_of_protons) == len(expected_delta_delta_g)
-    delta_delta_g = [atp_comp._ddG(0, i, temperature) for i in range(7)]
+    expected_delta_delta_g = [114.9 - x for x in expected_delta_delta_g]
+    assert len(atp_comp.species) == len(expected_delta_delta_g)
+    delta_delta_g = [ms.ddG_over_T * temperature for ms in atp_comp.species]
     assert delta_delta_g == pytest.approx(expected_delta_delta_g, rel=1e-3)
