@@ -60,9 +60,13 @@ class CompoundCache(object):
     be loaded in future python sessions.
     """
 
-    COLUMNS = [
-        "inchi", "name", "atom_bag", "p_kas", "smiles", "major_ms",
-        "number_of_protons", "charges"]
+    COMPOUND_COLUMNS = ["inchi", "name", "smiles"]
+
+    TABLE_NAMES = ['compounds',
+                   'microspecies',
+                   'atom_bags',
+                   #'cross_references',
+                   ]
 
     def __init__(self, cache_file_name=DEFAULT_CACHE_FNAME):
         # connect to the SQL database
@@ -85,22 +89,20 @@ class CompoundCache(object):
         self.requires_update = False
 
         if pd_sql.has_table('compounds', self.con):
-            compound_df = pd.read_sql('SELECT * FROM compounds', self.con)
-            specie_df = pd.read_sql('SELECT * FROM microspecies', self.con)
-            self.from_data_frames(compound_df, specie_df)
+            df_dict = {name: pd.read_sql('SELECT * FROM %s' % name, self.con)
+                       for name in self.TABLE_NAMES}
+            self.from_data_frames(df_dict)
         else:
-            self._data = pd.DataFrame(columns=self.COLUMNS)
+            self._data = pd.DataFrame(columns=self.COMPOUND_COLUMNS)
             self._data.index.name = 'inchi_key'
             self.requires_update = True
             self.dump()
 
     def dump(self, cache_file_name=DEFAULT_CACHE_FNAME):
         if self.requires_update:
-            compound_df, specie_df = self.to_data_frames()
-            pd_sql.to_sql(compound_df, 'compounds', self.con,
-                          if_exists='replace')
-            pd_sql.to_sql(specie_df, 'microspecies', self.con,
-                          if_exists='replace')
+            df_dict = self.to_data_frames()
+            for name, df in df_dict.items():
+                pd_sql.to_sql(df, name, self.con, if_exists='replace')
             self.requires_update = False
             self.con.commit()
 
@@ -115,30 +117,42 @@ class CompoundCache(object):
 
     def to_data_frames(self):
         """
-            Creates DataFrames that can be written to the SQLite database.
-            The atom_bag columns needs to be serialized before the export.
+            Creates DataFrames for writing to an SQL database.
 
             Returns:
-                (pandas.DataFrame, pandas.DataFrame)
+                dict - The keys are strings with table names,
+                       and the values are pandas.DataFrames that can
+                       be written directly to SQL.
         """
         compound_df = self._data.copy()
 
-        print(self._inchi_key_to_compound_ids)
+        atom_bag_df = pd.DataFrame.from_dict(self._inchi_key_to_atom_bag,
+                                             orient='index').fillna(0.0)
+        atom_bag_df.index.name = 'inchi_key'
+
+        cross_refs = [{'inchi_key': k, 'compound_id': cid}
+                      for k, cids in self._inchi_key_to_compound_ids.items()
+                      for cid in cids]
+        cross_ref_df = pd.DataFrame.from_dict(data=cross_refs)
+
         compound_df['cross_references'] = \
             compound_df.index.map(self._inchi_key_to_compound_ids.get)
         compound_df['cross_references'] = \
             compound_df['cross_references'].apply(';'.join)
-
-        compound_df['atom_bag'] = compound_df['atom_bag'].apply(json.dumps)
 
         specie_df = pd.DataFrame.from_dict(
             [s.to_dict()
              for species in self._inchi_key_to_species.values()
              for s in species])
 
-        return compound_df, specie_df
+        df_dict = {'compounds': compound_df,
+                   'microspecies': specie_df,
+                   'atom_bags': atom_bag_df,
+                   'cross_references': cross_ref_df}
 
-    def from_data_frames(self, compound_df, specie_df):
+        return df_dict
+
+    def from_data_frames(self, df_dict):
         """
             Reads all the cached data from DataFrames
 
@@ -148,24 +162,32 @@ class CompoundCache(object):
         """
         # read the compound DataFrame and adjust the columns that are not
         # straighforward
-        self._data = compound_df.copy()
+        self._data = df_dict['compounds'].copy()
         self._data.set_index('inchi_key', inplace=True, drop=True)
-        self._data['atom_bag'] = self._data['atom_bag'].apply(json.loads)
         self._data['inchi'].fillna('', inplace=True)
         self._data['smiles'].fillna('', inplace=True)
 
         self._read_cross_refs(self._data)
         self._data.drop('cross_references', axis=1, inplace=True)
 
+        df_dict['atom_bags'].set_index('inchi_key', inplace=True, drop=True)
+        self._inchi_key_to_atom_bag = df_dict['atom_bags'].T.to_dict()
+
+        # add empty dictionary for inchis that don't have atom bags
+        for inchi_key in self._data.index:
+            if inchi_key not in self._inchi_key_to_atom_bag:
+                self._inchi_key_to_atom_bag[inchi_key] = dict()
+
         # read the microspecie DataFrame into a dictionary
-        for inchi_key, group_df in specie_df.groupby('inchi_key'):
+        for inchi_key, gr_df in df_dict['microspecies'].groupby('inchi_key'):
             species = []
-            for _, row in group_df.sort_values('charge').iterrows():
+            for _, row in gr_df.sort_values('charge').iterrows():
                 ms = MicroSpecie(inchi_key, row.charge, row.number_of_protons,
                                  row.ddG_over_T, bool(row.is_major))
                 species.append(ms)
             self._inchi_key_to_species[inchi_key] = species
 
+        # add empty list for inchis that don't have any species
         for inchi_key in self._data.index:
             if inchi_key not in self._inchi_key_to_species:
                 self._inchi_key_to_species[inchi_key] = []
@@ -223,8 +245,9 @@ class CompoundCache(object):
         else:
             data = self._data.loc[inchi_key, :]
             species = self._inchi_key_to_species[inchi_key]
+            atom_bag = self._inchi_key_to_atom_bag[inchi_key]
             cpd = Compound(
-                inchi_key, data.inchi, data.atom_bag, species, data.smiles)
+                inchi_key, data.inchi, atom_bag, species, data.smiles)
             self.compound_dict[inchi_key] = cpd
 
         return cpd
@@ -237,9 +260,8 @@ class CompoundCache(object):
         self._compound_id_to_inchi_key[cpd.compound_id] = cpd.inchi_key
         self.compound_dict[cpd.inchi_key] = cpd
         self._inchi_key_to_species[cpd.inchi_key] = cpd.species
-        self._data.loc[cpd.inchi_key, :] = [
-            cpd.inchi, cpd.name, cpd.atom_bag, cpd.p_kas, cpd.smiles,
-            int(cpd.major_microspecies), cpd.number_of_protons, cpd.charges]
+        self._inchi_key_to_atom_bag[cpd.inchi_key] = cpd.atom_bag
+        self._data.loc[cpd.inchi_key, :] = [cpd.inchi, cpd.name, cpd.smiles]
         self.requires_update = True
 
     def get_element_data_frame(self, compound_ids):
@@ -278,6 +300,7 @@ if __name__ == '__main__':
     # already invokes queries for all the relevant compounds (since their
     # structure is needed in order to balance the reactions and the pKas
     # are needed in order to perform the reverse Legendre transform).
-    td = FullTrainingData()
+    #td = FullTrainingData()
 
+    ccache.requires_update = True
     ccache.dump()
