@@ -160,18 +160,17 @@ class MicroSpecie(object):
 
 class Compound(object):
 
-    def __init__(self, inchi_key, inchi, atom_bag, species, smiles,
+    def __init__(self, inchi_key, inchi, smiles, atom_bag, species,
                  compound_id=None):
         assert type(atom_bag) in [dict, defaultdict]
         assert type(species) == list
 
         self.inchi_key = inchi_key
-        self.compound_id = compound_id
-        self.name = compound_id
         self.inchi = inchi
+        self.smiles = smiles
         self.atom_bag = atom_bag
         self.species = species
-        self.smiles = smiles
+        self.compound_id = compound_id
 
     @classmethod
     def get(cls, compound_id, compute_pkas=True):
