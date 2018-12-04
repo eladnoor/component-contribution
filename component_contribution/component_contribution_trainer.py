@@ -7,11 +7,9 @@ import numpy as np
 import pandas as pd
 from pkg_resources import resource_filename
 
-from . import Reaction, inchi2gv
-from .compound_cache import ccache
+from . import Reaction, inchi2gv, ccache, default_T
 from .linalg import LINALG
 from .molecule import Molecule, OpenBabelError
-from .thermodynamic_constants import default_T
 from .training_data import FullTrainingData
 
 

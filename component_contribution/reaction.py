@@ -3,8 +3,8 @@ import re
 
 import numpy as np
 
-from .compound_cache import ccache
-from .exceptions import ParseException
+from . import ccache
+from . import ParseException
 
 
 class Reaction(object):

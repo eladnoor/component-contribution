@@ -3,7 +3,7 @@ from collections import defaultdict
 
 import openbabel
 
-from component_contribution import chemaxon
+from . import get_formula_and_charge
 
 
 class OpenBabelError(Exception):
@@ -255,7 +255,7 @@ class Molecule(object):
 
     def GetAtomBagAndCharge(self):
         inchi = self.ToInChI()
-        formula, major_ms_charge = chemaxon.get_formula_and_charge(inchi)
+        formula, major_ms_charge = get_formula_and_charge(inchi)
         atom_bag = Molecule._FormulaToAtomBag(formula, major_ms_charge)
         return atom_bag, major_ms_charge
 

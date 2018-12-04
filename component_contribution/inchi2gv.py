@@ -9,7 +9,7 @@ from optparse import OptionParser
 import numpy as np
 
 from .molecule import Molecule, OpenBabelError
-from .thermodynamic_constants import R, default_T
+from . import R, default_T
 
 
 GROUP_CSV = """"NAME","PROTONS","CHARGE","MAGNESIUMS","SMARTS","FOCAL_ATOMS","REMARK","SKIP"

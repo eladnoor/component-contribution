@@ -27,11 +27,12 @@ from ._version import get_versions
 __version__ = get_versions()['version']
 del get_versions
 
-from component_contribution.compound_cache import ccache
-from component_contribution.thermodynamic_constants import R, debye_huckel
-from component_contribution.compound import Compound
+from equilibrator_cache.compound_cache import ccache
+from equilibrator_cache.thermodynamic_constants import F, R, debye_huckel, default_T
+from equilibrator_cache.compound import Compound
+from equilibrator_cache.chemaxon import ChemAxonNotFoundError, get_formula_and_charge
+from equilibrator_cache.exceptions import ParseException
 from component_contribution.reaction import Reaction
 from component_contribution.inchi2gv import GroupDecompositionError
-from component_contribution.chemaxon import ChemAxonNotFoundError
 from component_contribution.component_contribution_trainer import ComponentContribution
 from component_contribution.training_data import FullTrainingData

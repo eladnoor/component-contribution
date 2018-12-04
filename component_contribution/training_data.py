@@ -31,9 +31,7 @@ import pandas as pd
 from pkg_resources import resource_stream
 from scipy.io import savemat
 
-from . import Reaction
-from .compound_cache import ccache
-from .thermodynamic_constants import F, R
+from . import Reaction, ccache, F, R
 
 
 logger = logging.getLogger(__name__)
@@ -83,27 +81,26 @@ class TrainingData(object):
             use the chemical formulas from the InChIs to verify that each and
             every reaction is balanced
         """
-
         element_df = ccache.get_element_data_frame(self.cids)
 
         # find all reactions that contain only compounds that have formulae
         cpd_with_formulae = (element_df != 0).any(axis=1)
-        logging.info('# compounds without a formula: %d'
-                     % sum(~cpd_with_formulae))
+        logger.info('# compounds without a formula: %d'
+                    % sum(~cpd_with_formulae))
 
         rxn_with_formulae = \
             (self.S.loc[~cpd_with_formulae, :] == 0).all(axis=0)
-        logging.info('# reactions with full formulae: %d'
-                     % sum(rxn_with_formulae))
+        logger.info('# reactions with full formulae: %d'
+                    % sum(rxn_with_formulae))
 
         # recalculate final conservation matrix
         to_balance = self.reaction_df['balance'].copy()
-        logging.info('# reactions we need to check for balacne: %d'
-                     % to_balance.sum())
+        logger.info('# reactions we need to check for balacne: %d'
+                    % to_balance.sum())
 
         to_balance = to_balance & rxn_with_formulae
-        logging.info('# -> of which also have a formulae: %d'
-                     % to_balance.sum())
+        logger.info('# -> of which also have a formulae: %d'
+                    % to_balance.sum())
 
         # balance O atoms using water
         self.S.loc['KEGG:C00001', to_balance] -= \
@@ -115,18 +112,18 @@ class TrainingData(object):
 
         imbalance_matrix = element_df.T @ self.S
         to_remove = to_balance & imbalance_matrix.any(axis=0)
-        logging.info('# --> of which are not balanced and should '
-                     'be removed: %d' % to_remove.sum())
+        logger.info('# --> of which are not balanced and should '
+                    'be removed: %d' % to_remove.sum())
 
         if to_remove.sum() > 0:
             for i, row in self.S.loc[:, to_remove].T.iterrows():
                 sprs = {cid: coeff for cid, coeff in row.items() if coeff != 0}
                 reaction = Reaction(sprs)
-                logging.warning('unbalanced reaction #%s: %s' %
-                                (i, reaction.write_formula()))
+                logger.warning('unbalanced reaction #%s: %s' %
+                               (i, reaction.write_formula()))
                 for j, v in imbalance_matrix[i].items():
-                    logging.warning('there are %d more %s atoms on the '
-                                    'right-hand side' % (v, j))
+                    logger.warning('there are %d more %s atoms on the '
+                                   'right-hand side' % (v, j))
             self.S = self.S.loc[:, ~to_remove]
             self.S.columns = range(self.S.shape[1])
 
@@ -137,10 +134,10 @@ class TrainingData(object):
         # as a controlled parameter
         self.S.drop('KEGG:C00080', axis=0, inplace=True)
 
-        logging.info('After removing %d unbalanced reactions, '
-                     'the stoichiometric matrix contains: '
-                     '%d compounds and %d reactions' %
-                     (sum(to_remove), self.S.shape[0], self.S.shape[1]))
+        logger.info('After removing %d unbalanced reactions, '
+                    'the stoichiometric matrix contains: '
+                    '%d compounds and %d reactions' %
+                    (sum(to_remove), self.S.shape[0], self.S.shape[1]))
 
     def iterreactions(self):
         for i, row in self.S.T.iterrows():
@@ -209,7 +206,7 @@ class FullTrainingData(TrainingData):
 
     def __init__(self):
         super().__init__()
-        logging.info('Reading the training data files')
+        logger.info('Reading the training data files')
         self.reaction_df, cids_that_dont_decompose = \
             self.get_all_thermo_params()
 
@@ -220,12 +217,12 @@ class FullTrainingData(TrainingData):
         self.cids_that_dont_decompose = list(map(lambda s: 'KEGG:' + s,
                                                  cids_that_dont_decompose))
 
-        logging.info('Balancing reactions in the training '
-                     'dataset with H2O and H+')
+        logger.info('Balancing reactions in the training '
+                    'dataset with H2O and H+')
         self.balance_reactions()
 
-        logging.info('Applying the reverse Legendre transform on all '
-                     'dG0_prime values')
+        logger.info('Applying the reverse Legendre transform on all '
+                    'dG0_prime values')
         self.reverse_transform()
 
     @staticmethod
@@ -276,8 +273,8 @@ class FullTrainingData(TrainingData):
                       "REACTION IN KEGG IDS"],
                      axis=1, inplace=True)
 
-        logging.debug('Successfully added %d reactions from TECRDB' %
-                      tecr_df.shape[0])
+        logger.debug('Successfully added %d reactions from TECRDB' %
+                     tecr_df.shape[0])
         return tecr_df
 
     @staticmethod
@@ -320,8 +317,8 @@ class FullTrainingData(TrainingData):
         formation_df.drop(['name', 'cid', 'remark', 'decompose'],
                           axis=1, inplace=True)
 
-        logging.debug('Successfully added %d formation energies' %
-                      formation_df.shape[0])
+        logger.debug('Successfully added %d formation energies' %
+                     formation_df.shape[0])
         return formation_df, cids_that_dont_decompose
 
     @staticmethod
@@ -361,8 +358,8 @@ class FullTrainingData(TrainingData):
         redox_df.drop(['name', 'CID_ox', 'CID_red', 'charge_ox', 'charge_red',
                        'nH_ox', 'nH_red', "E'0"], axis=1, inplace=True)
 
-        logging.debug('Successfully added %d redox potentials' %
-                      redox_df.shape[0])
+        logger.debug('Successfully added %d redox potentials' %
+                     redox_df.shape[0])
         return redox_df
 
     @staticmethod
@@ -392,6 +389,7 @@ class FullTrainingData(TrainingData):
 
 if __name__ == '__main__':
     logger.setLevel(logging.INFO)
+    logger.info('Welcome to the Training Data command line script')
     import argparse
     parser = argparse.ArgumentParser(description='Prepare all thermodynamic '
                                      'training data in a .mat file for '
