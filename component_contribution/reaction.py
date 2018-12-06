@@ -3,8 +3,7 @@ import re
 
 import numpy as np
 
-from . import ccache
-from . import ParseException
+from . import ParseException, ccache
 
 
 class Reaction(object):

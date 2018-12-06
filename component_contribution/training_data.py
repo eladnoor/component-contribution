@@ -31,7 +31,7 @@ import pandas as pd
 from pkg_resources import resource_stream
 from scipy.io import savemat
 
-from . import Reaction, ccache, F, R
+from . import F, R, Reaction, ccache
 
 
 logger = logging.getLogger(__name__)

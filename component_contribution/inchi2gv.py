@@ -8,8 +8,8 @@ from optparse import OptionParser
 
 import numpy as np
 
-from .molecule import Molecule, OpenBabelError
 from . import R, default_T
+from .molecule import Molecule, OpenBabelError
 
 
 GROUP_CSV = """"NAME","PROTONS","CHARGE","MAGNESIUMS","SMARTS","FOCAL_ATOMS","REMARK","SKIP"

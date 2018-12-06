@@ -34,4 +34,3 @@ from component_contribution import Reaction
 def test_formula_parsing(formula, is_balanced):
     rxn = Reaction.parse_formula(formula)
     assert rxn.is_balanced() == is_balanced
-    

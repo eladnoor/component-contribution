@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 from pkg_resources import resource_filename
 
-from . import Reaction, inchi2gv, ccache, default_T
+from . import Reaction, ccache, default_T, inchi2gv
 from .linalg import LINALG
 from .molecule import Molecule, OpenBabelError
 from .training_data import FullTrainingData
