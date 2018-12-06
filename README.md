@@ -1,5 +1,7 @@
 # Component Contribution
 
+[![Build Status](https://travis-ci.org/eladnoor/component-contribution.svg?branch=develop)](https://travis-ci.org/eladnoor/component-contribution)
+[![codecov](https://codecov.io/gh/eladnoor/component-contribution/branch/master/graph/badge.svg)](https://codecov.io/gh/eladnoor/component-contribution)
 [![Join the chat at https://gitter.im/equilibrator-devs/component-contribution](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/equilibrator-devs/component-contribution?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
 Standard reaction Gibbs energy estimation for biochemical reactions.  For more
