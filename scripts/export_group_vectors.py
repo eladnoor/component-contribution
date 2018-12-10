@@ -1,15 +1,19 @@
 # Script for generating the group decompositions of all KEGG compounds
 # in a Matlab-friendly format
 
-import sys
-sys.path.append('src')
-
 import argparse
 import gzip
 import json
+import sys
+
 import pandas as pd
+
 from component_contribution.inchi2gv import (
-    init_groups_data, InChIDecomposer, GroupDecompositionError)
+    GroupDecompositionError, InChIDecomposer, init_groups_data)
+
+
+sys.path.append('src')
+
 
 
 def MakeOpts():

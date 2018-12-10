@@ -4,10 +4,10 @@ import json
 import logging
 import sys
 from optparse import OptionParser
-from pkg_resources import resource_stream
 
 import numpy as np
 import pandas as pd
+from pkg_resources import resource_stream
 
 from . import R, default_T
 from .molecule import Molecule, OpenBabelError
